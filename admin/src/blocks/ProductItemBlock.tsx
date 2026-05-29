@@ -368,59 +368,73 @@ function AdditionalInfoTabs({
           variant="default"
           keepMounted={false}
         >
-          <Tabs.List>
-            {tabs.map((tab) => (
-              <Tabs.Tab
-                key={tab.id}
-                value={tab.id}
-                rightSection={
-                  <Group gap={2} wrap="nowrap">
-                    <ActionIcon
-                      size="xs"
-                      variant="subtle"
-                      onPointerDown={(e) => e.stopPropagation()}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        e.preventDefault();
-                        openRename(tab);
-                      }}
-                      aria-label="Preimenuj"
-                    >
-                      <Pencil size={12} />
-                    </ActionIcon>
-                    <ActionIcon
-                      size="xs"
-                      variant="subtle"
-                      color="red"
-                      onPointerDown={(e) => e.stopPropagation()}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        e.preventDefault();
-                        setDeleteId(tab.id);
-                      }}
-                      aria-label="Obriši"
-                    >
-                      <X size={12} />
-                    </ActionIcon>
-                  </Group>
-                }
-              >
-                {tab.title || "(bez naziva)"}
-              </Tabs.Tab>
-            ))}
-            {/* "+" sits next to the tabs but is rendered as a regular Button so it
-                isn't keyboard-navigable as a tab and never registers as active. */}
-            <Box ml={6} style={{ alignSelf: "center" }}>
-              <ActionIcon
-                size="sm"
-                variant="subtle"
-                onClick={() => setAddOpen(true)}
-                aria-label="Dodaj tab"
-              >
-                <Plus size={14} />
-              </ActionIcon>
-            </Box>
-          </Tabs.List>
+          {/* Tabs.List `grow` distributes width across the Tabs.Tab children
+              so every tab takes the same slice of the row; minWidth: 0 +
+              ellipsis on the label means long titles truncate instead of
+              wrapping the tab to a second line. The "+" Add button is
+              rendered outside Tabs.List (in the same flex row) so it isn't
+              part of the equal-width distribution. */}
+          <Group wrap="nowrap" gap={4} align="stretch">
+            <Tabs.List grow style={{ flex: 1, minWidth: 0 }}>
+              {tabs.map((tab) => (
+                <Tabs.Tab
+                  key={tab.id}
+                  value={tab.id}
+                  styles={{
+                    tab: { minWidth: 0 },
+                    tabLabel: {
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                      minWidth: 0,
+                    },
+                  }}
+                  rightSection={
+                    <Group gap={2} wrap="nowrap" style={{ flexShrink: 0 }}>
+                      <ActionIcon
+                        size="xs"
+                        variant="subtle"
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          e.preventDefault();
+                          openRename(tab);
+                        }}
+                        aria-label="Preimenuj"
+                      >
+                        <Pencil size={12} />
+                      </ActionIcon>
+                      <ActionIcon
+                        size="xs"
+                        variant="subtle"
+                        color="red"
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          e.preventDefault();
+                          setDeleteId(tab.id);
+                        }}
+                        aria-label="Obriši"
+                      >
+                        <X size={12} />
+                      </ActionIcon>
+                    </Group>
+                  }
+                >
+                  {tab.title || "(bez naziva)"}
+                </Tabs.Tab>
+              ))}
+            </Tabs.List>
+            <ActionIcon
+              size="lg"
+              variant="subtle"
+              onClick={() => setAddOpen(true)}
+              aria-label="Dodaj tab"
+              style={{ alignSelf: "center", flexShrink: 0 }}
+            >
+              <Plus size={16} />
+            </ActionIcon>
+          </Group>
 
           {tabs.map((tab) => (
             <Tabs.Panel key={tab.id} value={tab.id} pt="sm">

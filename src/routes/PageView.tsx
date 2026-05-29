@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router";
 import {
   Title,
@@ -10,6 +10,10 @@ import {
   SimpleGrid,
   Image,
   Accordion,
+  Group,
+  Select,
+  Stack,
+  Tabs,
 } from "@mantine/core";
 import { Link } from "react-router";
 import { getPageBySlug, type Page, type Block, type LinkPagesMap } from "@/lib/api";
@@ -265,6 +269,282 @@ function BlockRenderer({ block }: { block: Block }) {
   );
 }
 
+// ─── Product item view ────────────────────────────────────────────────────────
+
+interface ProductItemTab {
+  id: string;
+  title: string;
+  content: Record<string, unknown> | null;
+}
+
+interface KonstrukcijaRow {
+  id: string;
+  naziv: string;
+  cijena: string;
+}
+
+interface GrafikaRow {
+  id: string;
+  naziv: string;
+  /** keyed by konstrukcija row id */
+  cijene: Record<string, string>;
+}
+
+interface BazaRow {
+  id: string;
+  naziv: string;
+  cijena: string;
+}
+
+interface ProductItemBlockData {
+  altTitle?: string;
+  mainPhoto?: GalleryImage | null;
+  galleryImages?: GalleryImage[];
+  description?: string;
+  priceEur?: string;
+  additionalInfo?: { tabs?: ProductItemTab[] };
+  konfiguratorCijene?: {
+    konstrukcija?: KonstrukcijaRow[];
+    grafika?: GrafikaRow[];
+    baza?: BazaRow[];
+  };
+}
+
+/** Parse a free-text price string like "12,34" or "12.34" into a number.
+ *  Empty / invalid / non-positive → 0. */
+function parsePrice(v: unknown): number {
+  if (typeof v !== "string") return 0;
+  const s = v.replace(",", ".").trim();
+  if (!s) return 0;
+  const n = parseFloat(s);
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+const eurFmt = new Intl.NumberFormat("hr-HR", {
+  style: "currency",
+  currency: "EUR",
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
+function formatEur(n: number): string {
+  return eurFmt.format(n);
+}
+
+function PriceDisplay({ amount }: { amount: number }) {
+  return (
+    <Group gap={6} align="baseline">
+      <Text fw={700} size="xl">{formatEur(amount)}</Text>
+      <Text size="sm" c="dimmed">+ PDV</Text>
+    </Group>
+  );
+}
+
+function PriceConfigurator({
+  konstrukcija,
+  grafika,
+  baza,
+}: {
+  konstrukcija: KonstrukcijaRow[];
+  grafika: GrafikaRow[];
+  baza: BazaRow[];
+}) {
+  // Pre-select first option in each non-empty category so the user sees a
+  // real total on mount. They can change any pick to recompute.
+  const [kId, setKId] = useState<string | null>(() => konstrukcija[0]?.id ?? null);
+  const [gId, setGId] = useState<string | null>(() => grafika[0]?.id ?? null);
+  const [bId, setBId] = useState<string | null>(() => baza[0]?.id ?? null);
+
+  const selectedK = konstrukcija.find((r) => r.id === kId) ?? null;
+  const selectedG = grafika.find((r) => r.id === gId) ?? null;
+  const selectedB = baza.find((r) => r.id === bId) ?? null;
+
+  // Grafika price depends on which Konstrukcija is selected.
+  const grafikaPrice = selectedG && selectedK ? parsePrice(selectedG.cijene[selectedK.id]) : 0;
+  const konstrukcijaPrice = selectedK ? parsePrice(selectedK.cijena) : 0;
+  const bazaPrice = selectedB ? parsePrice(selectedB.cijena) : 0;
+
+  const total = konstrukcijaPrice + grafikaPrice + bazaPrice;
+
+  const kOptions = konstrukcija.map((r) => ({
+    value: r.id,
+    // Pre-formatted label so users see option price at-a-glance.
+    label: parsePrice(r.cijena) > 0
+      ? `${r.naziv} — ${formatEur(parsePrice(r.cijena))}`
+      : r.naziv || "(bez naziva)",
+  }));
+
+  const gOptions = grafika.map((r) => {
+    const priceForK = selectedK ? parsePrice(r.cijene[selectedK.id]) : 0;
+    return {
+      value: r.id,
+      label: priceForK > 0
+        ? `${r.naziv} — ${formatEur(priceForK)}`
+        : r.naziv || "(bez naziva)",
+    };
+  });
+
+  const bOptions = baza.map((r) => ({
+    value: r.id,
+    label: parsePrice(r.cijena) > 0
+      ? `${r.naziv} — ${formatEur(parsePrice(r.cijena))}`
+      : r.naziv || "(bez naziva)",
+  }));
+
+  return (
+    <Stack gap="sm">
+      <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="sm">
+        {konstrukcija.length > 0 && (
+          <Select
+            label="Konstrukcija"
+            data={kOptions}
+            value={kId}
+            onChange={setKId}
+            allowDeselect={false}
+          />
+        )}
+        {grafika.length > 0 && (
+          <Select
+            label="Grafika"
+            data={gOptions}
+            value={gId}
+            onChange={setGId}
+            allowDeselect={false}
+          />
+        )}
+        {baza.length > 0 && (
+          <Select
+            label="Baza"
+            data={bOptions}
+            value={bId}
+            onChange={setBId}
+            allowDeselect={false}
+          />
+        )}
+      </SimpleGrid>
+      <PriceDisplay amount={total} />
+    </Stack>
+  );
+}
+
+function ProductItemView({ page }: { page: Page }) {
+  const block = page.blocks?.find((b) => b.type === "product-item");
+  const d = (block?.data ?? {}) as ProductItemBlockData;
+
+  const altTitle = d.altTitle?.trim() || "";
+  const mainPhoto = d.mainPhoto ?? null;
+  const gallery = d.galleryImages ?? [];
+  const description = d.description?.trim() || "";
+
+  const fixedPrice = parsePrice(d.priceEur);
+  const k = d.konfiguratorCijene?.konstrukcija ?? [];
+  const g = d.konfiguratorCijene?.grafika ?? [];
+  const b = d.konfiguratorCijene?.baza ?? [];
+
+  // Konfigurator counts as "has prices" only when at least one cijena across
+  // all categories is > 0 — empty rows shouldn't trigger the configurator.
+  const hasKonfiguratorPrices = useMemo(() => {
+    if (k.some((r) => parsePrice(r.cijena) > 0)) return true;
+    if (g.some((r) => Object.values(r.cijene ?? {}).some((c) => parsePrice(c) > 0))) return true;
+    if (b.some((r) => parsePrice(r.cijena) > 0)) return true;
+    return false;
+  }, [k, g, b]);
+
+  const tabs = (d.additionalInfo?.tabs ?? []).filter((t) => t && t.id);
+  const [activeTabId, setActiveTabId] = useState<string | null>(tabs[0]?.id ?? null);
+
+  let priceArea: React.ReactNode;
+  if (fixedPrice > 0) {
+    priceArea = <PriceDisplay amount={fixedPrice} />;
+  } else if (hasKonfiguratorPrices) {
+    priceArea = <PriceConfigurator konstrukcija={k} grafika={g} baza={b} />;
+  } else {
+    priceArea = (
+      <Button color="teal" size="md" onClick={() => { /* Pošaljite upit — wiring TBD */ }}>
+        Pošaljite upit
+      </Button>
+    );
+  }
+
+  return (
+    <article>
+      <Title order={1} mb={altTitle ? 4 : "md"}>{page.title}</Title>
+      {altTitle && (
+        <Text size="lg" c="dimmed" mb="md">{altTitle}</Text>
+      )}
+
+      {mainPhoto && (
+        <Image
+          src={mainPhoto.cdnUrl}
+          alt={page.title}
+          radius="md"
+          mb="md"
+          fit="cover"
+          style={{ maxHeight: 480, width: "100%" }}
+        />
+      )}
+
+      {gallery.length > 0 && (
+        <SimpleGrid cols={{ base: 3, sm: 4, md: 6 }} spacing={8} mb="md">
+          {gallery.map((img) => (
+            <Image
+              key={img.mediaId}
+              src={img.cdnUrl}
+              radius="sm"
+              fit="cover"
+              style={{ aspectRatio: "1 / 1" }}
+            />
+          ))}
+        </SimpleGrid>
+      )}
+
+      {description && (
+        <Text mb="md" style={{ whiteSpace: "pre-wrap" }}>{description}</Text>
+      )}
+
+      <Box mb="lg">{priceArea}</Box>
+
+      {tabs.length > 0 && (
+        <Tabs
+          value={activeTabId}
+          onChange={setActiveTabId}
+          variant="default"
+          keepMounted={false}
+        >
+          <Tabs.List grow>
+            {tabs.map((tab) => (
+              <Tabs.Tab
+                key={tab.id}
+                value={tab.id}
+                styles={{
+                  tab: { minWidth: 0 },
+                  tabLabel: {
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                    minWidth: 0,
+                  },
+                }}
+              >
+                {tab.title || "(bez naziva)"}
+              </Tabs.Tab>
+            ))}
+          </Tabs.List>
+          {tabs.map((tab) => (
+            <Tabs.Panel key={tab.id} value={tab.id} pt="md">
+              {tab.content ? (
+                <Box dangerouslySetInnerHTML={{ __html: tiptapToHtml(tab.content) }} />
+              ) : (
+                <Text c="dimmed" size="sm">Nema sadržaja.</Text>
+              )}
+            </Tabs.Panel>
+          ))}
+        </Tabs>
+      )}
+    </article>
+  );
+}
+
 // ─── Default view ─────────────────────────────────────────────────────────────
 
 function DefaultView({ page }: { page: Page }) {
@@ -336,7 +616,11 @@ export function PageView() {
   return (
     <RenderContext.Provider value={{ locale: activeLocale, linkPages }}>
       {previewBanner}
-      <DefaultView page={page} />
+      {page.type === "product-item" ? (
+        <ProductItemView page={page} />
+      ) : (
+        <DefaultView page={page} />
+      )}
     </RenderContext.Provider>
   );
 }
