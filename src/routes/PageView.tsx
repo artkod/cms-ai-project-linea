@@ -349,11 +349,11 @@ function PriceConfigurator({
   grafika: GrafikaRow[];
   baza: BazaRow[];
 }) {
-  // Pre-select first option in each non-empty category so the user sees a
-  // real total on mount. They can change any pick to recompute.
-  const [kId, setKId] = useState<string | null>(() => konstrukcija[0]?.id ?? null);
-  const [gId, setGId] = useState<string | null>(() => grafika[0]?.id ?? null);
-  const [bId, setBId] = useState<string | null>(() => baza[0]?.id ?? null);
+  // Dropdowns start unselected with an "Odaberite" placeholder so users
+  // make a conscious pick rather than landing on a pre-filled total.
+  const [kId, setKId] = useState<string | null>(null);
+  const [gId, setGId] = useState<string | null>(null);
+  const [bId, setBId] = useState<string | null>(null);
 
   const selectedK = konstrukcija.find((r) => r.id === kId) ?? null;
   const selectedG = grafika.find((r) => r.id === gId) ?? null;
@@ -397,6 +397,7 @@ function PriceConfigurator({
         {konstrukcija.length > 0 && (
           <Select
             label="Konstrukcija"
+            placeholder="Odaberite"
             data={kOptions}
             value={kId}
             onChange={setKId}
@@ -406,6 +407,7 @@ function PriceConfigurator({
         {grafika.length > 0 && (
           <Select
             label="Grafika"
+            placeholder="Odaberite"
             data={gOptions}
             value={gId}
             onChange={setGId}
@@ -415,6 +417,7 @@ function PriceConfigurator({
         {baza.length > 0 && (
           <Select
             label="Baza"
+            placeholder="Odaberite"
             data={bOptions}
             value={bId}
             onChange={setBId}

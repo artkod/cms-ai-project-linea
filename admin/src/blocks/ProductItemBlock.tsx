@@ -11,6 +11,7 @@ import {
   Text,
   Textarea,
   TextInput,
+  Tooltip,
 } from "@mantine/core";
 import {
   Button,
@@ -369,60 +370,73 @@ function AdditionalInfoTabs({
           keepMounted={false}
         >
           {/* Tabs.List `grow` distributes width across the Tabs.Tab children
-              so every tab takes the same slice of the row; minWidth: 0 +
-              ellipsis on the label means long titles truncate instead of
-              wrapping the tab to a second line. The "+" Add button is
-              rendered outside Tabs.List (in the same flex row) so it isn't
-              part of the equal-width distribution. */}
+              so every tab takes the same slice of the row. We force
+              `flex-wrap: nowrap` on the list itself (Mantine's default
+              allows wrap) and set `minWidth: 0` + label ellipsis on each
+              tab so long titles truncate instead of pushing the row to a
+              second line. The "+" Add button is rendered outside Tabs.List
+              (in the same flex row) so it isn't part of the equal-width
+              distribution. A Tooltip on each tab surfaces the full title
+              on hover when the label is ellipsised. */}
           <Group wrap="nowrap" gap={4} align="stretch">
-            <Tabs.List grow style={{ flex: 1, minWidth: 0 }}>
+            <Tabs.List
+              grow
+              style={{ flex: 1, minWidth: 0, flexWrap: "nowrap" }}
+            >
               {tabs.map((tab) => (
-                <Tabs.Tab
+                <Tooltip
                   key={tab.id}
-                  value={tab.id}
-                  styles={{
-                    tab: { minWidth: 0 },
-                    tabLabel: {
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                      minWidth: 0,
-                    },
-                  }}
-                  rightSection={
-                    <Group gap={2} wrap="nowrap" style={{ flexShrink: 0 }}>
-                      <ActionIcon
-                        size="xs"
-                        variant="subtle"
-                        onPointerDown={(e) => e.stopPropagation()}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          e.preventDefault();
-                          openRename(tab);
-                        }}
-                        aria-label="Preimenuj"
-                      >
-                        <Pencil size={12} />
-                      </ActionIcon>
-                      <ActionIcon
-                        size="xs"
-                        variant="subtle"
-                        color="red"
-                        onPointerDown={(e) => e.stopPropagation()}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          e.preventDefault();
-                          setDeleteId(tab.id);
-                        }}
-                        aria-label="Obriši"
-                      >
-                        <X size={12} />
-                      </ActionIcon>
-                    </Group>
-                  }
+                  label={tab.title || "(bez naziva)"}
+                  openDelay={400}
+                  withArrow
+                  withinPortal
                 >
-                  {tab.title || "(bez naziva)"}
-                </Tabs.Tab>
+                  <Tabs.Tab
+                    value={tab.id}
+                    styles={{
+                      tab: { minWidth: 0, flex: "1 1 0" },
+                      tabLabel: {
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                        minWidth: 0,
+                      },
+                    }}
+                    rightSection={
+                      <Group gap={2} wrap="nowrap" style={{ flexShrink: 0 }}>
+                        <ActionIcon
+                          size="xs"
+                          variant="subtle"
+                          onPointerDown={(e) => e.stopPropagation()}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            e.preventDefault();
+                            openRename(tab);
+                          }}
+                          aria-label="Preimenuj"
+                        >
+                          <Pencil size={12} />
+                        </ActionIcon>
+                        <ActionIcon
+                          size="xs"
+                          variant="subtle"
+                          color="red"
+                          onPointerDown={(e) => e.stopPropagation()}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            e.preventDefault();
+                            setDeleteId(tab.id);
+                          }}
+                          aria-label="Obriši"
+                        >
+                          <X size={12} />
+                        </ActionIcon>
+                      </Group>
+                    }
+                  >
+                    {tab.title || "(bez naziva)"}
+                  </Tabs.Tab>
+                </Tooltip>
               ))}
             </Tabs.List>
             <ActionIcon
