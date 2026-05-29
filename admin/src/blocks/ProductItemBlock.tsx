@@ -7,6 +7,7 @@ import {
   Image,
   Modal,
   Stack,
+  Tabs,
   Text,
   Textarea,
   TextInput,
@@ -21,7 +22,6 @@ import {
   type GalleryImage,
 } from "@cms/admin-base";
 import {
-  Check,
   Pencil,
   Plus,
   Trash2,
@@ -290,193 +290,247 @@ function AdditionalInfoTabs({
   onChange: (tabs: AdditionalInfoTab[]) => void;
 }) {
   const [activeId, setActiveId] = useState<string | null>(tabs[0]?.id ?? null);
-  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameId, setRenameId] = useState<string | null>(null);
   const [renameDraft, setRenameDraft] = useState("");
-  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
-  const [adding, setAdding] = useState(false);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [addOpen, setAddOpen] = useState(false);
   const [addDraft, setAddDraft] = useState("");
 
-  const active = tabs.find((t) => t.id === activeId) ?? tabs[0] ?? null;
+  // Keep activeId valid when the tab list changes (e.g. external paste of data).
+  const effectiveActive = activeId && tabs.some((t) => t.id === activeId)
+    ? activeId
+    : tabs[0]?.id ?? null;
 
-  function startRename(tab: AdditionalInfoTab) {
-    setRenamingId(tab.id);
+  function openRename(tab: AdditionalInfoTab) {
+    setRenameId(tab.id);
     setRenameDraft(tab.title);
   }
   function commitRename() {
-    if (!renamingId) return;
-    const next = tabs.map((t) =>
-      t.id === renamingId ? { ...t, title: renameDraft.trim() || t.title } : t,
-    );
+    if (!renameId) return;
+    const value = renameDraft.trim();
+    if (!value) {
+      setRenameId(null);
+      return;
+    }
+    onChange(tabs.map((t) => (t.id === renameId ? { ...t, title: value } : t)));
+    setRenameId(null);
+  }
+
+  function commitDelete() {
+    if (!deleteId) return;
+    const next = tabs.filter((t) => t.id !== deleteId);
     onChange(next);
-    setRenamingId(null);
+    if (effectiveActive === deleteId) setActiveId(next[0]?.id ?? null);
+    setDeleteId(null);
   }
-  function cancelRename() {
-    setRenamingId(null);
-    setRenameDraft("");
-  }
-  function deleteTab(id: string) {
-    const next = tabs.filter((t) => t.id !== id);
-    onChange(next);
-    if (activeId === id) setActiveId(next[0]?.id ?? null);
-    setConfirmDeleteId(null);
-  }
-  function addTab() {
+
+  function commitAdd() {
     const title = addDraft.trim();
     if (!title) return;
     const tab: AdditionalInfoTab = { id: uid(), title, content: null };
     onChange([...tabs, tab]);
     setActiveId(tab.id);
-    setAdding(false);
+    setAddOpen(false);
     setAddDraft("");
   }
-  function updateActiveContent(content: Record<string, unknown>) {
-    if (!active) return;
-    onChange(tabs.map((t) => (t.id === active.id ? { ...t, content } : t)));
+
+  function updateContent(id: string, content: Record<string, unknown>) {
+    onChange(tabs.map((t) => (t.id === id ? { ...t, content } : t)));
   }
 
-  const deleteTarget = confirmDeleteId
-    ? tabs.find((t) => t.id === confirmDeleteId) ?? null
-    : null;
+  const renameTarget = renameId ? tabs.find((t) => t.id === renameId) ?? null : null;
+  const deleteTarget = deleteId ? tabs.find((t) => t.id === deleteId) ?? null : null;
+
+  // Mantine Tabs treats null/missing value gracefully; coerce to "" so the
+  // controlled value type matches when there are no tabs left.
+  const tabsValue = effectiveActive ?? "";
 
   return (
-    <Stack gap={8}>
+    <Stack gap={10}>
       <SectionHeader title="Dodatne informacije" />
-      <Group gap={6} wrap="wrap" align="center">
-        {tabs.map((tab) => {
-          const isActive = tab.id === active?.id;
-          const isRenaming = tab.id === renamingId;
-          return (
-            <Group
-              key={tab.id}
-              gap={4}
-              wrap="nowrap"
-              align="center"
-              style={{
-                padding: "4px 8px",
-                borderRadius: 8,
-                background: isActive ? "rgba(45,191,164,0.12)" : "var(--mantine-color-gray-1, #f1f3f5)",
-                border: isActive ? "1px solid rgba(45,191,164,0.5)" : "1px solid transparent",
-              }}
-            >
-              {isRenaming ? (
-                <>
-                  <TextInput
-                    size="xs"
-                    value={renameDraft}
-                    onChange={(e) => setRenameDraft(e.currentTarget.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") commitRename();
-                      if (e.key === "Escape") cancelRename();
-                    }}
-                    autoFocus
-                    styles={{ input: { width: 180 } }}
-                  />
-                  <ActionIcon size="sm" variant="subtle" onClick={commitRename} aria-label="Spremi naziv">
-                    <Check size={14} />
-                  </ActionIcon>
-                  <ActionIcon size="sm" variant="subtle" onClick={cancelRename} aria-label="Odustani">
-                    <X size={14} />
-                  </ActionIcon>
-                </>
-              ) : (
-                <>
-                  <Text
-                    size="sm"
-                    fw={isActive ? 600 : 500}
-                    style={{ cursor: "pointer" }}
-                    onClick={() => setActiveId(tab.id)}
-                  >
-                    {tab.title}
-                  </Text>
-                  <ActionIcon
-                    size="sm"
-                    variant="subtle"
-                    onClick={() => startRename(tab)}
-                    aria-label="Preimenuj"
-                  >
-                    <Pencil size={12} />
-                  </ActionIcon>
-                  <ActionIcon
-                    size="sm"
-                    variant="subtle"
-                    color="red"
-                    onClick={() => setConfirmDeleteId(tab.id)}
-                    aria-label="Obriši"
-                  >
-                    <X size={12} />
-                  </ActionIcon>
-                </>
-              )}
-            </Group>
-          );
-        })}
-        {adding ? (
-          <Group gap={4} wrap="nowrap">
-            <TextInput
-              size="xs"
-              placeholder="Naziv novog tab-a"
-              value={addDraft}
-              onChange={(e) => setAddDraft(e.currentTarget.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") addTab();
-                if (e.key === "Escape") {
-                  setAdding(false);
-                  setAddDraft("");
-                }
-              }}
-              autoFocus
-              styles={{ input: { width: 180 } }}
-            />
-            <ActionIcon size="sm" variant="subtle" onClick={addTab} aria-label="Dodaj">
-              <Check size={14} />
-            </ActionIcon>
-            <ActionIcon
-              size="sm"
-              variant="subtle"
-              onClick={() => {
-                setAdding(false);
-                setAddDraft("");
-              }}
-              aria-label="Odustani"
-            >
-              <X size={14} />
-            </ActionIcon>
-          </Group>
-        ) : (
+
+      {tabs.length === 0 ? (
+        <Group>
+          <Text size="sm" c="dimmed">Još nema tab-ova.</Text>
           <Button
             variant="secondary"
             size="sm"
             leftSection={<Plus size={14} />}
-            onClick={() => setAdding(true)}
+            onClick={() => setAddOpen(true)}
           >
             Dodaj tab
           </Button>
-        )}
-      </Group>
-
-      {active ? (
-        <Box
-          style={{
-            border: "1px solid var(--mantine-color-gray-3, #dee2e6)",
-            borderRadius: 8,
-            padding: 8,
-            background: "white",
-          }}
-        >
-          <RichTextEditor
-            value={active.content}
-            onChange={updateActiveContent}
-            placeholder="Upiši sadržaj…"
-            minHeight={160}
-          />
-        </Box>
+        </Group>
       ) : (
-        <Text size="xs" c="dimmed">Nema tab-ova. Dodaj prvi pomoću gumba iznad.</Text>
+        <Tabs
+          value={tabsValue}
+          onChange={(v) => v && setActiveId(v)}
+          variant="default"
+          keepMounted={false}
+        >
+          <Tabs.List>
+            {tabs.map((tab) => (
+              <Tabs.Tab
+                key={tab.id}
+                value={tab.id}
+                rightSection={
+                  <Group gap={2} wrap="nowrap">
+                    <ActionIcon
+                      size="xs"
+                      variant="subtle"
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        openRename(tab);
+                      }}
+                      aria-label="Preimenuj"
+                    >
+                      <Pencil size={12} />
+                    </ActionIcon>
+                    <ActionIcon
+                      size="xs"
+                      variant="subtle"
+                      color="red"
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        setDeleteId(tab.id);
+                      }}
+                      aria-label="Obriši"
+                    >
+                      <X size={12} />
+                    </ActionIcon>
+                  </Group>
+                }
+              >
+                {tab.title || "(bez naziva)"}
+              </Tabs.Tab>
+            ))}
+            {/* "+" sits next to the tabs but is rendered as a regular Button so it
+                isn't keyboard-navigable as a tab and never registers as active. */}
+            <Box ml={6} style={{ alignSelf: "center" }}>
+              <ActionIcon
+                size="sm"
+                variant="subtle"
+                onClick={() => setAddOpen(true)}
+                aria-label="Dodaj tab"
+              >
+                <Plus size={14} />
+              </ActionIcon>
+            </Box>
+          </Tabs.List>
+
+          {tabs.map((tab) => (
+            <Tabs.Panel key={tab.id} value={tab.id} pt="sm">
+              <Box
+                style={{
+                  border: "1px solid var(--mantine-color-gray-3, #dee2e6)",
+                  borderRadius: 8,
+                  padding: 8,
+                  background: "white",
+                }}
+              >
+                <RichTextEditor
+                  value={tab.content}
+                  onChange={(c) => updateContent(tab.id, c)}
+                  placeholder="Upiši sadržaj…"
+                  minHeight={160}
+                />
+              </Box>
+            </Tabs.Panel>
+          ))}
+        </Tabs>
       )}
 
+      {/* ─── Rename modal ─── */}
+      <Modal
+        opened={!!renameTarget}
+        onClose={() => setRenameId(null)}
+        title="Preimenuj tab"
+        centered
+        size="sm"
+      >
+        <Stack gap={12}>
+          <TextInput
+            label="Novi naziv"
+            value={renameDraft}
+            onChange={(e) => setRenameDraft(e.currentTarget.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") commitRename();
+              if (e.key === "Escape") setRenameId(null);
+            }}
+            autoFocus
+          />
+          <Group justify="flex-end" gap={8}>
+            <Button variant="secondary" size="sm" onClick={() => setRenameId(null)}>
+              Odustani
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={commitRename}
+              disabled={!renameDraft.trim()}
+            >
+              Spremi
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+
+      {/* ─── Add modal ─── */}
+      <Modal
+        opened={addOpen}
+        onClose={() => {
+          setAddOpen(false);
+          setAddDraft("");
+        }}
+        title="Dodaj tab"
+        centered
+        size="sm"
+      >
+        <Stack gap={12}>
+          <TextInput
+            label="Naziv tab-a"
+            value={addDraft}
+            onChange={(e) => setAddDraft(e.currentTarget.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") commitAdd();
+              if (e.key === "Escape") {
+                setAddOpen(false);
+                setAddDraft("");
+              }
+            }}
+            autoFocus
+          />
+          <Group justify="flex-end" gap={8}>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                setAddOpen(false);
+                setAddDraft("");
+              }}
+            >
+              Odustani
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={commitAdd}
+              disabled={!addDraft.trim()}
+            >
+              Dodaj
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+
+      {/* ─── Delete confirm modal ─── */}
       <Modal
         opened={!!deleteTarget}
-        onClose={() => setConfirmDeleteId(null)}
+        onClose={() => setDeleteId(null)}
         title="Obriši tab"
         centered
         size="sm"
@@ -486,14 +540,10 @@ function AdditionalInfoTabs({
             Sigurno želiš obrisati tab <strong>{deleteTarget?.title ?? ""}</strong>? Sadržaj ovog tab-a bit će izgubljen.
           </Text>
           <Group justify="flex-end" gap={8}>
-            <Button variant="secondary" size="sm" onClick={() => setConfirmDeleteId(null)}>
+            <Button variant="secondary" size="sm" onClick={() => setDeleteId(null)}>
               Odustani
             </Button>
-            <Button
-              variant="danger"
-              size="sm"
-              onClick={() => deleteTarget && deleteTab(deleteTarget.id)}
-            >
+            <Button variant="danger" size="sm" onClick={commitDelete}>
               Obriši
             </Button>
           </Group>

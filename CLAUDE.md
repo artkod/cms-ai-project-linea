@@ -8,10 +8,36 @@ This file is auto-loaded by Claude Code at the start of every session.
 
 Minimal, content-managed light-theme website powered by `cms-ai-core`.
 Mantine UI (light, `primaryColor: "teal"`), system-ui font, centered layout.
-Ships with **no custom page types** — every page uses the built-in `default`
-type (allows blocks). Page structure is fully editor-driven from the admin
-(including runtime page types added via Pages → Options if the project
-later needs them).
+Ships with one code-defined page type — **`product-item`**, registered in
+`admin/src/main.tsx`. Everything else uses the built-in `default` type (or
+runtime types added via Pages → Options).
+
+### `product-item` page type
+
+- Code-defined in `admin/src/main.tsx` as `productItemPageType`:
+  `label: { en: "Product", hr: "Proizvod" }`, `canBeRoot: false`,
+  `allowedParentTypes: ["product-sub-category"]`, `allowBlocks: true`,
+  `allowedBlockTypes: ["product-item"]`. Because there's exactly one
+  allowed block type, the framework treats this as a **singleton-block
+  page type** (see cms-ai-core CLAUDE.md): on create the admin auto-seeds
+  one `product-item` block, and the "+ Add new section" and per-block
+  Remove buttons are hidden.
+- The block (`admin/src/blocks/ProductItemBlock.tsx`) holds all authored
+  product content: alternative title, main photo, gallery, plain-text
+  description, EUR price, an "Additional info" section with real Mantine
+  `Tabs` (each tab has its own RTE panel — five predefined Croatian
+  titles backed by stable internal IDs: `vise-informacija`, `nasi-radovi`,
+  `tehnika-tiska`, `upute-graficka-priprema`, `upute-slaganje`; editors
+  can rename/add/remove tabs through small Mantine modals), and a
+  "Konfigurator cijene" section with three Mantine `Accordion` panels
+  (`Konstrukcija`, `Grafika`, `Baza`). Each Grafika row exposes one EUR
+  cijena input per Konstrukcija row, prefixed with that Konstrukcija
+  row's `naziv`. Every price input has a `do dvije decimale` format hint;
+  prices are stored as free-text strings to preserve formatting and are
+  all optional.
+- A frontend renderer for `product-item` is **not yet implemented** in
+  `src/routes/PageView.tsx` — add a switch case there when shipping the
+  storefront. The block's data shape is the canonical contract.
 
 ## Related repos
 
