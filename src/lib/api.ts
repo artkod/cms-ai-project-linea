@@ -31,6 +31,15 @@ export interface LinkPagesMap {
   [pageId: string]: { [locale: string]: { active: boolean; slug: string; title: string } };
 }
 
+// Breadcrumb chain: root → immediate parent. Present on /by-slug responses.
+// Each entry exposes every locale so the frontend can fall back when the
+// requested locale's translation is inactive.
+export interface AncestorEntry {
+  id: string;
+  type: string;
+  locales: Record<string, { active: boolean; slug: string; title: string }>;
+}
+
 export interface Page {
   id: string;
   title: string;
@@ -47,6 +56,7 @@ export interface Page {
   locale?: string;
   alternates?: Alternates;
   linkPages?: LinkPagesMap;
+  ancestors?: AncestorEntry[];
   translations?: Record<string, Translation>;
 }
 
