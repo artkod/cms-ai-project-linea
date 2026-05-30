@@ -25,7 +25,7 @@ import { Link } from "react-router";
 import { useMediaQuery } from "@mantine/hooks";
 import { getPageBySlug, type Page, type Block, type LinkPagesMap } from "@/lib/api";
 import { tiptapToHtml } from "@/lib/tiptapRenderer";
-import { usePageAlternates, useStrings } from "@/lib/locale";
+import { usePageAlternates, useStrings, useLocaleConfig } from "@/lib/locale";
 
 // ─── Render context (locale + linkPages, for nested renderers) ────────────────
 
@@ -558,6 +558,7 @@ function useConfigurator(
 
 function ProductItemView({ page }: { page: Page }) {
   const { locale } = useRender();
+  const { defaultLocale } = useLocaleConfig();
   const { t } = useStrings();
   const block = page.blocks?.find((b) => b.type === "product-item");
   const d = (block?.data ?? {}) as ProductItemBlockData;
@@ -641,17 +642,45 @@ function ProductItemView({ page }: { page: Page }) {
 
   return (
     <article style={{ color: D.onSurface }}>
-      {/* Breadcrumbs */}
-      <Group gap={8} mb={{ base: 16, md: 32 }} wrap="nowrap" style={{ overflow: "hidden" }}>
+      {/* Breadcrumbs — Home → all ancestors (root first) → current page.
+          Ancestors come from the by-slug payload's `ancestors` array, already
+          ordered root → immediate parent. We resolve the requested-locale slot,
+          falling back to defaultLocale's title (italic, unlinked) when the
+          requested locale's translation is inactive or missing. */}
+      <Group gap={8} mb={{ base: 16, md: 32 }} wrap="wrap" style={{ overflow: "hidden" }}>
         <Anchor component={Link} to={homeHref} underline="never" style={crumbStyle}>
           {t("product.breadcrumb_home")}
         </Anchor>
-        {page.parentTitle && (
-          <>
-            <Box c={D.onSurfaceVariant} style={{ display: "flex" }}><IconChevronRight /></Box>
-            <Text component="span" style={crumbStyle}>{page.parentTitle}</Text>
-          </>
-        )}
+        {(page.ancestors ?? []).map((a) => {
+          const inLoc = a.locales[locale];
+          const fallback = a.locales[defaultLocale];
+          // Linkable only when the requested locale has an active translation
+          // with a non-empty slug — otherwise we'd 404 the user.
+          const linkable = !!(inLoc?.active && inLoc.slug);
+          const title = inLoc?.title || fallback?.title || a.type;
+          return (
+            <Group key={a.id} gap={8} wrap="nowrap">
+              <Box c={D.onSurfaceVariant} style={{ display: "flex" }}><IconChevronRight /></Box>
+              {linkable ? (
+                <Anchor
+                  component={Link}
+                  to={`/${locale}/${inLoc.slug}`}
+                  underline="never"
+                  style={crumbStyle}
+                >
+                  {title}
+                </Anchor>
+              ) : (
+                <Text
+                  component="span"
+                  style={{ ...crumbStyle, fontStyle: inLoc?.active ? undefined : "italic" }}
+                >
+                  {title}
+                </Text>
+              )}
+            </Group>
+          );
+        })}
         <Box c={D.onSurfaceVariant} style={{ display: "flex" }}><IconChevronRight /></Box>
         <Text component="span" style={crumbActiveStyle}>{page.title}</Text>
       </Group>
