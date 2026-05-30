@@ -6,7 +6,10 @@ import App from "./App";
 
 const theme = createTheme({
   primaryColor: "teal",
-  fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+  fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+  headings: {
+    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+  },
 });
 
 createRoot(document.getElementById("root")!).render(

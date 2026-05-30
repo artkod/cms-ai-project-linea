@@ -14,11 +14,18 @@ import {
   Select,
   Stack,
   Tabs,
+  Card,
+  Divider,
+  Grid,
+  Breadcrumbs,
+  AspectRatio,
+  UnstyledButton,
 } from "@mantine/core";
 import { Link } from "react-router";
+import { useMediaQuery } from "@mantine/hooks";
 import { getPageBySlug, type Page, type Block, type LinkPagesMap } from "@/lib/api";
 import { tiptapToHtml } from "@/lib/tiptapRenderer";
-import { usePageAlternates } from "@/lib/locale";
+import { usePageAlternates, useStrings } from "@/lib/locale";
 
 // ─── Render context (locale + linkPages, for nested renderers) ────────────────
 
@@ -331,26 +338,143 @@ function formatEur(n: number): string {
   return eurFmt.format(n);
 }
 
-function PriceDisplay({ amount }: { amount: number }) {
+// ─── Industrial Clarity design tokens (scoped to product-item view) ──────────
+
+const D = {
+  primary: "#496800",
+  primaryHover: "#3a5300",
+  primaryContainer: "#9acb34",
+  onSurface: "#0b1c30",
+  onSurfaceVariant: "#434937",
+  outlineVariant: "#c3c9b1",
+  surface: "#f8f9ff",
+  surfaceLow: "#eff4ff",
+  surfaceMid: "#e5eeff",
+  surfaceHigh: "#dce9ff",
+  surfaceLowest: "#ffffff",
+  errorContainer: "#ffdad6",
+  onErrorContainer: "#93000a",
+} as const;
+
+// Lucide-style stroked SVG icons (avoid adding lucide-react to frontend deps)
+function Icon({ d, size = 20, fill }: { d: string; size?: number; fill?: boolean }) {
   return (
-    <Group gap={6} align="baseline">
-      <Text fw={700} size="xl">{formatEur(amount)}</Text>
-      <Text size="sm" c="dimmed">+ PDV</Text>
-    </Group>
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill={fill ? "currentColor" : "none"}
+      stroke="currentColor"
+      strokeWidth={1.75}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      style={{ display: "block" }}
+    >
+      <path d={d} />
+    </svg>
+  );
+}
+const IconChevronRight = ({ size = 16 }: { size?: number }) => <Icon size={size} d="M9 6l6 6-6 6" />;
+const IconChevronDown = ({ size = 20 }: { size?: number }) => <Icon size={size} d="M6 9l6 6 6-6" />;
+const IconShare = ({ size = 20 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ display: "block" }}>
+    <circle cx="18" cy="5" r="3" />
+    <circle cx="6" cy="12" r="3" />
+    <circle cx="18" cy="19" r="3" />
+    <path d="M8.59 13.51l6.83 3.98" />
+    <path d="M15.41 6.51L8.59 10.49" />
+  </svg>
+);
+const IconLink = ({ size = 20 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ display: "block" }}>
+    <path d="M10 13a5 5 0 0 0 7.07 0l3-3a5 5 0 1 0-7.07-7.07L11 5" />
+    <path d="M14 11a5 5 0 0 0-7.07 0l-3 3a5 5 0 1 0 7.07 7.07L13 19" />
+  </svg>
+);
+const IconMail = ({ size = 20 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ display: "block" }}>
+    <rect x="3" y="5" width="18" height="14" rx="2" />
+    <path d="M3 7l9 6 9-6" />
+  </svg>
+);
+const IconCheckCircle = ({ size = 16 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ display: "block" }}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M9 12l2 2 4-4" />
+  </svg>
+);
+const IconTruck = ({ size = 16 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ display: "block" }}>
+    <rect x="1" y="6" width="13" height="11" rx="1" />
+    <path d="M14 9h4l3 3v5h-7z" />
+    <circle cx="6" cy="18.5" r="1.5" />
+    <circle cx="17" cy="18.5" r="1.5" />
+  </svg>
+);
+const IconSend = ({ size = 20 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ display: "block" }}>
+    <path d="M22 2L11 13" />
+    <path d="M22 2l-7 20-4-9-9-4 20-7z" />
+  </svg>
+);
+
+function PriceValue({ amount, size = "xl" }: { amount: number; size?: "md" | "lg" | "xl" }) {
+  const { t } = useStrings();
+  const fontSize = size === "xl" ? 36 : size === "lg" ? 28 : 20;
+  const lineHeight = size === "xl" ? "44px" : size === "lg" ? "36px" : "28px";
+  return (
+    <Stack gap={2} align="flex-end" style={{ textAlign: "right" }}>
+      <Text fw={size === "md" ? 700 : 600} style={{ fontSize, lineHeight, color: D.primary, letterSpacing: "-0.02em" }}>
+        {formatEur(amount)}
+      </Text>
+      {size === "xl" && (
+        <Text style={{ fontSize: 12, lineHeight: "16px", fontWeight: 500, color: D.onSurfaceVariant }}>
+          {t("product.price_vat_suffix")}
+        </Text>
+      )}
+    </Stack>
   );
 }
 
-function PriceConfigurator({
-  konstrukcija,
-  grafika,
-  baza,
-}: {
-  konstrukcija: KonstrukcijaRow[];
-  grafika: GrafikaRow[];
-  baza: BazaRow[];
-}) {
-  // Dropdowns start unselected with an "Odaberite" placeholder so users
-  // make a conscious pick rather than landing on a pre-filled total.
+interface ConfiguratorState {
+  total: number;
+  hasAnySelection: boolean;
+  controls: React.ReactNode;
+}
+
+// Shared Mantine Select styles tuned to the Industrial Clarity spec:
+// 48px height, 4px radius, surface-low background, outline-variant border,
+// thickens to 2px primary on focus.
+const SELECT_STYLES = {
+  root: { width: "100%" },
+  label: {
+    fontSize: 14,
+    fontWeight: 600,
+    letterSpacing: "0.05em",
+    color: D.onSurfaceVariant,
+    marginBottom: 8,
+    textTransform: "uppercase" as const,
+  },
+  input: {
+    height: 48,
+    background: D.surface,
+    borderColor: D.outlineVariant,
+    borderRadius: 4,
+    fontSize: 16,
+    color: D.onSurface,
+    paddingLeft: 16,
+    paddingRight: 36,
+  },
+  section: { color: D.onSurfaceVariant },
+};
+
+function useConfigurator(
+  konstrukcija: KonstrukcijaRow[],
+  grafika: GrafikaRow[],
+  baza: BazaRow[],
+  t: (key: string) => string
+): ConfiguratorState {
   const [kId, setKId] = useState<string | null>(null);
   const [gId, setGId] = useState<string | null>(null);
   const [bId, setBId] = useState<string | null>(null);
@@ -359,19 +483,19 @@ function PriceConfigurator({
   const selectedG = grafika.find((r) => r.id === gId) ?? null;
   const selectedB = baza.find((r) => r.id === bId) ?? null;
 
-  // Grafika price depends on which Konstrukcija is selected.
   const grafikaPrice = selectedG && selectedK ? parsePrice(selectedG.cijene[selectedK.id]) : 0;
   const konstrukcijaPrice = selectedK ? parsePrice(selectedK.cijena) : 0;
   const bazaPrice = selectedB ? parsePrice(selectedB.cijena) : 0;
-
   const total = konstrukcijaPrice + grafikaPrice + bazaPrice;
+
+  const unnamed = t("product.option_unnamed");
+  const placeholder = t("product.option_placeholder");
 
   const kOptions = konstrukcija.map((r) => ({
     value: r.id,
-    // Pre-formatted label so users see option price at-a-glance.
     label: parsePrice(r.cijena) > 0
-      ? `${r.naziv} — ${formatEur(parsePrice(r.cijena))}`
-      : r.naziv || "(bez naziva)",
+      ? `${r.naziv || unnamed} — ${formatEur(parsePrice(r.cijena))}`
+      : r.naziv || unnamed,
   }));
 
   const gOptions = grafika.map((r) => {
@@ -379,64 +503,68 @@ function PriceConfigurator({
     return {
       value: r.id,
       label: priceForK > 0
-        ? `${r.naziv} — ${formatEur(priceForK)}`
-        : r.naziv || "(bez naziva)",
+        ? `${r.naziv || unnamed} — ${formatEur(priceForK)}`
+        : r.naziv || unnamed,
     };
   });
 
   const bOptions = baza.map((r) => ({
     value: r.id,
     label: parsePrice(r.cijena) > 0
-      ? `${r.naziv} — ${formatEur(parsePrice(r.cijena))}`
-      : r.naziv || "(bez naziva)",
+      ? `${r.naziv || unnamed} — ${formatEur(parsePrice(r.cijena))}`
+      : r.naziv || unnamed,
   }));
 
-  return (
-    <Stack gap="sm">
-      <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="sm">
-        {konstrukcija.length > 0 && (
-          <Select
-            label="Konstrukcija"
-            placeholder="Odaberite"
-            data={kOptions}
-            value={kId}
-            onChange={setKId}
-            allowDeselect={false}
-          />
-        )}
-        {grafika.length > 0 && (
-          <Select
-            label="Grafika"
-            placeholder="Odaberite"
-            data={gOptions}
-            value={gId}
-            onChange={setGId}
-            allowDeselect={false}
-          />
-        )}
-        {baza.length > 0 && (
-          <Select
-            label="Baza"
-            placeholder="Odaberite"
-            data={bOptions}
-            value={bId}
-            onChange={setBId}
-            allowDeselect={false}
-          />
-        )}
-      </SimpleGrid>
-      <PriceDisplay amount={total} />
+  const controls = (
+    <Stack gap={24}>
+      {konstrukcija.length > 0 && (
+        <Select
+          label={t("product.option_konstrukcija")}
+          placeholder={placeholder}
+          data={kOptions}
+          value={kId}
+          onChange={setKId}
+          allowDeselect={false}
+          styles={SELECT_STYLES}
+        />
+      )}
+      {grafika.length > 0 && (
+        <Select
+          label={t("product.option_grafika")}
+          placeholder={placeholder}
+          data={gOptions}
+          value={gId}
+          onChange={setGId}
+          allowDeselect={false}
+          styles={SELECT_STYLES}
+        />
+      )}
+      {baza.length > 0 && (
+        <Select
+          label={t("product.option_baza")}
+          placeholder={placeholder}
+          data={bOptions}
+          value={bId}
+          onChange={setBId}
+          allowDeselect={false}
+          styles={SELECT_STYLES}
+        />
+      )}
     </Stack>
   );
+
+  return { total, hasAnySelection: Boolean(kId || gId || bId), controls };
 }
 
 function ProductItemView({ page }: { page: Page }) {
+  const { locale } = useRender();
+  const { t } = useStrings();
   const block = page.blocks?.find((b) => b.type === "product-item");
   const d = (block?.data ?? {}) as ProductItemBlockData;
 
   const altTitle = d.altTitle?.trim() || "";
   const mainPhoto = d.mainPhoto ?? null;
-  const gallery = d.galleryImages ?? [];
+  const galleryImages = d.galleryImages ?? [];
   const description = d.description?.trim() || "";
 
   const fixedPrice = parsePrice(d.priceEur);
@@ -444,8 +572,6 @@ function ProductItemView({ page }: { page: Page }) {
   const g = d.konfiguratorCijene?.grafika ?? [];
   const b = d.konfiguratorCijene?.baza ?? [];
 
-  // Konfigurator counts as "has prices" only when at least one cijena across
-  // all categories is > 0 — empty rows shouldn't trigger the configurator.
   const hasKonfiguratorPrices = useMemo(() => {
     if (k.some((r) => parsePrice(r.cijena) > 0)) return true;
     if (g.some((r) => Object.values(r.cijene ?? {}).some((c) => parsePrice(c) > 0))) return true;
@@ -453,97 +579,526 @@ function ProductItemView({ page }: { page: Page }) {
     return false;
   }, [k, g, b]);
 
+  // Gallery = main photo + extra gallery images, de-duplicated by mediaId.
+  const allImages = useMemo(() => {
+    const out: GalleryImage[] = [];
+    const seen = new Set<string>();
+    if (mainPhoto?.cdnUrl) { out.push(mainPhoto); seen.add(mainPhoto.mediaId); }
+    for (const img of galleryImages) {
+      if (img?.cdnUrl && !seen.has(img.mediaId)) { out.push(img); seen.add(img.mediaId); }
+    }
+    return out;
+  }, [mainPhoto, galleryImages]);
+
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
+  const activeImage = allImages[activeImageIndex] ?? null;
+
   const tabs = (d.additionalInfo?.tabs ?? []).filter((t) => t && t.id);
   const [activeTabId, setActiveTabId] = useState<string | null>(tabs[0]?.id ?? null);
+  // Match the design's tabs→accordion swap at 768px. `getInitialValueInEffect:false`
+  // makes the first render reflect the real viewport, avoiding a tabs→accordion
+  // flicker on mobile when the page hydrates.
+  const isMobileInfo = useMediaQuery("(max-width: 767.99px)", false, { getInitialValueInEffect: false });
+  // Mobile accordion: independent multi-open, first tab open by default.
+  // Mobile accordion: single-open (opening one closes any other). All items
+  // start collapsed on first render; `null` means none open.
+  const [openInfoItem, setOpenInfoItem] = useState<string | null>(null);
 
-  let priceArea: React.ReactNode;
+  const configurator = useConfigurator(k, g, b, t);
+
+  // The configurator total reads 0,00 € until any select is touched — instead
+  // we show the first non-zero option price across categories as the starting
+  // estimate so the panel always communicates a real number.
+  const startingEstimate = useMemo(() => {
+    if (!hasKonfiguratorPrices) return 0;
+    const firstK = k.find((r) => parsePrice(r.cijena) > 0);
+    const firstB = b.find((r) => parsePrice(r.cijena) > 0);
+    return parsePrice(firstK?.cijena) + parsePrice(firstB?.cijena);
+  }, [k, b, hasKonfiguratorPrices]);
+
+  let displayPrice = 0;
+  let priceMode: "fixed" | "configurator" | "inquiry" = "inquiry";
   if (fixedPrice > 0) {
-    priceArea = <PriceDisplay amount={fixedPrice} />;
+    displayPrice = fixedPrice;
+    priceMode = "fixed";
   } else if (hasKonfiguratorPrices) {
-    priceArea = <PriceConfigurator konstrukcija={k} grafika={g} baza={b} />;
-  } else {
-    priceArea = (
-      <Button color="teal" size="md" onClick={() => { /* Pošaljite upit — wiring TBD */ }}>
-        Pošaljite upit
-      </Button>
-    );
+    displayPrice = configurator.hasAnySelection ? configurator.total : startingEstimate;
+    priceMode = "configurator";
   }
 
+  const homeHref = `/${locale}/`;
+  const crumbStyle: React.CSSProperties = {
+    fontSize: 12,
+    lineHeight: "16px",
+    fontWeight: 500,
+    color: D.onSurfaceVariant,
+  };
+  const crumbActiveStyle: React.CSSProperties = {
+    ...crumbStyle,
+    color: D.primary,
+    fontWeight: 600,
+  };
+
   return (
-    <article>
-      <Title order={1} mb={altTitle ? 4 : "md"}>{page.title}</Title>
-      {altTitle && (
-        <Text size="lg" c="dimmed" mb="md">{altTitle}</Text>
-      )}
+    <article style={{ color: D.onSurface }}>
+      {/* Breadcrumbs */}
+      <Group gap={8} mb={{ base: 16, md: 32 }} wrap="nowrap" style={{ overflow: "hidden" }}>
+        <Anchor component={Link} to={homeHref} underline="never" style={crumbStyle}>
+          {t("product.breadcrumb_home")}
+        </Anchor>
+        {page.parentTitle && (
+          <>
+            <Box c={D.onSurfaceVariant} style={{ display: "flex" }}><IconChevronRight /></Box>
+            <Text component="span" style={crumbStyle}>{page.parentTitle}</Text>
+          </>
+        )}
+        <Box c={D.onSurfaceVariant} style={{ display: "flex" }}><IconChevronRight /></Box>
+        <Text component="span" style={crumbActiveStyle}>{page.title}</Text>
+      </Group>
 
-      {mainPhoto && (
-        <Image
-          src={mainPhoto.cdnUrl}
-          alt={page.title}
-          radius="md"
-          mb="md"
-          fit="cover"
-          style={{ maxHeight: 480, width: "100%" }}
-        />
-      )}
-
-      {gallery.length > 0 && (
-        <SimpleGrid cols={{ base: 3, sm: 4, md: 6 }} spacing={8} mb="md">
-          {gallery.map((img) => (
-            <Image
-              key={img.mediaId}
-              src={img.cdnUrl}
-              radius="sm"
-              fit="cover"
-              style={{ aspectRatio: "1 / 1" }}
-            />
-          ))}
-        </SimpleGrid>
-      )}
-
-      {description && (
-        <Text mb="md" style={{ whiteSpace: "pre-wrap" }}>{description}</Text>
-      )}
-
-      <Box mb="lg">{priceArea}</Box>
-
-      {tabs.length > 0 && (
-        <Tabs
-          value={activeTabId}
-          onChange={setActiveTabId}
-          variant="default"
-          keepMounted={false}
+      {/* Product title — headline-xl (48/700) desktop, headline-xl-mobile (32/700) */}
+      <Box mb={{ base: 32, md: 48 }}>
+        <Text
+          component="h1"
+          style={{
+            margin: 0,
+            color: D.onSurface,
+            fontSize: "clamp(32px, 5vw, 48px)",
+            lineHeight: 1.16,
+            letterSpacing: "-0.02em",
+            fontWeight: 700,
+          }}
         >
-          <Tabs.List grow>
-            {tabs.map((tab) => (
-              <Tabs.Tab
-                key={tab.id}
-                value={tab.id}
-                styles={{
-                  tab: { minWidth: 0 },
-                  tabLabel: {
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                    minWidth: 0,
-                  },
+          {page.title}
+        </Text>
+        {altTitle && (
+          <Text mt={8} style={{ fontSize: 18, lineHeight: "28px", color: D.onSurfaceVariant }}>
+            {altTitle}
+          </Text>
+        )}
+      </Box>
+
+      {/* Main grid — single column under lg, 7/5 split at lg+ */}
+      <Grid gutter={{ base: 32, lg: 48 }}>
+        {/* Left column: image + thumbnails + description + social share */}
+        <Grid.Col span={{ base: 12, lg: 7 }} order={{ base: 2, lg: 1 }}>
+          {activeImage && (
+            <Box
+              mb={16}
+              style={{
+                background: D.surfaceLow,
+                border: `1px solid ${D.outlineVariant}`,
+                borderRadius: 4,
+                overflow: "hidden",
+              }}
+            >
+              <AspectRatio ratio={4 / 5}>
+                <Image
+                  key={activeImage.mediaId}
+                  src={activeImage.cdnUrl}
+                  alt={page.title}
+                  fit="cover"
+                  style={{ transition: "opacity 200ms" }}
+                />
+              </AspectRatio>
+            </Box>
+          )}
+
+          {allImages.length > 1 && (
+            <Box
+              mb={32}
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(5, 1fr)",
+                gap: 12,
+              }}
+            >
+              {allImages.slice(0, 10).map((img, i) => {
+                const isActive = i === activeImageIndex;
+                return (
+                  <UnstyledButton
+                    key={img.mediaId}
+                    onClick={() => setActiveImageIndex(i)}
+                    aria-label={`${t("product.aria_view_image")} ${i + 1}`}
+                    aria-current={isActive}
+                    style={{
+                      aspectRatio: "1 / 1",
+                      borderRadius: 4,
+                      overflow: "hidden",
+                      background: D.surfaceLow,
+                      border: isActive
+                        ? `2px solid ${D.primary}`
+                        : `1px solid ${D.outlineVariant}`,
+                      transition: "border-color 150ms",
+                    }}
+                  >
+                    <Image src={img.cdnUrl} fit="cover" h="100%" w="100%" loading="lazy" />
+                  </UnstyledButton>
+                );
+              })}
+            </Box>
+          )}
+
+          {description && (
+            <Stack gap={24}>
+              {/* Sub-heading sits above the long-form copy. Static copy because
+                  the block model exposes only a plain-text description today. */}
+              <Text
+                component="h2"
+                style={{
+                  margin: 0,
+                  fontSize: 20,
+                  lineHeight: "28px",
+                  fontWeight: 600,
+                  color: D.onSurface,
                 }}
               >
-                {tab.title || "(bez naziva)"}
-              </Tabs.Tab>
-            ))}
-          </Tabs.List>
-          {tabs.map((tab) => (
-            <Tabs.Panel key={tab.id} value={tab.id} pt="md">
-              {tab.content ? (
-                <Box dangerouslySetInnerHTML={{ __html: tiptapToHtml(tab.content) }} />
+                {t("product.about_heading")}
+              </Text>
+              <Text
+                style={{
+                  whiteSpace: "pre-wrap",
+                  fontSize: 16,
+                  lineHeight: "24px",
+                  color: D.onSurfaceVariant,
+                }}
+              >
+                {description}
+              </Text>
+            </Stack>
+          )}
+
+          {/* Social share */}
+          <Group gap={16} mt={32} align="center">
+            <Text
+              style={{
+                fontSize: 14,
+                lineHeight: "16px",
+                fontWeight: 600,
+                letterSpacing: "0.05em",
+                color: D.onSurface,
+              }}
+            >
+              {t("product.share_label")}
+            </Text>
+            <Group gap={8}>
+              {[
+                { label: t("product.share_native"), icon: <IconShare />, onClick: () => {
+                  if (typeof navigator !== "undefined" && (navigator as Navigator & { share?: (data: ShareData) => Promise<void> }).share) {
+                    void (navigator as Navigator & { share: (data: ShareData) => Promise<void> }).share({ title: page.title, url: window.location.href }).catch(() => {});
+                  }
+                } },
+                { label: t("product.share_copy_link"), icon: <IconLink />, onClick: () => {
+                  if (typeof navigator !== "undefined" && navigator.clipboard) {
+                    void navigator.clipboard.writeText(window.location.href).catch(() => {});
+                  }
+                } },
+                { label: t("product.share_email"), icon: <IconMail />, onClick: () => {
+                  window.location.href = `mailto:?subject=${encodeURIComponent(page.title)}&body=${encodeURIComponent(window.location.href)}`;
+                } },
+              ].map((b) => (
+                <UnstyledButton
+                  key={b.label}
+                  aria-label={b.label}
+                  onClick={b.onClick}
+                  style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: 4,
+                    border: `1px solid ${D.outlineVariant}`,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: D.onSurfaceVariant,
+                    transition: "background 150ms",
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = D.surfaceHigh; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+                >
+                  {b.icon}
+                </UnstyledButton>
+              ))}
+            </Group>
+          </Group>
+        </Grid.Col>
+
+        {/* Right column: configurator card (sticky at lg+) */}
+        <Grid.Col span={{ base: 12, lg: 5 }} order={{ base: 1, lg: 2 }}>
+          <Box
+            p={{ base: 24, md: 32 }}
+            style={{
+              background: D.surfaceLowest,
+              border: `1px solid ${D.outlineVariant}`,
+              borderRadius: 4,
+              position: "sticky",
+              top: 96,
+            }}
+          >
+            <Text
+              component="h3"
+              mb={24}
+              style={{
+                margin: 0,
+                fontSize: 20,
+                lineHeight: "28px",
+                fontWeight: 600,
+                color: D.onSurface,
+              }}
+            >
+              {t("product.configurator_heading")}
+            </Text>
+
+            {priceMode === "configurator" && (
+              <Box mb={32}>{configurator.controls}</Box>
+            )}
+
+            {/* Price row */}
+            <Box
+              mb={32}
+              pt={24}
+              style={{
+                borderTop: `1px solid ${D.outlineVariant}`,
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "baseline",
+                gap: 16,
+              }}
+            >
+              <Text style={{ fontSize: 16, lineHeight: "24px", color: D.onSurfaceVariant }}>
+                {priceMode === "inquiry" ? t("product.price_inquiry_label") : t("product.price_estimated_label")}
+              </Text>
+              {priceMode !== "inquiry" && displayPrice > 0 ? (
+                <PriceValue amount={displayPrice} />
               ) : (
-                <Text c="dimmed" size="sm">Nema sadržaja.</Text>
+                <Text style={{ fontSize: 14, color: D.onSurfaceVariant, fontStyle: "italic" }}>
+                  —
+                </Text>
               )}
-            </Tabs.Panel>
-          ))}
-        </Tabs>
+            </Box>
+
+            {/* CTA — visible on all viewports (mobile sticky bar mirrors it).
+                Inquiry-style project, so the label stays "Pošaljite upit". */}
+            <UnstyledButton
+              onClick={() => { /* Pošaljite upit — wiring TBD */ }}
+              style={{
+                width: "100%",
+                background: D.primary,
+                color: "#fff",
+                padding: "16px 32px",
+                borderRadius: 4,
+                fontSize: 14,
+                fontWeight: 600,
+                letterSpacing: "0.05em",
+                textTransform: "uppercase",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 12,
+                transition: "background 150ms, transform 100ms",
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = D.primaryHover; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = D.primary; }}
+            >
+              <IconSend />
+              {t("product.cta_send_inquiry")}
+            </UnstyledButton>
+
+            {/* Trust row */}
+            <Group justify="center" gap={16} mt={16}>
+              <Group gap={4} align="center">
+                <Box c={D.primary} style={{ display: "flex" }}><IconCheckCircle /></Box>
+                <Text style={{ fontSize: 12, lineHeight: "16px", fontWeight: 500, color: D.onSurfaceVariant }}>
+                  {t("product.trust_available")}
+                </Text>
+              </Group>
+              <Group gap={4} align="center">
+                <Box c={D.primary} style={{ display: "flex" }}><IconTruck /></Box>
+                <Text style={{ fontSize: 12, lineHeight: "16px", fontWeight: 500, color: D.onSurfaceVariant }}>
+                  {t("product.trust_fast_delivery")}
+                </Text>
+              </Group>
+            </Group>
+          </Box>
+        </Grid.Col>
+      </Grid>
+
+      {/* Info section — horizontal tabs at ≥768px, vertical multi-open accordion below.
+          Both branches read from the same `tabs` array. */}
+      {tabs.length > 0 && (
+        <Box
+          mt={{ base: 64, md: 80 }}
+          pt={48}
+          style={{ borderTop: `1px solid ${D.outlineVariant}` }}
+        >
+          {isMobileInfo ? (
+            <Accordion
+              value={openInfoItem}
+              onChange={setOpenInfoItem}
+              chevron={<IconChevronDown />}
+              styles={{
+                root: { background: "transparent" },
+                item: {
+                  background: "transparent",
+                  border: "none",
+                  borderBottom: `1px solid ${D.outlineVariant}`,
+                  borderRadius: 0,
+                },
+                control: { padding: "16px 0", background: "transparent" },
+                label: {
+                  padding: 0,
+                  fontSize: 14,
+                  fontWeight: 600,
+                  letterSpacing: "0.05em",
+                  textTransform: "uppercase",
+                },
+                chevron: { color: D.onSurfaceVariant, transition: "transform 250ms" },
+                content: { padding: "4px 0 24px" },
+                panel: { background: "transparent" },
+              }}
+            >
+              {tabs.map((tab) => {
+                const isOpen = openInfoItem === tab.id;
+                return (
+                  <Accordion.Item key={tab.id} value={tab.id}>
+                    <Accordion.Control style={{ color: isOpen ? D.primary : D.onSurface }}>
+                      {tab.title || t("product.option_unnamed")}
+                    </Accordion.Control>
+                    <Accordion.Panel>
+                      {tab.content ? (
+                        <Box
+                          style={{ fontSize: 16, lineHeight: "24px", color: D.onSurfaceVariant }}
+                          dangerouslySetInnerHTML={{ __html: tiptapToHtml(tab.content) }}
+                        />
+                      ) : (
+                        <Text style={{ fontSize: 14, color: D.onSurfaceVariant }}>
+                          {t("product.tab_empty")}
+                        </Text>
+                      )}
+                    </Accordion.Panel>
+                  </Accordion.Item>
+                );
+              })}
+            </Accordion>
+          ) : (
+            <Tabs
+              value={activeTabId}
+              onChange={setActiveTabId}
+              variant="default"
+              keepMounted={false}
+              styles={{
+                list: {
+                  gap: 32,
+                  borderBottom: `1px solid ${D.outlineVariant}`,
+                  marginBottom: 32,
+                  flexWrap: "nowrap",
+                  overflowX: "auto",
+                  scrollbarWidth: "none",
+                  whiteSpace: "nowrap",
+                },
+                tab: {
+                  fontSize: 14,
+                  fontWeight: 600,
+                  letterSpacing: "0.05em",
+                  textTransform: "uppercase",
+                  color: D.onSurfaceVariant,
+                  paddingBottom: 16,
+                  paddingTop: 0,
+                  paddingLeft: 0,
+                  paddingRight: 0,
+                  borderBottom: "2px solid transparent",
+                  borderRadius: 0,
+                  background: "transparent",
+                },
+                tabLabel: { whiteSpace: "nowrap" },
+              }}
+            >
+              <Tabs.List>
+                {tabs.map((tab) => {
+                  const isActive = tab.id === activeTabId;
+                  return (
+                    <Tabs.Tab
+                      key={tab.id}
+                      value={tab.id}
+                      style={{
+                        color: isActive ? D.primary : D.onSurfaceVariant,
+                        borderBottomColor: isActive ? D.primaryContainer : "transparent",
+                      }}
+                    >
+                      {tab.title || t("product.option_unnamed")}
+                    </Tabs.Tab>
+                  );
+                })}
+              </Tabs.List>
+              {tabs.map((tab) => (
+                <Tabs.Panel key={tab.id} value={tab.id} pt={0} style={{ minHeight: 300 }}>
+                  {tab.content ? (
+                    <Box
+                      style={{ fontSize: 16, lineHeight: "24px", color: D.onSurfaceVariant }}
+                      dangerouslySetInnerHTML={{ __html: tiptapToHtml(tab.content) }}
+                    />
+                  ) : (
+                    <Text style={{ fontSize: 14, color: D.onSurfaceVariant }}>{t("product.tab_empty")}</Text>
+                  )}
+                </Tabs.Panel>
+              ))}
+            </Tabs>
+          )}
+        </Box>
       )}
+
+      {/* Sticky mobile bottom bar */}
+      <Box
+        hiddenFrom="lg"
+        style={{
+          position: "fixed",
+          bottom: 0,
+          left: 0,
+          right: 0,
+          background: D.surface,
+          borderTop: `1px solid ${D.outlineVariant}`,
+          padding: 16,
+          zIndex: 100,
+          boxShadow: "0 -4px 10px rgba(0,0,0,0.05)",
+        }}
+      >
+        <Group justify="space-between" wrap="nowrap" gap={16}>
+          <Stack gap={2} style={{ flexShrink: 0 }}>
+            <Text style={{ fontSize: 12, lineHeight: "16px", fontWeight: 500, color: D.onSurfaceVariant }}>
+              {priceMode === "inquiry" ? t("product.mobile_price_label") : t("product.mobile_total_label")}
+            </Text>
+            {priceMode !== "inquiry" && displayPrice > 0 ? (
+              <PriceValue amount={displayPrice} size="md" />
+            ) : (
+              <Text style={{ fontSize: 20, lineHeight: "28px", fontWeight: 700, color: D.primary }}>
+                {t("product.mobile_on_inquiry")}
+              </Text>
+            )}
+          </Stack>
+          <UnstyledButton
+            onClick={() => { /* Pošaljite upit — wiring TBD */ }}
+            style={{
+              flex: 1,
+              background: D.primary,
+              color: "#fff",
+              padding: "12px 24px",
+              borderRadius: 4,
+              fontSize: 14,
+              fontWeight: 600,
+              letterSpacing: "0.05em",
+              textTransform: "uppercase",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 8,
+            }}
+          >
+            <IconSend />
+            POŠALJITE UPIT
+          </UnstyledButton>
+        </Group>
+      </Box>
+      {/* Spacer so content isn't covered by the sticky mobile bar */}
+      <Box hiddenFrom="lg" h={88} />
     </article>
   );
 }

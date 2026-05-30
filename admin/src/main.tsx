@@ -12,7 +12,7 @@ const productItemPageType: PageTypeDefinition = {
   type: "product-item",
   label: { en: "Product", hr: "Proizvod" },
   canBeRoot: false,
-  allowedParentTypes: ["product-sub-category"],
+  allowedParentTypes: ["product-category"],
   allowBlocks: true,
   allowedBlockTypes: ["product-item"],
 };

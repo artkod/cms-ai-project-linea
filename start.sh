@@ -96,6 +96,18 @@ DATABASE_URL="postgresql://$DB_USER:$DB_PASSWORD@localhost:$PORT_DB/$DB_NAME" \
   SEED_ADMIN_ROLE="developer" \
   npx tsx src/seed.ts
 
+# ─── 3a. Seed per-project data (strings + runtime page types) ─────────────────
+# Idempotent: ON CONFLICT DO NOTHING. Existing rows (e.g. editor changes via
+# the admin) are never overwritten — delete in the admin and re-run to refresh.
+if [[ -f "$PROJECT_DIR/project-data.seed.json" ]]; then
+  echo "Seeding project data (strings + page types)..."
+  cd "$CMS_CORE_DIR/apps/api"
+  DATABASE_URL="postgresql://$DB_USER:$DB_PASSWORD@localhost:$PORT_DB/$DB_NAME" \
+    PROJECT_SLUG="project-linea" \
+    PROJECT_DATA_FILE="$PROJECT_DIR/project-data.seed.json" \
+    npx tsx src/seed-project-data.ts
+fi
+
 # ─── 4. Build admin package (if source changed or not built yet) ─────────────
 ADMIN_BASE_DIST="$CMS_CORE_DIR/packages/admin-base/dist/index.js"
 ADMIN_BASE_SRC="$CMS_CORE_DIR/packages/admin-base/src"

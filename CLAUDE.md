@@ -16,7 +16,7 @@ runtime types added via Pages → Options).
 
 - Code-defined in `admin/src/main.tsx` as `productItemPageType`:
   `label: { en: "Product", hr: "Proizvod" }`, `canBeRoot: false`,
-  `allowedParentTypes: ["product-sub-category"]`, `allowBlocks: true`,
+  `allowedParentTypes: ["product-category"]`, `allowBlocks: true`,
   `allowedBlockTypes: ["product-item"]`. Because there's exactly one
   allowed block type, the framework treats this as a **singleton-block
   page type** (see cms-ai-core CLAUDE.md): on create the admin auto-seeds
@@ -37,11 +37,26 @@ runtime types added via Pages → Options).
   all optional.
 - A frontend renderer **is** wired up in `src/routes/PageView.tsx` via the
   `ProductItemView` component (selected by `page.type === "product-item"`).
-  It renders: page title, alternative title (when set), main photo,
-  gallery, plain-text description, the price area, and a Mantine `Tabs`
-  block (one RTE-rendered `Tabs.Panel` per "Additional info" tab — tabs
-  use `grow` + label-ellipsis so they always sit on one row regardless of
-  label length).
+  It implements the **"Industrial Clarity"** product-detail design — lime-
+  green palette (`#496800` primary / `#9acb34` accent, scoped via a `D` const
+  inside `PageView.tsx`, the rest of the site keeps Mantine teal), Inter
+  (loaded in `index.html`), 4px radii, `#c3c9b1` outlines. Responsive 7/5
+  grid: image gallery + description + social share on the left, sticky
+  configurator card on the right (`top: 96px` at ≥lg, full-width above the
+  image on mobile). The card holds the three `Select`s + price row +
+  `Pošaljite upit` CTA + "Dostupno" / "Brza dostava" trust row. A sticky
+  bottom bar with price + same CTA mirrors the card on `<lg`.
+- **Info section is tabs-or-accordion by viewport** — at ≥768px the
+  predefined "Additional info" tabs render as a Mantine `Tabs` strip
+  (label-md uppercase, 2px lime underline on active, horizontally
+  scrollable). At <768px the same data renders as a Mantine `Accordion`
+  in **single-open mode** (no `multiple`), controlled via `openInfoItem:
+  string | null`. All items start collapsed (initial state is `null`);
+  the open header's text flips to lime via an inline `style={{ color:
+  isOpen ? D.primary : D.onSurface }}` on the `Accordion.Control`. Swap signal is
+  `useMediaQuery("(max-width: 767.99px)", false, { getInitialValueInEffect:
+  false })` so the first render reads the real viewport and there's no
+  tabs→accordion flicker on hydration.
 - **Price area** has three modes (mutually exclusive, in priority order):
   1. **Fixed price** — when the block's `priceEur` parses to a number > 0,
      display that single value formatted via `Intl.NumberFormat("hr-HR",
@@ -86,16 +101,48 @@ Custom core path: `CMS_CORE_DIR=/path/to/cms-ai-core ./start.sh`
 React 19 + Vite 6, React Router v7, Mantine 7 (light, teal), TypeScript,
 PostgreSQL 16 (Docker)
 
+**Site-wide content width** is **1140px** (Bootstrap 5 `container-xl` default).
+All three `Container` instances in `src/routes/RootLayout.tsx` (header / main /
+footer) use `size={1140}`. Mantine's default named sizes (md=992, lg=1184) don't
+match Bootstrap, so we pass the number directly. Change all three if you ever
+need to widen/narrow the layout.
+
+**Inter font** is loaded site-wide via Google Fonts (`<link>` in `index.html`)
+and set in the Mantine theme (`src/main.tsx`) at the front of the font stack
+for both `fontFamily` and `headings.fontFamily`. System fonts fall back if the
+network blocks Google Fonts.
+
 ---
 
 ## Page types
 
-Only the built-in `default` page type is registered in code. The frontend
-renders it via `DefaultView` in `src/routes/PageView.tsx` — title plus the
-block list (Mixed Content widgets: text, video, link, accordion, gallery,
-section).
+The product taxonomy on this project is three-level:
 
-If a custom page type is needed later:
+| Slug | Label (en / hr) | Source | Parent | Children |
+|---|---|---|---|---|
+| `products` | Products / Proizvodi | runtime (seeded) | (root) | `product-category` |
+| `product-category` | Product category / Vrsta proizvoda | runtime (seeded) | `products` | `product-item` |
+| `product-item` | Product / Proizvod | code-defined (`admin/src/main.tsx`) | `product-category` | (leaf) |
+
+`products` is singleton (`limit: 1`, `canBeRoot: true`, `deletable: false`) so
+the root "Products" page lives at a fixed location. `product-category` has no
+limit. `product-item` is a singleton-block page type — see the section above.
+
+Only the built-in `default` and the code-defined `product-item` are registered
+in code. `products` and `product-category` are runtime types defined in
+`project-data.seed.json` and re-created on every `start.sh` run if they're
+missing from the DB (see "Seeding project data" below). The frontend renders
+the default view for any page type without a `case` branch in
+`PageView.tsx` — currently only `product-item` has a custom view.
+
+**Slugs are immutable** after create. The previous taxonomy
+(`product-main-category`, `product-sub-category`, `product-item`) was migrated
+to the current names via a one-time SQL transaction that cascaded
+`pages.type` and `menus.auto_page_types` in lockstep — don't repeat that ad
+hoc; document any new type rename and ship it as a migration on the API side
+if it ever has to happen again.
+
+If a new custom page type is needed:
 
 1. **Code-defined** — add a `PageTypeDefinition` and pass it via
    `createAdmin({ pageTypes: [...] })` in `admin/src/main.tsx`. **Always
@@ -103,13 +150,40 @@ If a custom page type is needed later:
    `deletable`, `limit`, `perParentLimit`, `canBeRoot`, and
    `allowed{Parent,Child}Types` if relevant. Then add a matching `case` in
    `src/routes/PageView.tsx`'s switch.
-2. **Runtime-defined** — created from the developer-only **Pages → Options
-   drawer**. Stored in the `page_types` table. The admin renders it without
-   any code change, but the frontend still needs a matching `case` in
-   `PageView.tsx` to render it as anything other than the default view.
+2. **Runtime-defined** — either create from the developer-only **Pages →
+   Options drawer** (one-off) **or** add a `pageTypes` entry in
+   `project-data.seed.json` (preferred for typed-up-front from-scratch
+   bootstrap). Frontend still needs a matching `case` in `PageView.tsx` to
+   render it as anything other than the default view.
 
-Slug is immutable once a type exists. See `cms-ai-core/CLAUDE.md` and
-`docs/project-CLAUDE-template.md` for the full rules.
+See `cms-ai-core/CLAUDE.md` and `docs/project-CLAUDE-template.md` for the
+full rules.
+
+---
+
+## Seeding project data (`project-data.seed.json`)
+
+Per-project bootstrap data — translation strings + runtime page types — lives
+in `project-data.seed.json` at the project root. `start.sh` reads it on every
+run (step "3a") and calls
+`cms-ai-core/apps/api/src/seed-project-data.ts`, which upserts both arrays
+with `ON CONFLICT DO NOTHING`. **Existing rows are never overwritten** so
+editor edits via the admin Strings UI / Pages → Options drawer survive
+re-seeds; to force-refresh, delete the row first.
+
+Two arrays:
+
+```json
+{
+  "strings":   [ { "locale": "hr|en|…", "key": "…", "value": "…" }, … ],
+  "pageTypes": [ { "type": "…", "label": { "hr": "…", "en": "…" }, … }, … ]
+}
+```
+
+Add new keys here whenever you introduce new `t('…')` calls in the frontend or
+new runtime page types — that way a fresh DB has everything wired up after
+one `./start.sh`. The script chunk-inserts strings in a single statement and
+inserts page types one at a time.
 
 ---
 
@@ -120,6 +194,38 @@ Slug is immutable once a type exists. See `cms-ai-core/CLAUDE.md` and
 Child pages can be fetched via
 `GET /api/pages?type=<childType>&parentId=<id>&locale=<locale>` if a custom
 view needs them.
+
+## Editor-managed strings (`useStrings()` / `t('key')`)
+
+Frontend copy that isn't part of the page content lives in the core
+**Strings** system (developer-only Strings tab in the admin, backed by
+`GET /api/strings?locale=…`). Missing keys render as the literal key so
+unfilled copy is obvious in the browser.
+
+**Strings are seeded from-scratch** via `project-data.seed.json` (see
+"Seeding project data" below) — when you add new `t('…')` calls in code,
+also add the keys to that file so a fresh DB has them ready after one
+`./start.sh`. The admin Strings UI is for *editing* what was seeded;
+authoritative source-of-truth for new keys is the seed file.
+
+**`ProductItemView` uses 23 keys under the `product.*` namespace** — all
+already seeded for `hr` and `en`. When adding new visible copy to the
+product view (or any other route), prefer `t("product.<key>")` over
+hardcoded strings and seed both locales:
+
+| Group | Keys |
+|---|---|
+| Breadcrumb | `product.breadcrumb_home` |
+| Headings | `product.about_heading`, `product.configurator_heading` |
+| Share row | `product.share_label`, `product.share_native`, `product.share_copy_link`, `product.share_email` |
+| Configurator selects | `product.option_konstrukcija`, `product.option_grafika`, `product.option_baza`, `product.option_placeholder`, `product.option_unnamed` |
+| Price labels | `product.price_inquiry_label`, `product.price_estimated_label`, `product.price_vat_suffix` |
+| CTA / trust | `product.cta_send_inquiry`, `product.trust_available`, `product.trust_fast_delivery` |
+| Mobile sticky bar | `product.mobile_price_label`, `product.mobile_total_label`, `product.mobile_on_inquiry` |
+| Misc | `product.tab_empty`, `product.aria_view_image` |
+
+The `t()` helper does **not** support interpolation — for things like
+`View image N` we concat `${t("product.aria_view_image")} ${i + 1}`.
 
 ## URLs and i18n
 

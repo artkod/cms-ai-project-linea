@@ -144,7 +144,7 @@ export function RootLayout() {
       <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh" }}>
         {/* Header */}
         <header style={{ borderBottom: "1px solid #e9ecef", background: "#fff", position: "sticky", top: 0, zIndex: 200 }}>
-          <Container size="md">
+          <Container size={1140}>
             <Group h={60} justify="space-between" align="center">
               <Anchor component={Link as any} to={`/${activeLocale}/`} underline="never" c="dark">
                 <Title order={4} style={{ letterSpacing: "-0.01em" }}>{siteTitle}</Title>
@@ -167,14 +167,14 @@ export function RootLayout() {
 
         {/* Main */}
         <main style={{ flex: 1 }}>
-          <Container size="md" py="xl">
+          <Container size={1140} py="xl">
             <Outlet />
           </Container>
         </main>
 
         {/* Footer */}
         <footer style={{ borderTop: "1px solid #e9ecef", background: "#f8f9fa", padding: "32px 0 24px" }}>
-          <Container size="md">
+          <Container size={1140}>
             <Group justify="space-between" align="flex-start" wrap="wrap" gap="xl" mb="md">
               <div>
                 <Text size="sm" fw={600} mb={2}>{siteTitle}</Text>
