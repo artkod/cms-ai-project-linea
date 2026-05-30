@@ -16,7 +16,7 @@ runtime types added via Pages → Options).
 
 - Code-defined in `admin/src/main.tsx` as `productItemPageType`:
   `label: { en: "Product", hr: "Proizvod" }`, `canBeRoot: false`,
-  `allowedParentTypes: ["product-sub-category"]`, `allowBlocks: true`,
+  `allowedParentTypes: ["product-category"]`, `allowBlocks: true`,
   `allowedBlockTypes: ["product-item"]`. Because there's exactly one
   allowed block type, the framework treats this as a **singleton-block
   page type** (see cms-ai-core CLAUDE.md): on create the admin auto-seeds
@@ -116,12 +116,33 @@ network blocks Google Fonts.
 
 ## Page types
 
-Only the built-in `default` page type is registered in code. The frontend
-renders it via `DefaultView` in `src/routes/PageView.tsx` — title plus the
-block list (Mixed Content widgets: text, video, link, accordion, gallery,
-section).
+The product taxonomy on this project is three-level:
 
-If a custom page type is needed later:
+| Slug | Label (en / hr) | Source | Parent | Children |
+|---|---|---|---|---|
+| `products` | Products / Proizvodi | runtime (seeded) | (root) | `product-category` |
+| `product-category` | Product category / Vrsta proizvoda | runtime (seeded) | `products` | `product-item` |
+| `product-item` | Product / Proizvod | code-defined (`admin/src/main.tsx`) | `product-category` | (leaf) |
+
+`products` is singleton (`limit: 1`, `canBeRoot: true`, `deletable: false`) so
+the root "Products" page lives at a fixed location. `product-category` has no
+limit. `product-item` is a singleton-block page type — see the section above.
+
+Only the built-in `default` and the code-defined `product-item` are registered
+in code. `products` and `product-category` are runtime types defined in
+`project-data.seed.json` and re-created on every `start.sh` run if they're
+missing from the DB (see "Seeding project data" below). The frontend renders
+the default view for any page type without a `case` branch in
+`PageView.tsx` — currently only `product-item` has a custom view.
+
+**Slugs are immutable** after create. The previous taxonomy
+(`product-main-category`, `product-sub-category`, `product-item`) was migrated
+to the current names via a one-time SQL transaction that cascaded
+`pages.type` and `menus.auto_page_types` in lockstep — don't repeat that ad
+hoc; document any new type rename and ship it as a migration on the API side
+if it ever has to happen again.
+
+If a new custom page type is needed:
 
 1. **Code-defined** — add a `PageTypeDefinition` and pass it via
    `createAdmin({ pageTypes: [...] })` in `admin/src/main.tsx`. **Always
@@ -129,13 +150,40 @@ If a custom page type is needed later:
    `deletable`, `limit`, `perParentLimit`, `canBeRoot`, and
    `allowed{Parent,Child}Types` if relevant. Then add a matching `case` in
    `src/routes/PageView.tsx`'s switch.
-2. **Runtime-defined** — created from the developer-only **Pages → Options
-   drawer**. Stored in the `page_types` table. The admin renders it without
-   any code change, but the frontend still needs a matching `case` in
-   `PageView.tsx` to render it as anything other than the default view.
+2. **Runtime-defined** — either create from the developer-only **Pages →
+   Options drawer** (one-off) **or** add a `pageTypes` entry in
+   `project-data.seed.json` (preferred for typed-up-front from-scratch
+   bootstrap). Frontend still needs a matching `case` in `PageView.tsx` to
+   render it as anything other than the default view.
 
-Slug is immutable once a type exists. See `cms-ai-core/CLAUDE.md` and
-`docs/project-CLAUDE-template.md` for the full rules.
+See `cms-ai-core/CLAUDE.md` and `docs/project-CLAUDE-template.md` for the
+full rules.
+
+---
+
+## Seeding project data (`project-data.seed.json`)
+
+Per-project bootstrap data — translation strings + runtime page types — lives
+in `project-data.seed.json` at the project root. `start.sh` reads it on every
+run (step "3a") and calls
+`cms-ai-core/apps/api/src/seed-project-data.ts`, which upserts both arrays
+with `ON CONFLICT DO NOTHING`. **Existing rows are never overwritten** so
+editor edits via the admin Strings UI / Pages → Options drawer survive
+re-seeds; to force-refresh, delete the row first.
+
+Two arrays:
+
+```json
+{
+  "strings":   [ { "locale": "hr|en|…", "key": "…", "value": "…" }, … ],
+  "pageTypes": [ { "type": "…", "label": { "hr": "…", "en": "…" }, … }, … ]
+}
+```
+
+Add new keys here whenever you introduce new `t('…')` calls in the frontend or
+new runtime page types — that way a fresh DB has everything wired up after
+one `./start.sh`. The script chunk-inserts strings in a single statement and
+inserts page types one at a time.
 
 ---
 
@@ -153,6 +201,12 @@ Frontend copy that isn't part of the page content lives in the core
 **Strings** system (developer-only Strings tab in the admin, backed by
 `GET /api/strings?locale=…`). Missing keys render as the literal key so
 unfilled copy is obvious in the browser.
+
+**Strings are seeded from-scratch** via `project-data.seed.json` (see
+"Seeding project data" below) — when you add new `t('…')` calls in code,
+also add the keys to that file so a fresh DB has them ready after one
+`./start.sh`. The admin Strings UI is for *editing* what was seeded;
+authoritative source-of-truth for new keys is the seed file.
 
 **`ProductItemView` uses 23 keys under the `product.*` namespace** — all
 already seeded for `hr` and `en`. When adding new visible copy to the
