@@ -37,11 +37,26 @@ runtime types added via Pages → Options).
   all optional.
 - A frontend renderer **is** wired up in `src/routes/PageView.tsx` via the
   `ProductItemView` component (selected by `page.type === "product-item"`).
-  It renders: page title, alternative title (when set), main photo,
-  gallery, plain-text description, the price area, and a Mantine `Tabs`
-  block (one RTE-rendered `Tabs.Panel` per "Additional info" tab — tabs
-  use `grow` + label-ellipsis so they always sit on one row regardless of
-  label length).
+  It implements the **"Industrial Clarity"** product-detail design — lime-
+  green palette (`#496800` primary / `#9acb34` accent, scoped via a `D` const
+  inside `PageView.tsx`, the rest of the site keeps Mantine teal), Inter
+  (loaded in `index.html`), 4px radii, `#c3c9b1` outlines. Responsive 7/5
+  grid: image gallery + description + social share on the left, sticky
+  configurator card on the right (`top: 96px` at ≥lg, full-width above the
+  image on mobile). The card holds the three `Select`s + price row +
+  `Pošaljite upit` CTA + "Dostupno" / "Brza dostava" trust row. A sticky
+  bottom bar with price + same CTA mirrors the card on `<lg`.
+- **Info section is tabs-or-accordion by viewport** — at ≥768px the
+  predefined "Additional info" tabs render as a Mantine `Tabs` strip
+  (label-md uppercase, 2px lime underline on active, horizontally
+  scrollable). At <768px the same data renders as a Mantine `Accordion`
+  in **single-open mode** (no `multiple`), controlled via `openInfoItem:
+  string | null`. All items start collapsed (initial state is `null`);
+  the open header's text flips to lime via an inline `style={{ color:
+  isOpen ? D.primary : D.onSurface }}` on the `Accordion.Control`. Swap signal is
+  `useMediaQuery("(max-width: 767.99px)", false, { getInitialValueInEffect:
+  false })` so the first render reads the real viewport and there's no
+  tabs→accordion flicker on hydration.
 - **Price area** has three modes (mutually exclusive, in priority order):
   1. **Fixed price** — when the block's `priceEur` parses to a number > 0,
      display that single value formatted via `Intl.NumberFormat("hr-HR",
@@ -86,6 +101,17 @@ Custom core path: `CMS_CORE_DIR=/path/to/cms-ai-core ./start.sh`
 React 19 + Vite 6, React Router v7, Mantine 7 (light, teal), TypeScript,
 PostgreSQL 16 (Docker)
 
+**Site-wide content width** is **1140px** (Bootstrap 5 `container-xl` default).
+All three `Container` instances in `src/routes/RootLayout.tsx` (header / main /
+footer) use `size={1140}`. Mantine's default named sizes (md=992, lg=1184) don't
+match Bootstrap, so we pass the number directly. Change all three if you ever
+need to widen/narrow the layout.
+
+**Inter font** is loaded site-wide via Google Fonts (`<link>` in `index.html`)
+and set in the Mantine theme (`src/main.tsx`) at the front of the font stack
+for both `fontFamily` and `headings.fontFamily`. System fonts fall back if the
+network blocks Google Fonts.
+
 ---
 
 ## Page types
@@ -120,6 +146,32 @@ Slug is immutable once a type exists. See `cms-ai-core/CLAUDE.md` and
 Child pages can be fetched via
 `GET /api/pages?type=<childType>&parentId=<id>&locale=<locale>` if a custom
 view needs them.
+
+## Editor-managed strings (`useStrings()` / `t('key')`)
+
+Frontend copy that isn't part of the page content lives in the core
+**Strings** system (developer-only Strings tab in the admin, backed by
+`GET /api/strings?locale=…`). Missing keys render as the literal key so
+unfilled copy is obvious in the browser.
+
+**`ProductItemView` uses 23 keys under the `product.*` namespace** — all
+already seeded for `hr` and `en`. When adding new visible copy to the
+product view (or any other route), prefer `t("product.<key>")` over
+hardcoded strings and seed both locales:
+
+| Group | Keys |
+|---|---|
+| Breadcrumb | `product.breadcrumb_home` |
+| Headings | `product.about_heading`, `product.configurator_heading` |
+| Share row | `product.share_label`, `product.share_native`, `product.share_copy_link`, `product.share_email` |
+| Configurator selects | `product.option_konstrukcija`, `product.option_grafika`, `product.option_baza`, `product.option_placeholder`, `product.option_unnamed` |
+| Price labels | `product.price_inquiry_label`, `product.price_estimated_label`, `product.price_vat_suffix` |
+| CTA / trust | `product.cta_send_inquiry`, `product.trust_available`, `product.trust_fast_delivery` |
+| Mobile sticky bar | `product.mobile_price_label`, `product.mobile_total_label`, `product.mobile_on_inquiry` |
+| Misc | `product.tab_empty`, `product.aria_view_image` |
+
+The `t()` helper does **not** support interpolation — for things like
+`View image N` we concat `${t("product.aria_view_image")} ${i + 1}`.
 
 ## URLs and i18n
 
