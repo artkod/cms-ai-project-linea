@@ -773,7 +773,7 @@ function ProductItemView({ page }: { page: Page }) {
                 overflow: "hidden",
               }}
             >
-              <AspectRatio ratio={4 / 5}>
+              <AspectRatio ratio={1}>
                 <Image
                   key={activeImage.mediaId}
                   src={activeImage.cdnUrl}

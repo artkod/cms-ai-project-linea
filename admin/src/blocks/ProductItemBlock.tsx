@@ -661,7 +661,11 @@ function KonfiguratorCijene({
   const { enabled, group1Label, group2Label, group3Label, konstrukcija, grafika, baza } = value;
   // Group 2 can't hold prices until group 1 has at least one item to key them by.
   const group2Locked = konstrukcija.length === 0;
-  const labelError = (v: string) => (enabled && !v.trim() ? GROUP_LABEL_REQUIRED : undefined);
+  // A group's label is only required when the configurator is on AND the group
+  // actually has at least one item — an empty group isn't rendered on the
+  // frontend, so its title is irrelevant.
+  const labelError = (v: string, count: number) =>
+    enabled && count > 0 && !v.trim() ? GROUP_LABEL_REQUIRED : undefined;
 
   // ─── Konstrukcija ──────────────────────────────────────────────────────
   function addKonstrukcija() {
@@ -763,8 +767,8 @@ function KonfiguratorCijene({
                 placeholder="npr. Konstrukcija"
                 value={group1Label}
                 onChange={(e) => onChange({ ...value, group1Label: e.currentTarget.value })}
-                withAsterisk={enabled}
-                error={labelError(group1Label)}
+                withAsterisk={enabled && konstrukcija.length > 0}
+                error={labelError(group1Label, konstrukcija.length)}
               />
               {konstrukcija.map((row) => (
                 <Group key={row.id} gap={8} align="flex-end" wrap="nowrap">
@@ -821,8 +825,8 @@ function KonfiguratorCijene({
                 placeholder="npr. Grafika"
                 value={group2Label}
                 onChange={(e) => onChange({ ...value, group2Label: e.currentTarget.value })}
-                withAsterisk={enabled}
-                error={labelError(group2Label)}
+                withAsterisk={enabled && grafika.length > 0}
+                error={labelError(group2Label, grafika.length)}
               />
               {group2Locked && (
                 <Text size="xs" c="dimmed">
@@ -893,8 +897,8 @@ function KonfiguratorCijene({
                 placeholder="npr. Baza"
                 value={group3Label}
                 onChange={(e) => onChange({ ...value, group3Label: e.currentTarget.value })}
-                withAsterisk={enabled}
-                error={labelError(group3Label)}
+                withAsterisk={enabled && baza.length > 0}
+                error={labelError(group3Label, baza.length)}
               />
               {baza.map((row) => (
                 <Group key={row.id} gap={8} align="flex-end" wrap="nowrap">
