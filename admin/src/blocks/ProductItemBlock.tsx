@@ -752,7 +752,7 @@ function KonfiguratorCijene({
         <Accordion.Item value="konstrukcija">
           <Accordion.Control>
             <Group justify="space-between" pr="md">
-              <Text fw={600}>{group1Label.trim() || "1. grupa"}</Text>
+              <Text fw={600}>{group1Label.trim()}</Text>
               <Text size="xs" c="dimmed">{konstrukcija.length} {konstrukcija.length === 1 ? "stavka" : "stavki"}</Text>
             </Group>
           </Accordion.Control>
@@ -803,7 +803,7 @@ function KonfiguratorCijene({
         <Accordion.Item value="grafika">
           <Accordion.Control>
             <Group justify="space-between" pr="md">
-              <Text fw={600}>{group2Label.trim() || "2. grupa"}</Text>
+              <Text fw={600}>{group2Label.trim()}</Text>
               <Text size="xs" c="dimmed">{grafika.length} {grafika.length === 1 ? "stavka" : "stavki"}</Text>
             </Group>
           </Accordion.Control>
@@ -882,7 +882,7 @@ function KonfiguratorCijene({
         <Accordion.Item value="baza">
           <Accordion.Control>
             <Group justify="space-between" pr="md">
-              <Text fw={600}>{group3Label.trim() || "3. grupa"}</Text>
+              <Text fw={600}>{group3Label.trim()}</Text>
               <Text size="xs" c="dimmed">{baza.length} {baza.length === 1 ? "stavka" : "stavki"}</Text>
             </Group>
           </Accordion.Control>
