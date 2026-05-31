@@ -30,11 +30,27 @@ runtime types added via Pages → Options).
   `tehnika-tiska`, `upute-graficka-priprema`, `upute-slaganje`; editors
   can rename/add/remove tabs through small Mantine modals), and a
   "Konfigurator cijene" section with three Mantine `Accordion` panels
-  (`Konstrukcija`, `Grafika`, `Baza`). Each Grafika row exposes one EUR
-  cijena input per Konstrukcija row, prefixed with that Konstrukcija
-  row's `naziv`. Every price input has a `do dvije decimale` format hint;
-  prices are stored as free-text strings to preserve formatting and are
-  all optional.
+  acting as three **groups** (internal keys stay `konstrukcija` / `grafika`
+  / `baza`; the customer-facing **titles are editable per group** and
+  **required** when the configurator is enabled — empty by default,
+  default-titled "1./2./3. grupa" in the accordion header until filled).
+  Each group-2 (`grafika`) row exposes one EUR cijena input per group-1
+  (`konstrukcija`) row, prefixed with that group-1 row's `naziv`, and
+  **group 2 is locked (greyed via a nested `<fieldset disabled>`) until
+  group 1 has at least one item**. Group 3 (`baza`) is independent. Every
+  price input has a `do dvije decimale` format hint; prices are stored as
+  free-text strings and are all optional.
+- **Enable toggle (`konfiguratorCijene.enabled`)**: a checkbox on the
+  "Konfigurator cijene" header gates the whole section. **Unchecked by
+  default** — a native `<fieldset disabled>` greys out and disables every
+  configurator input. When **checked**, the standalone **price field
+  (`priceEur`) is disabled** (the two pricing inputs are mutually
+  exclusive). Legacy rows saved before the toggle existed have no `enabled`
+  flag; `normalize()` (admin) and `ProductItemView` (frontend) both default
+  it to "on iff the row already carries configurator data" so fixed-price
+  products keep their price field active. Required group-title validation
+  is best-effort (asterisk + inline error) — the block API has no
+  save-blocking hook, so an editor can still save with empty titles.
 - A frontend renderer **is** wired up in `src/routes/PageView.tsx` via the
   `ProductItemView` component (selected by `page.type === "product-item"`).
   It implements the **"Industrial Clarity"** product-detail design — lime-
@@ -57,19 +73,23 @@ runtime types added via Pages → Options).
   `useMediaQuery("(max-width: 767.99px)", false, { getInitialValueInEffect:
   false })` so the first render reads the real viewport and there's no
   tabs→accordion flicker on hydration.
-- **Price area** has three modes (mutually exclusive, in priority order):
-  1. **Fixed price** — when the block's `priceEur` parses to a number > 0,
-     display that single value formatted via `Intl.NumberFormat("hr-HR",
-     { style: "currency", currency: "EUR" })` (e.g. `12,34 €`).
-  2. **Konfigurator** — when any `cijena` across Konstrukcija, Grafika
-     (any per-Konstrukcija value), or Baza parses to > 0, render three
-     Mantine `Select`s (one per non-empty category), pre-selecting the
-     first option in each so the user sees a real total immediately.
-     Grafika option prices come from `cijene[selectedKonstrukcija.id]`,
-     so re-picking Konstrukcija also re-prices Grafika. Total is the sum
-     of the three currently-selected items' resolved prices.
-  3. **Inquiry** — when neither path produces a positive total, render a
-     `Pošaljite upit` button (no-op for now; wire to a real
+- **Price area** has three modes, driven by the `konfiguratorCijene.enabled`
+  toggle:
+  1. **Konfigurator** — when the toggle is **on** AND any `cijena` across
+     the three groups parses to > 0. Renders the group `Select`s (one per
+     non-empty group), each using the editor-set group title (falling back
+     to the `product.option_*` string). Selects are **deselectable/clearable
+     and start empty** — nothing is pre-selected. **Group 2 (`grafika`) stays
+     disabled until something in group 1 is picked**, and clearing group 1
+     also clears group 2 (its price keys off `cijene[selectedKonstrukcija.id]`).
+     Total is the sum of the currently-selected items. **With nothing
+     selected the product is treated exactly like Inquiry** (no price shown,
+     `Pošaljite upit` CTA) — selecting at least one option reveals the total.
+  2. **Fixed price** — when the toggle is **off** AND `priceEur` parses to
+     > 0, display that single value (`Intl.NumberFormat("hr-HR", { style:
+     "currency", currency: "EUR" })`, e.g. `12,34 €`).
+  3. **Inquiry** — everything else, including **toggle off + empty price**:
+     render the `Pošaljite upit` button (no-op for now; wire to a real
      enquiry-submit flow when needed).
   All displayed prices are followed by a small dimmed `+ PDV` suffix.
   Free-text `cijena` strings are parsed with `parsePrice` (handles comma
@@ -243,7 +263,7 @@ hardcoded strings and seed both locales:
 | Breadcrumb | `product.breadcrumb_home` |
 | Headings | `product.about_heading`, `product.configurator_heading` |
 | Share row | `product.share_label`, `product.share_native`, `product.share_copy_link`, `product.share_email` |
-| Configurator selects | `product.option_konstrukcija`, `product.option_grafika`, `product.option_baza`, `product.option_placeholder`, `product.option_unnamed` |
+| Configurator selects | `product.option_konstrukcija`, `product.option_grafika`, `product.option_baza`, `product.option_placeholder`, `product.option_locked`, `product.option_unnamed` (the `option_konstrukcija/grafika/baza` keys are now only fallbacks — editor-set group titles take priority) |
 | Price labels | `product.price_inquiry_label`, `product.price_estimated_label`, `product.price_vat_suffix` |
 | CTA / trust | `product.cta_send_inquiry`, `product.trust_available`, `product.trust_fast_delivery` |
 | Mobile sticky bar | `product.mobile_price_label`, `product.mobile_total_label`, `product.mobile_on_inquiry` |
