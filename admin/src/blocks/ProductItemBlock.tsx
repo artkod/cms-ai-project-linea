@@ -165,7 +165,7 @@ function MainPhotoPicker({
   return (
     <>
       <Stack gap={6}>
-        <Text size="sm" fw={500}>Glavna fotografija</Text>
+        <Text size="sm" fw={500}>Glavna slika</Text>
         {value ? (
           <Group align="flex-start" gap={12}>
             <Image
@@ -174,7 +174,7 @@ function MainPhotoPicker({
               h={120}
               fit="cover"
               radius="sm"
-              alt="Glavna fotografija"
+              alt="Glavna slika"
             />
             <Stack gap={6}>
               <Button variant="secondary" size="sm" onClick={() => setOpen(true)}>

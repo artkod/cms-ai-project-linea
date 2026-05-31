@@ -75,6 +75,28 @@ runtime types added via Pages → Options).
   Free-text `cijena` strings are parsed with `parsePrice` (handles comma
   or dot decimal separator); empty / non-positive values resolve to 0.
 
+### `product-category` page type
+
+- Originally seeded as a runtime type; now **code-defined** in
+  `admin/src/main.tsx` as `productCategoryPageType` so it can carry a block.
+  `label: { en: "Product category", hr: "Vrsta proizvoda" }`,
+  `canBeRoot: false`, `deletable: true`, `allowedParentTypes: ["products"]`,
+  `allowedChildTypes: ["product-item"]`, `allowBlocks: true`,
+  `allowedBlockTypes: ["product-category"]`. With exactly one allowed block
+  type it's a **singleton-block page type** (same mechanics as `product-item`:
+  one block auto-seeded on create, no add/remove UI). The code def shadows
+  the matching runtime row from `project-data.seed.json` (PageTypeContext
+  drops runtime rows whose slug clashes with a code slug), so it takes effect
+  with no DB change; the seed entry was updated to the same `allowBlocks` /
+  `allowedBlockTypes` values to stay consistent. **Note:** `product-category`
+  pages created *before* this change have no block and no add button — the
+  auto-seed only fires at create time. Re-create such pages to pick up the block.
+- The block (`admin/src/blocks/ProductCategoryBlock.tsx`) holds three fields:
+  **Alternativni naslov** (text input), **Glavna slika** (single-image picker),
+  and **Alternativna slika** (single-image picker). No frontend renderer yet —
+  `product-category` falls through to `DefaultView` in `PageView.tsx`; add a
+  `case` there if/when the category content needs a custom view.
+
 ## Related repos
 
 `cms-ai-core` must be cloned as a sibling directory.
@@ -120,20 +142,23 @@ The product taxonomy on this project is three-level:
 
 | Slug | Label (en / hr) | Source | Parent | Children |
 |---|---|---|---|---|
-| `products` | Products / Proizvodi | runtime (seeded) | (root) | `product-category` |
-| `product-category` | Product category / Vrsta proizvoda | runtime (seeded) | `products` | `product-item` |
+| `products` | Products / Proizvodi | code-defined (`admin/src/main.tsx`) | (root) | `product-category` |
+| `product-category` | Product category / Vrsta proizvoda | code-defined (`admin/src/main.tsx`) | `products` | `product-item` |
 | `product-item` | Product / Proizvod | code-defined (`admin/src/main.tsx`) | `product-category` | (leaf) |
 
-`products` is singleton (`limit: 1`, `canBeRoot: true`, `deletable: false`) so
-the root "Products" page lives at a fixed location. `product-category` has no
-limit. `product-item` is a singleton-block page type — see the section above.
+`products` is `canBeRoot: true`, `deletable: true`, with **no limit** (multiple
+root "Products" pages are allowed and they can be deleted). `product-category`
+has no limit and is a singleton-block page type. `product-item` is a
+singleton-block page type — see the sections above.
 
-Only the built-in `default` and the code-defined `product-item` are registered
-in code. `products` and `product-category` are runtime types defined in
-`project-data.seed.json` and re-created on every `start.sh` run if they're
-missing from the DB (see "Seeding project data" below). The frontend renders
-the default view for any page type without a `case` branch in
-`PageView.tsx` — currently only `product-item` has a custom view.
+The built-in `default` and the code-defined `products`, `product-category`, and
+`product-item` are all registered in code. `products` and `product-category`
+also have seed entries in `project-data.seed.json` that predate their code
+definitions — the code defs shadow those rows (PageTypeContext drops runtime
+rows whose slug clashes with a code slug), but the seed entries are kept
+consistent so a fresh DB matches. The frontend renders the default view for any
+page type without a `case` branch in `PageView.tsx` — currently only
+`product-item` has a custom view.
 
 **Slugs are immutable** after create. The previous taxonomy
 (`product-main-category`, `product-sub-category`, `product-item`) was migrated

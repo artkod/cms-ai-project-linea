@@ -3,6 +3,7 @@ import "@mantine/notifications/styles.css";
 import "@mantine/dates/styles.css";
 import { createAdmin, type PageTypeDefinition } from "@cms/admin-base";
 import { productItemBlock } from "./blocks/ProductItemBlock";
+import { productCategoryBlock } from "./blocks/ProductCategoryBlock";
 
 // product-item is a singleton-block page type: it allows exactly one block
 // of type "product-item", auto-seeded on create. The framework hides
@@ -17,10 +18,42 @@ const productItemPageType: PageTypeDefinition = {
   allowedBlockTypes: ["product-item"],
 };
 
+// products is the root of the taxonomy. Originally seeded as a runtime
+// singleton (limit: 1, deletable: false); now code-defined so the limit is
+// lifted and instances can be deleted. Omitting `limit` means no cap. The
+// code def shadows the matching runtime DB row, so this takes effect without
+// touching the DB; the seed entry was updated to match.
+const productsPageType: PageTypeDefinition = {
+  type: "products",
+  label: { en: "Products", hr: "Proizvodi" },
+  deletable: true,
+  canBeRoot: true,
+  allowedParentTypes: [],
+  allowedChildTypes: ["product-category"],
+  allowBlocks: false,
+};
+
+// product-category was originally seeded as a runtime type (see
+// project-data.seed.json). It's now code-defined so it can carry a
+// singleton "product-category" block (alt title + main/alt image).
+// A code def shadows the matching runtime DB row (PageTypeContext filters
+// runtime rows whose slug clashes with a code slug), so this takes effect
+// without touching the DB. All non-block properties mirror the seed entry.
+const productCategoryPageType: PageTypeDefinition = {
+  type: "product-category",
+  label: { en: "Product category", hr: "Vrsta proizvoda" },
+  deletable: true,
+  canBeRoot: false,
+  allowedParentTypes: ["products"],
+  allowedChildTypes: ["product-item"],
+  allowBlocks: true,
+  allowedBlockTypes: ["product-category"],
+};
+
 createAdmin({
   apiUrl: import.meta.env.VITE_API_URL,
   frontendUrl: import.meta.env.VITE_FRONTEND_URL,
   projectSlug: "project-linea",
-  pageTypes: [productItemPageType],
-  blockTypes: [productItemBlock],
+  pageTypes: [productsPageType, productCategoryPageType, productItemPageType],
+  blockTypes: [productItemBlock, productCategoryBlock],
 });

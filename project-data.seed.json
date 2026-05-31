@@ -54,9 +54,9 @@
     {
       "type": "products",
       "label": { "hr": "Proizvodi", "en": "Products" },
-      "deletable": false,
+      "deletable": true,
       "canBeRoot": true,
-      "limit": 1,
+      "limit": null,
       "perParentLimit": null,
       "allowedParentTypes": [],
       "allowedChildTypes": ["product-category"],
@@ -73,8 +73,8 @@
       "perParentLimit": null,
       "allowedParentTypes": ["products"],
       "allowedChildTypes": ["product-item"],
-      "allowBlocks": false,
-      "allowedBlockTypes": null,
+      "allowBlocks": true,
+      "allowedBlockTypes": ["product-category"],
       "fields": []
     }
   ]
