@@ -28,7 +28,9 @@ export interface Alternates {
 }
 
 export interface LinkPagesMap {
-  [pageId: string]: { [locale: string]: { active: boolean; slug: string; title: string } };
+  // `path` is the full ancestor slug chain (root → self) for the hierarchical
+  // URL; falls back to `slug` if the chain didn't resolve in this locale.
+  [pageId: string]: { [locale: string]: { active: boolean; slug: string; title: string; path?: string[] } };
 }
 
 // Breadcrumb chain: root → immediate parent. Present on /by-slug responses.
@@ -95,11 +97,14 @@ export async function getPages(params?: { type?: string; parentId?: string | nul
   return data;
 }
 
-export async function getPageBySlug(locale: string, slug: string, previewToken?: string): Promise<Page | null> {
+// `path` is the full hierarchical slug path (e.g. "proizvodi/busilice/x").
+// Each segment is encoded individually so the "/" separators survive.
+export async function getPageBySlug(locale: string, path: string, previewToken?: string): Promise<Page | null> {
   const headers: Record<string, string> = { ...cmsHeaders };
   if (previewToken) headers["X-Preview-Token"] = previewToken;
+  const encodedPath = path.split("/").filter(Boolean).map(encodeURIComponent).join("/");
   const res = await fetch(
-    `${API_URL}/api/pages/by-slug/${encodeURIComponent(locale)}/${encodeURIComponent(slug)}`,
+    `${API_URL}/api/pages/by-slug/${encodeURIComponent(locale)}/${encodedPath}`,
     { headers }
   );
   if (!res.ok) return null;

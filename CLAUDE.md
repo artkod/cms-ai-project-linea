@@ -264,9 +264,14 @@ The `t()` helper does **not** support interpolation — for things like
   navigation), and `StringsProvider` + `useStrings().t('key')` for editor-
   managed frontend copy (I7) — missing keys render the key string itself
   so unfilled copy is obvious.
-- `getPageBySlug(locale, slug)` calls `/api/pages/by-slug/:locale/:slug` and
-  promotes `translations[locale]` into the flat `title`/`slug`/`blocks`/
-  `typeData` fields client-side.
+- **URLs are hierarchical** — a page lives at `/{locale}/{ancestorSlugs…}/{slug}`
+  (the ancestor page-slug chain). The router uses a splat `/:locale/*`; `PageView`
+  reads `params["*"]` and passes the whole path to `getPageBySlug(locale, path)`,
+  which encodes each segment and calls `/api/pages/by-slug/:locale/*`. Link widgets
+  build hrefs from `linkPages[id][locale].path`; breadcrumbs build cumulative paths
+  from the `ancestors` array (linkable only when every segment is active in the
+  locale). `getPageBySlug` then promotes `translations[locale]` into the flat
+  `title`/`slug`/`blocks`/`typeData` fields client-side.
 - Mixed Content link widgets resolve `pageId → /{locale}/{slug}` from
   `page.linkPages` (no cached `pageSlug`), threaded through a local
   `RenderContext` in `PageView.tsx`.

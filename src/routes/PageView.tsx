@@ -106,11 +106,13 @@ function LinkRenderer({ data }: { data: Record<string, unknown> }) {
   const target = openInNewTab ? "_blank" : undefined;
 
   if (linkType === "page") {
-    // Resolve pageId → /{locale}/{slug} via the page-payload `linkPages` map.
-    // Fall back to /{locale}/ when target page has no active translation here.
+    // Resolve pageId → /{locale}/{hierarchical path} via the page-payload
+    // `linkPages` map. Fall back to the bare slug, then to /{locale}/ when the
+    // target page has no active translation here.
     const pageId = (data.pageId as string) || "";
     const resolved = pageId ? linkPages[pageId]?.[locale] : null;
-    href = resolved?.active && resolved.slug ? `/${locale}/${resolved.slug}` : `/${locale}/`;
+    const linkPath = resolved?.path && resolved.path.length ? resolved.path.join("/") : resolved?.slug;
+    href = resolved?.active && linkPath ? `/${locale}/${linkPath}` : `/${locale}/`;
     isInternal = true;
   } else if (linkType === "remote") {
     href = (data.url as string) || "#";
@@ -651,12 +653,18 @@ function ProductItemView({ page }: { page: Page }) {
         <Anchor component={Link} to={homeHref} underline="never" style={crumbStyle}>
           {t("product.breadcrumb_home")}
         </Anchor>
-        {(page.ancestors ?? []).map((a) => {
+        {(page.ancestors ?? []).map((a, idx) => {
+          const ancestors = page.ancestors ?? [];
           const inLoc = a.locales[locale];
           const fallback = a.locales[defaultLocale];
-          // Linkable only when the requested locale has an active translation
-          // with a non-empty slug — otherwise we'd 404 the user.
-          const linkable = !!(inLoc?.active && inLoc.slug);
+          // Hierarchical breadcrumb: each ancestor's URL is the cumulative slug
+          // path from the root down to it. Linkable only when EVERY segment on
+          // that chain has an active translation in this locale — otherwise the
+          // nested URL would 404.
+          const chain = ancestors.slice(0, idx + 1).map((x) => x.locales[locale]);
+          const fullyActive = chain.every((c) => !!(c?.active && c.slug));
+          const linkable = fullyActive;
+          const href = `/${locale}/${chain.map((c) => c!.slug).join("/")}`;
           const title = inLoc?.title || fallback?.title || a.type;
           return (
             <Group key={a.id} gap={8} wrap="nowrap">
@@ -664,7 +672,7 @@ function ProductItemView({ page }: { page: Page }) {
               {linkable ? (
                 <Anchor
                   component={Link}
-                  to={`/${locale}/${inLoc.slug}`}
+                  to={href}
                   underline="never"
                   style={crumbStyle}
                 >
@@ -1148,7 +1156,10 @@ function DefaultView({ page }: { page: Page }) {
 // ─── Main export ──────────────────────────────────────────────────────────────
 
 export function PageView() {
-  const { locale, slug } = useParams<{ locale: string; slug: string }>();
+  const params = useParams();
+  const locale = params.locale;
+  // Splat = the full hierarchical path after the locale (e.g. "proizvodi/busilice/x").
+  const path = params["*"] ?? "";
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const previewToken = searchParams.get("previewToken") ?? undefined;
@@ -1157,9 +1168,9 @@ export function PageView() {
   const { setAlternates } = usePageAlternates();
 
   useEffect(() => {
-    if (!slug || !locale) return;
+    if (!path || !locale) return;
     setLoading(true);
-    getPageBySlug(locale, slug, previewToken)
+    getPageBySlug(locale, path, previewToken)
       .then((data) => {
         if (!data || (!previewToken && data.status !== "published")) {
           navigate("/", { replace: true });
@@ -1170,7 +1181,7 @@ export function PageView() {
       })
       .catch(() => navigate("/", { replace: true }))
       .finally(() => setLoading(false));
-  }, [locale, slug, previewToken, navigate, setAlternates]);
+  }, [locale, path, previewToken, navigate, setAlternates]);
 
   useEffect(() => {
     return () => setAlternates(null);
