@@ -2,7 +2,6 @@ import { BrowserRouter, Routes, Route, Navigate, useParams, useLocation } from "
 import { RootLayout } from "./routes/RootLayout";
 import { HomePage } from "./routes/HomePage";
 import { PageView } from "./routes/PageView";
-import { NotFound } from "./routes/NotFound";
 import { LocaleConfigProvider, isKnownLocale, useLocaleConfig } from "./lib/locale";
 
 // Routes nested under `/:locale/` only render when `:locale` is one of the
@@ -10,15 +9,19 @@ import { LocaleConfigProvider, isKnownLocale, useLocaleConfig } from "./lib/loca
 // segment slug and 301-style redirected to `/{defaultLocale}/{slug}`.
 
 function LocaleGate() {
-  const { locale } = useParams<{ locale: string }>();
+  const params = useParams();
+  const locale = params.locale;
+  const splat = params["*"] ?? "";
   const { search } = useLocation();
   const { availableLocales, defaultLocale } = useLocaleConfig();
   if (!isKnownLocale(locale, availableLocales)) {
-    // Treat the segment as a legacy slug: /:slug → /{defaultLocale}/:slug.
-    // Carry the query string through — the admin's preview links live there
+    // Treat the whole path as locale-less: /a/b/c → /{defaultLocale}/a/b/c.
+    // Reconstruct the full hierarchical path (locale segment + splat). Carry
+    // the query string through — the admin's preview links live there
     // (?previewToken=…) and dropping them silently sends previewers to the
     // published version instead of the draft.
-    return <Navigate to={`/${defaultLocale}/${locale ?? ""}${search}`} replace />;
+    const rest = [locale, splat].filter(Boolean).join("/");
+    return <Navigate to={`/${defaultLocale}/${rest}${search}`} replace />;
   }
   return <RootLayout />;
 }
@@ -36,8 +39,9 @@ export default function App() {
           <Route path="/" element={<RootRedirect />} />
           <Route path="/:locale" element={<LocaleGate />}>
             <Route index element={<HomePage />} />
-            <Route path=":slug" element={<PageView />} />
-            <Route path="*" element={<NotFound />} />
+            {/* Splat captures the full hierarchical path (e.g. proizvodi/busilice/x).
+                PageView resolves it and redirects home when unmatched. */}
+            <Route path="*" element={<PageView />} />
           </Route>
         </Routes>
       </BrowserRouter>
