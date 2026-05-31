@@ -127,6 +127,43 @@ new `grafika.cijene` is keyed by `konstrukcija.id` — so keep the construction 
 `str(old id)` and the keys line up automatically. Leave unused-group labels empty
 (the editor only requires a label when the group has items).
 
+### ⚠️ Canonicalize Tiptap JSON or pages load "dirty"
+
+Hand-authored Tiptap JSON **must be round-tripped through the real ProseMirror schema
+before storing**, otherwise every page with tab content opens in the editor showing
+"Unsaved changes" even though nothing was touched.
+
+Why: the editor's extensions add default node attributes (`textAlign: null`, `indent: 0`
+on paragraph/heading; `width/height/alignment` on images). Hand-written JSON omits them.
+When the RTE mounts with non-canonical content, ProseMirror "fixes it up" and fires an
+`onUpdate`, which the editor records as a change → dirty badge. Content the editor itself
+saved is already canonical, so it loads clean.
+
+Fix — normalize every tab `content` doc through the same schema (no DOM needed):
+```js
+// run inside packages/admin-base (so @tiptap resolves); ESM (.mjs)
+import { getSchema, Extension } from '@tiptap/core'
+import StarterKit from '@tiptap/starter-kit'
+import Underline from '@tiptap/extension-underline'
+import Link from '@tiptap/extension-link'
+import TextAlign from '@tiptap/extension-text-align'
+import Image from '@tiptap/extension-image'
+import { Node as PMNode } from '@tiptap/pm/model'
+const CustomImage = Image.extend({ addAttributes(){ return { ...this.parent?.(),
+  alignment:{default:'default'}, width:{default:null}, height:{default:null} } } })
+const Indent = Extension.create({ name:'indent', addGlobalAttributes(){ return [
+  { types:['paragraph','heading'], attributes:{ indent:{default:0} } }] } })
+const schema = getSchema([
+  StarterKit.configure({ heading:{levels:[1,2,3,4,5,6]}, link:false, underline:false }),
+  Underline, Link.configure({ openOnClick:false }),
+  TextAlign.configure({ types:['heading','paragraph'] }), CustomImage, Indent,
+])
+const canon = (doc) => PMNode.fromJSON(schema, doc).toJSON()   // fills default attrs
+```
+Keep these extensions in sync with `packages/admin-base/src/components/RichTextEditor.tsx`.
+Only the RTE `content` docs need this — block-level data (konfiguratorCijene, mainPhoto,
+etc.) doesn't. Tab-less products are already clean (no RTE → nothing to fix up).
+
 ### RTE → Tiptap (`content` of each tab)
 Walk the tab's `segments.hr` in order and build one `{type:"doc", content:[...]}`:
 - `rte` items → parse HTML to StarterKit nodes (paragraph / heading / bulletList /
