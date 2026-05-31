@@ -34,6 +34,18 @@ function applyMarks(text: string, marks: TiptapMark[]): string {
         const href = (mark.attrs?.href as string) || "#";
         const external = href.startsWith("http");
         const rel = external ? ' target="_blank" rel="noopener noreferrer"' : "";
+        // PDF links render as a download button with a file icon (the old CMS
+        // exposed these as "Preuzmite katalog" buttons).
+        if (/\.pdf(\?|#|$)/i.test(href)) {
+          const icon =
+            '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 18v-6"/><path d="M9 15l3 3 3-3"/></svg>';
+          return (
+            `<a href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer" ` +
+            'style="display:inline-flex;align-items:center;gap:8px;background:#496800;color:#fff;' +
+            'padding:10px 20px;border-radius:4px;font-size:14px;font-weight:600;letter-spacing:0.03em;' +
+            `text-decoration:none;margin:4px 0">${icon}<span>${acc}</span></a>`
+          );
+        }
         return `<a href="${escapeHtml(href)}"${rel}>${acc}</a>`;
       }
       default: return acc;
@@ -52,6 +64,22 @@ function renderNode(node: TiptapNode): string {
   }
   if (node.type === "hardBreak") return "<br />";
   if (node.type === "horizontalRule") return "<hr />";
+  if (node.type === "image") {
+    const src = node.attrs?.src as string | undefined;
+    if (!src) return "";
+    const alt = escapeHtml((node.attrs?.alt as string) || "");
+    const align = node.attrs?.alignment as string | undefined;
+    const alignStyle: Record<string, string> = {
+      center: "display:block;margin-left:auto;margin-right:auto",
+      left: "float:left;margin-right:12px;margin-bottom:8px",
+      right: "float:right;margin-left:12px;margin-bottom:8px",
+    };
+    const styles = ["max-width:100%", "height:auto", "border-radius:4px"];
+    if (align && alignStyle[align]) styles.push(alignStyle[align]);
+    const w = node.attrs?.width;
+    const dims = w != null ? ` width="${Number(w)}"` : "";
+    return `<img src="${escapeHtml(src)}" alt="${alt}"${dims} style="${styles.join(";")}" />`;
+  }
 
   const inner = renderChildren(node);
 
