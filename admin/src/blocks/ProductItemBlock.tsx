@@ -3,6 +3,7 @@ import {
   Accordion,
   ActionIcon,
   Box,
+  Checkbox,
   Group,
   Image,
   Modal,
@@ -56,6 +57,26 @@ interface BazaRow {
   cijena: string;
 }
 
+interface KonfiguratorData {
+  /** Master toggle. Unchecked by default — the standalone price field is the
+   *  active pricing input until the editor explicitly turns the configurator
+   *  on (which then disables the price field). */
+  enabled: boolean;
+  /** Customer-facing titles for the three groups. Empty by default; required
+   *  once the configurator is enabled. The internal keys (konstrukcija /
+   *  grafika / baza) stay fixed — only the displayed labels are editable. */
+  group1Label: string;
+  group2Label: string;
+  group3Label: string;
+  /** Group 1 — the driver. Flat priced rows. */
+  konstrukcija: KonstrukcijaRow[];
+  /** Group 2 — depends on group 1: one price per group-1 row, disabled until
+   *  group 1 has at least one item. */
+  grafika: GrafikaRow[];
+  /** Group 3 — independent, always available. Flat priced rows. */
+  baza: BazaRow[];
+}
+
 interface ProductItemData {
   altTitle: string;
   mainPhoto: GalleryImage | null;
@@ -65,11 +86,7 @@ interface ProductItemData {
   additionalInfo: {
     tabs: AdditionalInfoTab[];
   };
-  konfiguratorCijene: {
-    konstrukcija: KonstrukcijaRow[];
-    grafika: GrafikaRow[];
-    baza: BazaRow[];
-  };
+  konfiguratorCijene: KonfiguratorData;
 }
 
 const PREDEFINED_TABS: Array<{ id: string; title: string }> = [
@@ -90,6 +107,10 @@ const DEFAULT_DATA: ProductItemData = {
     tabs: PREDEFINED_TABS.map((t) => ({ ...t, content: null })),
   },
   konfiguratorCijene: {
+    enabled: false,
+    group1Label: "",
+    group2Label: "",
+    group3Label: "",
     konstrukcija: [],
     grafika: [],
     baza: [],
@@ -126,11 +147,25 @@ function normalize(raw: Record<string, unknown>): ProductItemData {
           }))
         : PREDEFINED_TABS.map((t) => ({ ...t, content: null })),
     },
-    konfiguratorCijene: {
-      konstrukcija: Array.isArray(kc.konstrukcija) ? kc.konstrukcija : [],
-      grafika: Array.isArray(kc.grafika) ? kc.grafika : [],
-      baza: Array.isArray(kc.baza) ? kc.baza : [],
-    },
+    konfiguratorCijene: (() => {
+      const konstrukcija = Array.isArray(kc.konstrukcija) ? kc.konstrukcija : [];
+      const grafika = Array.isArray(kc.grafika) ? kc.grafika : [];
+      const baza = Array.isArray(kc.baza) ? kc.baza : [];
+      const hasData = konstrukcija.length + grafika.length + baza.length > 0;
+      // Legacy rows (saved before the toggle existed) have no `enabled` flag:
+      // turn the configurator on iff they already carry configurator data, so
+      // fixed-price-only products keep their price field active.
+      const enabled = typeof kc.enabled === "boolean" ? kc.enabled : hasData;
+      return {
+        enabled,
+        group1Label: typeof kc.group1Label === "string" ? kc.group1Label : "",
+        group2Label: typeof kc.group2Label === "string" ? kc.group2Label : "",
+        group3Label: typeof kc.group3Label === "string" ? kc.group3Label : "",
+        konstrukcija,
+        grafika,
+        baza,
+      };
+    })(),
   };
 }
 
@@ -589,12 +624,16 @@ function PriceInput({
   label,
   prefix,
   placeholder,
+  disabled,
+  description,
 }: {
   value: string;
   onChange: (v: string) => void;
   label?: string;
   prefix?: string;
   placeholder?: string;
+  disabled?: boolean;
+  description?: string;
 }) {
   return (
     <TextInput
@@ -602,12 +641,15 @@ function PriceInput({
       value={value}
       onChange={(e) => onChange(e.currentTarget.value)}
       placeholder={placeholder ?? "0.00"}
-      description={PRICE_HINT}
+      description={description ?? PRICE_HINT}
+      disabled={disabled}
       leftSection={prefix ? <Text size="xs" c="dimmed" pl={4}>{prefix}</Text> : undefined}
       leftSectionWidth={prefix ? Math.min(160, prefix.length * 7 + 16) : undefined}
     />
   );
 }
+
+const GROUP_LABEL_REQUIRED = "Naziv grupe je obavezan kad je konfigurator uključen.";
 
 function KonfiguratorCijene({
   value,
@@ -616,7 +658,10 @@ function KonfiguratorCijene({
   value: ProductItemData["konfiguratorCijene"];
   onChange: (v: ProductItemData["konfiguratorCijene"]) => void;
 }) {
-  const { konstrukcija, grafika, baza } = value;
+  const { enabled, group1Label, group2Label, group3Label, konstrukcija, grafika, baza } = value;
+  // Group 2 can't hold prices until group 1 has at least one item to key them by.
+  const group2Locked = konstrukcija.length === 0;
+  const labelError = (v: string) => (enabled && !v.trim() ? GROUP_LABEL_REQUIRED : undefined);
 
   // ─── Konstrukcija ──────────────────────────────────────────────────────
   function addKonstrukcija() {
@@ -682,18 +727,45 @@ function KonfiguratorCijene({
 
   return (
     <Stack gap={8}>
-      <SectionHeader title="Konfigurator cijene" />
+      <Checkbox
+        checked={enabled}
+        onChange={(e) => onChange({ ...value, enabled: e.currentTarget.checked })}
+        label={<SectionHeader title="Konfigurator cijene" />}
+      />
+      {/* Native fieldset disables every nested input/button in one shot when the
+          configurator is off, so the whole block greys out without threading a
+          `disabled` prop through every control. */}
+      <Box
+        component="fieldset"
+        disabled={!enabled}
+        style={{
+          border: 0,
+          padding: 0,
+          margin: 0,
+          minInlineSize: 0,
+          opacity: enabled ? 1 : 0.55,
+          transition: "opacity 0.15s ease",
+        }}
+      >
       <Accordion multiple defaultValue={["konstrukcija", "grafika", "baza"]} variant="separated">
-        {/* ─── Konstrukcija ─────────────────────────────────────────────── */}
+        {/* ─── Group 1 (Konstrukcija) ───────────────────────────────────── */}
         <Accordion.Item value="konstrukcija">
           <Accordion.Control>
             <Group justify="space-between" pr="md">
-              <Text fw={600}>Konstrukcija</Text>
+              <Text fw={600}>{group1Label.trim() || "1. grupa"}</Text>
               <Text size="xs" c="dimmed">{konstrukcija.length} {konstrukcija.length === 1 ? "stavka" : "stavki"}</Text>
             </Group>
           </Accordion.Control>
           <Accordion.Panel>
             <Stack gap={12}>
+              <TextInput
+                label="Naziv grupe (prikazuje se kupcu)"
+                placeholder="npr. Konstrukcija"
+                value={group1Label}
+                onChange={(e) => onChange({ ...value, group1Label: e.currentTarget.value })}
+                withAsterisk={enabled}
+                error={labelError(group1Label)}
+              />
               {konstrukcija.map((row) => (
                 <Group key={row.id} gap={8} align="flex-end" wrap="nowrap">
                   <TextInput
@@ -727,16 +799,36 @@ function KonfiguratorCijene({
           </Accordion.Panel>
         </Accordion.Item>
 
-        {/* ─── Grafika ──────────────────────────────────────────────────── */}
+        {/* ─── Group 2 (Grafika) — depends on group 1 ───────────────────── */}
         <Accordion.Item value="grafika">
           <Accordion.Control>
             <Group justify="space-between" pr="md">
-              <Text fw={600}>Grafika</Text>
+              <Text fw={600}>{group2Label.trim() || "2. grupa"}</Text>
               <Text size="xs" c="dimmed">{grafika.length} {grafika.length === 1 ? "stavka" : "stavki"}</Text>
             </Group>
           </Accordion.Control>
           <Accordion.Panel>
+            {/* Inner fieldset locks group 2 whenever group 1 is empty, even
+                while the configurator itself is enabled. */}
+            <Box
+              component="fieldset"
+              disabled={group2Locked}
+              style={{ border: 0, padding: 0, margin: 0, minInlineSize: 0, opacity: group2Locked ? 0.55 : 1 }}
+            >
             <Stack gap={16}>
+              <TextInput
+                label="Naziv grupe (prikazuje se kupcu)"
+                placeholder="npr. Grafika"
+                value={group2Label}
+                onChange={(e) => onChange({ ...value, group2Label: e.currentTarget.value })}
+                withAsterisk={enabled}
+                error={labelError(group2Label)}
+              />
+              {group2Locked && (
+                <Text size="xs" c="dimmed">
+                  Dodaj barem jednu stavku u 1. grupu da omogućiš ovu grupu.
+                </Text>
+              )}
               {grafika.map((row) => (
                 <Box
                   key={row.id}
@@ -762,23 +854,17 @@ function KonfiguratorCijene({
                         <Trash2 size={14} />
                       </IconButton>
                     </Group>
-                    {konstrukcija.length === 0 ? (
-                      <Text size="xs" c="dimmed">
-                        Dodaj stavku u Konstrukciji da bi se ovdje pojavila polja za cijenu.
-                      </Text>
-                    ) : (
-                      <Stack gap={8}>
-                        {konstrukcija.map((k) => (
-                          <PriceInput
-                            key={k.id}
-                            label={`Cijena (EUR) — ${k.naziv || "(bez naziva)"}`}
-                            value={row.cijene[k.id] ?? ""}
-                            onChange={(v) => updateGrafikaCijena(row.id, k.id, v)}
-                            prefix={k.naziv || "(bez naziva)"}
-                          />
-                        ))}
-                      </Stack>
-                    )}
+                    <Stack gap={8}>
+                      {konstrukcija.map((k) => (
+                        <PriceInput
+                          key={k.id}
+                          label={`Cijena (EUR) — ${k.naziv || "(bez naziva)"}`}
+                          value={row.cijene[k.id] ?? ""}
+                          onChange={(v) => updateGrafikaCijena(row.id, k.id, v)}
+                          prefix={k.naziv || "(bez naziva)"}
+                        />
+                      ))}
+                    </Stack>
                   </Stack>
                 </Box>
               ))}
@@ -788,19 +874,28 @@ function KonfiguratorCijene({
                 </Button>
               </Group>
             </Stack>
+            </Box>
           </Accordion.Panel>
         </Accordion.Item>
 
-        {/* ─── Baza ─────────────────────────────────────────────────────── */}
+        {/* ─── Group 3 (Baza) — independent ─────────────────────────────── */}
         <Accordion.Item value="baza">
           <Accordion.Control>
             <Group justify="space-between" pr="md">
-              <Text fw={600}>Baza</Text>
+              <Text fw={600}>{group3Label.trim() || "3. grupa"}</Text>
               <Text size="xs" c="dimmed">{baza.length} {baza.length === 1 ? "stavka" : "stavki"}</Text>
             </Group>
           </Accordion.Control>
           <Accordion.Panel>
             <Stack gap={12}>
+              <TextInput
+                label="Naziv grupe (prikazuje se kupcu)"
+                placeholder="npr. Baza"
+                value={group3Label}
+                onChange={(e) => onChange({ ...value, group3Label: e.currentTarget.value })}
+                withAsterisk={enabled}
+                error={labelError(group3Label)}
+              />
               {baza.map((row) => (
                 <Group key={row.id} gap={8} align="flex-end" wrap="nowrap">
                   <TextInput
@@ -834,6 +929,7 @@ function KonfiguratorCijene({
           </Accordion.Panel>
         </Accordion.Item>
       </Accordion>
+      </Box>
     </Stack>
   );
 }
@@ -880,6 +976,12 @@ function ProductItemEditor({ data, onChange }: BlockEditorProps) {
             label="Cijena (EUR)"
             value={d.priceEur}
             onChange={(v) => patch({ priceEur: v })}
+            disabled={d.konfiguratorCijene.enabled}
+            description={
+              d.konfiguratorCijene.enabled
+                ? "Onemogućeno dok je konfigurator cijene uključen."
+                : undefined
+            }
           />
         </Box>
       </Stack>

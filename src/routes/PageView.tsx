@@ -313,6 +313,10 @@ interface ProductItemBlockData {
   priceEur?: string;
   additionalInfo?: { tabs?: ProductItemTab[] };
   konfiguratorCijene?: {
+    enabled?: boolean;
+    group1Label?: string;
+    group2Label?: string;
+    group3Label?: string;
     konstrukcija?: KonstrukcijaRow[];
     grafika?: GrafikaRow[];
     baza?: BazaRow[];
@@ -471,15 +475,30 @@ const SELECT_STYLES = {
   section: { color: D.onSurfaceVariant },
 };
 
+interface GroupLabels {
+  group1: string;
+  group2: string;
+  group3: string;
+}
+
 function useConfigurator(
   konstrukcija: KonstrukcijaRow[],
   grafika: GrafikaRow[],
   baza: BazaRow[],
+  labels: GroupLabels,
   t: (key: string) => string
 ): ConfiguratorState {
   const [kId, setKId] = useState<string | null>(null);
   const [gId, setGId] = useState<string | null>(null);
   const [bId, setBId] = useState<string | null>(null);
+
+  // Group 2 stays locked until something in group 1 is selected; clearing the
+  // group-1 choice also drops the group-2 choice (its price keys off group 1).
+  const handleK = (v: string | null) => {
+    setKId(v);
+    if (!v) setGId(null);
+  };
+  const group2Disabled = !kId;
 
   const selectedK = konstrukcija.find((r) => r.id === kId) ?? null;
   const selectedG = grafika.find((r) => r.id === gId) ?? null;
@@ -521,34 +540,38 @@ function useConfigurator(
     <Stack gap={24}>
       {konstrukcija.length > 0 && (
         <Select
-          label={t("product.option_konstrukcija")}
+          label={labels.group1 || t("product.option_konstrukcija")}
           placeholder={placeholder}
           data={kOptions}
           value={kId}
-          onChange={setKId}
-          allowDeselect={false}
+          onChange={handleK}
+          allowDeselect
+          clearable
           styles={SELECT_STYLES}
         />
       )}
       {grafika.length > 0 && (
         <Select
-          label={t("product.option_grafika")}
-          placeholder={placeholder}
+          label={labels.group2 || t("product.option_grafika")}
+          placeholder={group2Disabled ? t("product.option_locked") : placeholder}
           data={gOptions}
           value={gId}
           onChange={setGId}
-          allowDeselect={false}
+          disabled={group2Disabled}
+          allowDeselect
+          clearable
           styles={SELECT_STYLES}
         />
       )}
       {baza.length > 0 && (
         <Select
-          label={t("product.option_baza")}
+          label={labels.group3 || t("product.option_baza")}
           placeholder={placeholder}
           data={bOptions}
           value={bId}
           onChange={setBId}
-          allowDeselect={false}
+          allowDeselect
+          clearable
           styles={SELECT_STYLES}
         />
       )}
@@ -571,9 +594,16 @@ function ProductItemView({ page }: { page: Page }) {
   const description = d.description?.trim() || "";
 
   const fixedPrice = parsePrice(d.priceEur);
-  const k = d.konfiguratorCijene?.konstrukcija ?? [];
-  const g = d.konfiguratorCijene?.grafika ?? [];
-  const b = d.konfiguratorCijene?.baza ?? [];
+  const konf = d.konfiguratorCijene;
+  const k = konf?.konstrukcija ?? [];
+  const g = konf?.grafika ?? [];
+  const b = konf?.baza ?? [];
+
+  // Master toggle. Legacy rows (no `enabled` flag) fall back to "on iff they
+  // carry configurator data" so fixed-price-only products keep their price.
+  const konfEnabled = typeof konf?.enabled === "boolean"
+    ? konf.enabled
+    : k.length + g.length + b.length > 0;
 
   const hasKonfiguratorPrices = useMemo(() => {
     if (k.some((r) => parsePrice(r.cijena) > 0)) return true;
@@ -607,27 +637,41 @@ function ProductItemView({ page }: { page: Page }) {
   // start collapsed on first render; `null` means none open.
   const [openInfoItem, setOpenInfoItem] = useState<string | null>(null);
 
-  const configurator = useConfigurator(k, g, b, t);
+  const configurator = useConfigurator(
+    k,
+    g,
+    b,
+    {
+      group1: konf?.group1Label?.trim() ?? "",
+      group2: konf?.group2Label?.trim() ?? "",
+      group3: konf?.group3Label?.trim() ?? "",
+    },
+    t,
+  );
 
-  // The configurator total reads 0,00 € until any select is touched — instead
-  // we show the first non-zero option price across categories as the starting
-  // estimate so the panel always communicates a real number.
-  const startingEstimate = useMemo(() => {
-    if (!hasKonfiguratorPrices) return 0;
-    const firstK = k.find((r) => parsePrice(r.cijena) > 0);
-    const firstB = b.find((r) => parsePrice(r.cijena) > 0);
-    return parsePrice(firstK?.cijena) + parsePrice(firstB?.cijena);
-  }, [k, b, hasKonfiguratorPrices]);
-
-  let displayPrice = 0;
+  // Pricing mode:
+  //  • configurator — toggle on AND at least one priced option exists
+  //  • fixed        — toggle off AND a standalone price is set
+  //  • inquiry      — everything else (incl. toggle off + empty price)
   let priceMode: "fixed" | "configurator" | "inquiry" = "inquiry";
-  if (fixedPrice > 0) {
-    displayPrice = fixedPrice;
-    priceMode = "fixed";
-  } else if (hasKonfiguratorPrices) {
-    displayPrice = configurator.hasAnySelection ? configurator.total : startingEstimate;
+  if (konfEnabled && hasKonfiguratorPrices) {
     priceMode = "configurator";
+  } else if (!konfEnabled && fixedPrice > 0) {
+    priceMode = "fixed";
   }
+
+  // In configurator mode the customer must pick something before a price shows;
+  // with nothing selected we treat the product exactly like an inquiry.
+  const effectiveInquiry =
+    priceMode === "inquiry" ||
+    (priceMode === "configurator" && !configurator.hasAnySelection);
+
+  const displayPrice =
+    priceMode === "fixed"
+      ? fixedPrice
+      : priceMode === "configurator"
+        ? configurator.total
+        : 0;
 
   const homeHref = `/${locale}/`;
   const crumbStyle: React.CSSProperties = {
@@ -902,9 +946,9 @@ function ProductItemView({ page }: { page: Page }) {
               }}
             >
               <Text style={{ fontSize: 16, lineHeight: "24px", color: D.onSurfaceVariant }}>
-                {priceMode === "inquiry" ? t("product.price_inquiry_label") : t("product.price_estimated_label")}
+                {effectiveInquiry ? t("product.price_inquiry_label") : t("product.price_estimated_label")}
               </Text>
-              {priceMode !== "inquiry" && displayPrice > 0 ? (
+              {!effectiveInquiry && displayPrice > 0 ? (
                 <PriceValue amount={displayPrice} />
               ) : (
                 <Text style={{ fontSize: 14, color: D.onSurfaceVariant, fontStyle: "italic" }}>
@@ -1101,9 +1145,9 @@ function ProductItemView({ page }: { page: Page }) {
         <Group justify="space-between" wrap="nowrap" gap={16}>
           <Stack gap={2} style={{ flexShrink: 0 }}>
             <Text style={{ fontSize: 12, lineHeight: "16px", fontWeight: 500, color: D.onSurfaceVariant }}>
-              {priceMode === "inquiry" ? t("product.mobile_price_label") : t("product.mobile_total_label")}
+              {effectiveInquiry ? t("product.mobile_price_label") : t("product.mobile_total_label")}
             </Text>
-            {priceMode !== "inquiry" && displayPrice > 0 ? (
+            {!effectiveInquiry && displayPrice > 0 ? (
               <PriceValue amount={displayPrice} size="md" />
             ) : (
               <Text style={{ fontSize: 20, lineHeight: "28px", fontWeight: 700, color: D.primary }}>

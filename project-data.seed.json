@@ -24,6 +24,8 @@
     { "locale": "en", "key": "product.option_baza",         "value": "Base" },
     { "locale": "hr", "key": "product.option_placeholder",  "value": "Odaberite" },
     { "locale": "en", "key": "product.option_placeholder",  "value": "Choose" },
+    { "locale": "hr", "key": "product.option_locked",       "value": "Prvo odaberite iz prve grupe" },
+    { "locale": "en", "key": "product.option_locked",       "value": "Select from the first group first" },
     { "locale": "hr", "key": "product.option_unnamed",      "value": "(bez naziva)" },
     { "locale": "en", "key": "product.option_unnamed",      "value": "(unnamed)" },
     { "locale": "hr", "key": "product.price_inquiry_label", "value": "Cijena na upit" },
