@@ -2,7 +2,6 @@ import { useMemo, useState } from "react";
 import { Box, Group, Stack, Text, Textarea } from "@mantine/core";
 import {
   Button,
-  IconPicker,
   LinkPickerModal,
   computeLinkHref,
   type BlockEditorProps,
@@ -14,14 +13,13 @@ import {
 //
 // about-us is a singleton-block page type: the page allows exactly one block of
 // type "about-us", auto-seeded on create. All of the "O nama" page content is
-// authored here — an icon, subtitle + description, and two buttons. Each button
-// is a single LinkData object: the link picker now captures the button label
+// authored here — subtitle + description, and two buttons. Each button is a
+// single LinkData object: the link picker now captures the button label
 // ("Link text") + tooltip alongside the target, so there's no separate text
 // field. Mirrors the ProductItemBlock pattern so the editor card looks and
 // behaves consistently across page types.
 
 interface AboutUsData {
-  icon: string | null;
   subtitle: string;
   description: string;
   btn1Link: LinkData | null;
@@ -29,7 +27,6 @@ interface AboutUsData {
 }
 
 const DEFAULT_DATA: AboutUsData = {
-  icon: null,
   subtitle: "",
   description: "",
   btn1Link: null,
@@ -59,7 +56,6 @@ function migrateLink(link: unknown, legacyText: unknown): LinkData | null {
 function normalize(raw: Record<string, unknown>): AboutUsData {
   const r = raw as Partial<AboutUsData> & { btn1Text?: unknown; btn2Text?: unknown };
   return {
-    icon: typeof r.icon === "string" ? r.icon : null,
     subtitle: typeof r.subtitle === "string" ? r.subtitle : "",
     description: typeof r.description === "string" ? r.description : "",
     btn1Link: migrateLink(r.btn1Link, r.btn1Text),
@@ -189,11 +185,6 @@ function AboutUsEditor({ data, onChange }: BlockEditorProps) {
     <Stack gap={20}>
       <Stack gap={10}>
         <SectionHeader title="Osnovni podaci" />
-        <IconPicker
-          label="Ikona"
-          value={d.icon}
-          onChange={(v) => patch({ icon: v })}
-        />
         <Textarea
           label="Podnaslov"
           placeholder="Podnaslov"

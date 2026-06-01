@@ -207,8 +207,6 @@ block on create and hides "+ Add new section" + the per-block Remove icon, so th
 editor shows a single fixed Content Section card. Content lives in the block
 (`admin/src/blocks/AboutUsBlock.tsx`, `aboutUsBlock` registered in `main.tsx`),
 **not** in page-level `typeData` fields. The block's `data` shape:
-- `icon: string | null` — a lucide icon name (PascalCase), picked via the shared
-  `IconPicker` from `@cms/admin-base`
 - `subtitle`, `description: string`
 - `btn1Link` / `btn2Link: LinkData | null` — each button is a **single CMS link
   picker** (`LinkPickerModal` in `rte` mode, opened with `showTextFields`). The
@@ -216,9 +214,11 @@ editor shows a single fixed Content Section card. Content lives in the block
   `tooltip` — there is no longer a separate `btn1Text` / `btn2Text` field.
   `normalize()` folds any legacy `btn1Text` / `btn2Text` from older saves into
   the link's `linkText`, so pages authored before this change keep their copy.
-Resolve a button link's href on the frontend with `computeLinkHref()`, read the
-label from `LinkData.linkText`, and the icon with `lucide-react`'s `icons[name]`
-(or `getLucideIcon()` from `@cms/admin-base`). No custom `PageView.tsx` branch exists yet — add one when the
+The block previously had an `icon` field; it was **removed** (the editor no longer
+shows an icon picker for About-us). Older saves may still carry an `icon` key in
+their stored `data` — it's ignored by `normalize()` and harmless.
+Resolve a button link's href on the frontend with `computeLinkHref()` and read the
+label from `LinkData.linkText`. No custom `PageView.tsx` branch exists yet — add one when the
 About-us page gets a bespoke renderer (it renders the default view until then).
 
 The built-in `default` and the code-defined `products`, `product-category`, and
