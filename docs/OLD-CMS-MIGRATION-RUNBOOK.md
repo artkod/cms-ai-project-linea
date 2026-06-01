@@ -113,19 +113,42 @@ in `admin/src/blocks/ProductItemBlock.tsx` (`ProductItemData`).
 
 ### Configurator (`price_cfg` → `konfiguratorCijene`)
 ```
-construction        -> konstrukcija: [{id: str(c.id), naziv: c.title.hr, cijena: "%.2f"}]
-graphic (if graphic_use) -> grafika: [{id, naziv: g.title.hr,
-                                       cijene: {str(constructionId): "%.2f"}}]   # keys are construction ids!
-base (if base_use)  -> baza: [{id, naziv: b.title.hr, cijena: "%.2f"}]
+construction  -> konstrukcija: [{id: str(c.id), naziv: c.title.hr, cijena: "%.2f"}]
+graphic       -> grafika: [{id, naziv: g.title.hr,
+                            cijene: {str(constructionId): "%.2f"}}]   # keys are construction ids!
+base          -> baza: [{id, naziv: b.title.hr, cijena: "%.2f"}]
 enabled       = any of the three has items
 group1Label   = construction_title.hr  ONLY IF konstrukcija non-empty, else ""
 group2Label   = graphic_title.hr       ONLY IF grafika non-empty, else ""
 group3Label   = base_title.hr          ONLY IF baza non-empty, else ""
 ```
+**Migrate each group whenever its source array is non-empty.** Do NOT gate on the
+`*_use` flags (`graphic_use` / `base_use`) — see the ⚠️ below.
+
 The crucial detail: `graphic[].price` is keyed by the **construction row id**, and the
 new `grafika.cijene` is keyed by `konstrukcija.id` — so keep the construction ids as
 `str(old id)` and the keys line up automatically. Leave unused-group labels empty
 (the editor only requires a label when the group has items).
+
+#### ⚠️ Do NOT gate the `base` / 3rd group on `base_use` (caused the Beach Flag bug)
+
+The original run gated base on `base_use` (`base (if base_use) -> baza`). But `base_use`
+is **`false` for every cms3 product** — it's just the stored default; the old frontend
+rendered base regardless. Result: the entire 3rd group (`baza` + `group3Label`) was
+silently dropped on **every** product. *(Discovered & fixed 2026-06-01: Beach Flag was
+missing its "Baza" dropdown.)*
+
+Rules to live by:
+- **Migrate `base` (and `graphic`) whenever the array is non-empty**, never based on a
+  `_use` flag.
+- **The 3rd-group title is arbitrary / editor-defined** — "Baza", "Dodaci",
+  "Bočne stranice", "veličina plakata", "veličina naljepnice", anything future.
+  **Detect / handle groups by structure (the array), NEVER by title.**
+- Only 3 cms3 products ever had `base` items, so only those 3 lost data and were
+  repaired: **Beach Flag** (`bc65794d…`, 8 items / "Baza"), **Postolja i dodaci za Beach
+  Flag** (`1d5814c0…`, 2 / "Dodaci"), **Šatori** (`5967d9a1…`, 4 / "Bočne stranice").
+  The fix set `baza` + `group3Label` on those `product-item` blocks via a surgical
+  `jsonb_set` `UPDATE` (locale `hr`), preserving everything else.
 
 ### ⚠️ Canonicalize Tiptap JSON or pages load "dirty"
 
