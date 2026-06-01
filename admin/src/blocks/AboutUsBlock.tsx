@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Box, Group, Stack, Text, Textarea, TextInput } from "@mantine/core";
+import { Box, Group, Stack, Text, Textarea } from "@mantine/core";
 import {
   Button,
   IconPicker,
@@ -14,17 +14,17 @@ import {
 //
 // about-us is a singleton-block page type: the page allows exactly one block of
 // type "about-us", auto-seeded on create. All of the "O nama" page content is
-// authored here — an icon, subtitle + description, and two buttons (label text +
-// link target). Mirrors the ProductItemBlock pattern so the editor card looks
-// and behaves consistently across page types.
+// authored here — an icon, subtitle + description, and two buttons. Each button
+// is a single LinkData object: the link picker now captures the button label
+// ("Link text") + tooltip alongside the target, so there's no separate text
+// field. Mirrors the ProductItemBlock pattern so the editor card looks and
+// behaves consistently across page types.
 
 interface AboutUsData {
   icon: string | null;
   subtitle: string;
   description: string;
-  btn1Text: string;
   btn1Link: LinkData | null;
-  btn2Text: string;
   btn2Link: LinkData | null;
 }
 
@@ -32,9 +32,7 @@ const DEFAULT_DATA: AboutUsData = {
   icon: null,
   subtitle: "",
   description: "",
-  btn1Text: "",
   btn1Link: null,
-  btn2Text: "",
   btn2Link: null,
 };
 
@@ -42,18 +40,30 @@ function isLinkData(v: unknown): v is LinkData {
   return typeof v === "object" && v !== null && "linkType" in v;
 }
 
+// Fold a legacy standalone button-text field into the link's `linkText` so
+// pages authored before the picker captured the label keep their button copy.
+function migrateLink(link: unknown, legacyText: unknown): LinkData | null {
+  if (!isLinkData(link)) return null;
+  if (
+    (!link.linkText || link.linkText.trim() === "") &&
+    typeof legacyText === "string" &&
+    legacyText.trim() !== ""
+  ) {
+    return { ...link, linkText: legacyText };
+  }
+  return link;
+}
+
 // Coerce arbitrary stored data (including partial / legacy shapes) into the full
 // AboutUsData shape so the editor doesn't crash on first render.
 function normalize(raw: Record<string, unknown>): AboutUsData {
-  const r = raw as Partial<AboutUsData>;
+  const r = raw as Partial<AboutUsData> & { btn1Text?: unknown; btn2Text?: unknown };
   return {
     icon: typeof r.icon === "string" ? r.icon : null,
     subtitle: typeof r.subtitle === "string" ? r.subtitle : "",
     description: typeof r.description === "string" ? r.description : "",
-    btn1Text: typeof r.btn1Text === "string" ? r.btn1Text : "",
-    btn1Link: isLinkData(r.btn1Link) ? r.btn1Link : null,
-    btn2Text: typeof r.btn2Text === "string" ? r.btn2Text : "",
-    btn2Link: isLinkData(r.btn2Link) ? r.btn2Link : null,
+    btn1Link: migrateLink(r.btn1Link, r.btn1Text),
+    btn2Link: migrateLink(r.btn2Link, r.btn2Text),
   };
 }
 
@@ -105,7 +115,7 @@ function LinkField({
       {value ? (
         <Group gap={8} align="center" wrap="nowrap">
           <Stack gap={0} style={{ flex: 1, minWidth: 0 }}>
-            <Text size="sm">{linkSummary(value)}</Text>
+            <Text size="sm">{value.linkText?.trim() || linkSummary(value)}</Text>
             {href && (
               <Text size="xs" c="dimmed" truncate style={{ maxWidth: 360 }}>
                 {href}
@@ -126,6 +136,7 @@ function LinkField({
       )}
       <LinkPickerModal
         mode="rte"
+        showTextFields
         opened={open}
         onClose={() => setOpen(false)}
         initialData={value ?? undefined}
@@ -142,15 +153,11 @@ function LinkField({
 
 function ButtonGroup({
   title,
-  text,
   link,
-  onTextChange,
   onLinkChange,
 }: {
   title: string;
-  text: string;
   link: LinkData | null;
-  onTextChange: (v: string) => void;
   onLinkChange: (v: LinkData | null) => void;
 }) {
   return (
@@ -163,12 +170,6 @@ function ButtonGroup({
     >
       <Stack gap={10}>
         <Text size="sm" fw={600}>{title}</Text>
-        <TextInput
-          label="Tekst gumba"
-          placeholder="npr. Saznaj više"
-          value={text}
-          onChange={(e) => onTextChange(e.currentTarget.value)}
-        />
         <LinkField value={link} onChange={onLinkChange} />
       </Stack>
     </Box>
@@ -217,16 +218,12 @@ function AboutUsEditor({ data, onChange }: BlockEditorProps) {
         <SectionHeader title="Gumbi" />
         <ButtonGroup
           title="Gumb 1"
-          text={d.btn1Text}
           link={d.btn1Link}
-          onTextChange={(v) => patch({ btn1Text: v })}
           onLinkChange={(v) => patch({ btn1Link: v })}
         />
         <ButtonGroup
           title="Gumb 2"
-          text={d.btn2Text}
           link={d.btn2Link}
-          onTextChange={(v) => patch({ btn2Text: v })}
           onLinkChange={(v) => patch({ btn2Link: v })}
         />
       </Stack>
