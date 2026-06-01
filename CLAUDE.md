@@ -207,19 +207,23 @@ block on create and hides "+ Add new section" + the per-block Remove icon, so th
 editor shows a single fixed Content Section card. Content lives in the block
 (`admin/src/blocks/AboutUsBlock.tsx`, `aboutUsBlock` registered in `main.tsx`),
 **not** in page-level `typeData` fields. The block's `data` shape:
-- `icon: string | null` — a lucide icon name (PascalCase), picked via the shared
-  `IconPicker` from `@cms/admin-base`
-- `subtitle`, `description: string`
+- `altTitle: string` (Alternativni naslov), `heroImage: GalleryImage | null` (Hero slika, picked via
+  `ImagePickerModal` in `single` mode → `{ mediaId, cdnUrl }`), `subtitle: string` — under "Osnovni podaci"
+- `section2Title: string` (Naslov sekcije 2) + `description: string` (Opis) — under "Sekcija 2";
+  `section3Title` (Naslov sekcije 3) + `section3Subtitle` (Podnaslov sekcije 3) — under "Sekcija 3".
+  Editor group order is **Osnovni podaci → Gumbi → Sekcija 2 → Sekcija 3**.
 - `btn1Link` / `btn2Link: LinkData | null` — each button is a **single CMS link
   picker** (`LinkPickerModal` in `rte` mode, opened with `showTextFields`). The
   button's label and tooltip live **inside** the `LinkData` as `linkText` /
   `tooltip` — there is no longer a separate `btn1Text` / `btn2Text` field.
   `normalize()` folds any legacy `btn1Text` / `btn2Text` from older saves into
   the link's `linkText`, so pages authored before this change keep their copy.
-Resolve a button link's href on the frontend with `computeLinkHref()`, read the
-label from `LinkData.linkText`, and the icon with `lucide-react`'s `icons[name]`
-(or `getLucideIcon()` from `@cms/admin-base`). No custom `PageView.tsx` branch exists yet — add one when the
-About-us page gets a bespoke renderer (it renders the default view until then).
+  **Anchor CTA:** point a button's link at a Remote URL of `#kontakt` and the
+  frontend smooth-scrolls to section 3 instead of navigating (e.g. "Kontaktiraj nas").
+The block previously had an `icon` field; it was **removed** (the editor no longer
+shows an icon picker for About-us). Older saves may still carry an `icon` key in
+their stored `data` — it's ignored by `normalize()` and harmless.
+Rendered by `AboutUsView` (see "Frontend rendering" below).
 
 The built-in `default` and the code-defined `products`, `product-category`, and
 `product-item` are all registered in code. `products` and `product-category`
@@ -285,6 +289,31 @@ inserts page types one at a time.
 ## Frontend rendering (`src/routes/PageView.tsx`)
 
 - `default` (and any unknown type) — `DefaultView`: H1 title + block list.
+- `product-item` — `ProductItemView`; `all-products` — `AllProductsView` (separate file).
+- `about-us` — **`AboutUsView`** (`src/routes/AboutUsView.tsx`). Plain-Mantine layout (positioning only, not
+  pixel-perfect). Reads the singleton `about-us` block's data:
+  - **Hero**: `altTitle` (H1) + `heroImage` (rendered via Mantine `Image`; grey placeholder when unset) +
+    `subtitle` (lead) + `btn1Link` (filled) / `btn2Link` (outline) buttons. Buttons resolve `LinkData` → href
+    via a local `resolveHref()` (mirrors `PageView`'s `LinkRenderer`, using `page.linkPages` + locale); label
+    is `LinkData.linkText`. A button whose href is a `#anchor` smooth-scrolls instead of navigating — section 3
+    has `id="kontakt"`, so a button linked to `#kontakt` scrolls there.
+  - **Section 2**: `section2Title` (heading) with `description` (body) directly under it, then the
+    **Featured banners** cards.
+  - **Section 3**: `section3Title` + `section3Subtitle`, a static inquiry form (UI only, not wired), and the
+    **Contact** panel. All static chrome (form labels/placeholders/options, contact labels, map button) reads
+    from editor-managed strings via `useStrings().t('about.*')` — keys live in `project-data.seed.json` (EN+HR)
+    and are editable in **Settings → Strings**. No hardcoded English remains in this view.
+  - **Featured banners** come from `getFeaturedBanners()` (`GET /api/project-settings/featured_banners`) —
+    locale-aware `title`/`content` (`pickLocalized()` falls back to defaultLocale), icon resolved by name via
+    `lucide-react`'s `icons` namespace. **`lucide-react` was added as a frontend dependency** for this.
+  - **Contact** comes from `getContactInfo()` (`GET /api/project-settings/contact`) — phone/fax/email/address
+    + the map. Phone & fax render as `tel:` links (open the dialer on mobile); email as `mailto:`. The map
+    thumbnail is `public/map.svg` (a stylized Ivanić-Grad map). The `mapsUrl` setting may hold **either a bare
+    URL or the full Google Maps "Embed a map" `<iframe …>` snippet** — `extractMapEmbedSrc()` pulls the real
+    `src` URL out (pasting the whole `<iframe>` into an iframe `src` is what previously loaded our own site).
+    Desktop click → `Modal` with an `<iframe src={embedSrc}>` + an "Open in Google Maps" button; Android/iOS
+    (UA-sniffed) click opens a place link built from the address (`maps/search/?api=1&query=…`) so the OS
+    hands it to the native maps app.
 
 Child pages can be fetched via
 `GET /api/pages?type=<childType>&parentId=<id>&locale=<locale>` if a custom
@@ -381,11 +410,33 @@ createAdmin({
   apiUrl: import.meta.env.VITE_API_URL,
   frontendUrl: import.meta.env.VITE_FRONTEND_URL,
   projectSlug: "project-linea",
+  pageTypes: [/* … */],
+  blockTypes: [/* … */],
+  settingsSections: [featuredBannersSection],   // project-only Settings tabs
 });
 ```
 
 `projectSlug` must match the Bunny CDN folder prefix and the `X-Project-Slug`
 header used by `src/lib/api.ts`.
+
+### Project-only Settings tabs (`admin/src/settings/`)
+
+`createAdmin({ settingsSections: [...] })` appends linea-only tabs to the admin **Settings** screen.
+
+- **Featured banners** (`admin/src/settings/FeaturedBannersSection.tsx`, `featuredBannersSection`) — three
+  fixed boxes, each with a per-locale **title** + per-locale **content** + a shared lucide **icon**. The
+  editing language follows the sidebar content-locale switcher; visible to admin + developer. Saved to the
+  generic per-project store under key `featured_banners` via `saveProjectSettings`/`fetchProjectSettings`
+  (`GET|PUT /api/project-settings/featured_banners`). Stored shape:
+  `{ boxes: [{ icon, title: {hr,en}, content: {hr,en} }, …×3] }`.
+- **Kontakt** (`admin/src/settings/ContactSection.tsx`, `contactSection`) — a single (not per-locale) set of
+  contact details: `phone`, `fax`, `email` (validated client-side; Save disabled while a non-empty value
+  isn't a valid address), `address` (single line), `mapsUrl` (Google Maps link). Visible to admin + developer.
+  Saved under key `contact` (`GET|PUT /api/project-settings/contact`). Stored shape:
+  `{ phone, fax, email, address, mapsUrl }`.
+- **Frontend consumption:** read via `getFeaturedBanners()` / `getContactInfo()` in `src/lib/api.ts`
+  (thin wrappers over `GET /api/project-settings/:key`). Currently consumed by `AboutUsView`; reuse the
+  helpers anywhere else the data is needed. The store is public-readable — never put secrets in a section.
 
 After changing `cms-ai-core/packages/admin-base`:
 ```bash

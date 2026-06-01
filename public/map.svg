@@ -1,0 +1,121 @@
+<svg width="100%" viewBox="0 0 690 470" role="img" xmlns="http://www.w3.org/2000/svg"><defs><mask id="imagine-text-gaps-86dfa3" maskUnits="userSpaceOnUse"><rect x="0" y="0" width="690" height="470" fill="white"/><rect x="426" y="40" width="118.53125" height="21" fill="black" rx="2"/><rect x="121.921875" y="234" width="44.078125" height="17" fill="black" rx="2"/><rect x="260" y="292" width="50.1875" height="17" fill="black" rx="2"/><rect x="472" y="224" width="48.359375" height="17" fill="black" rx="2"/><rect x="302" y="394" width="33.6875" height="17" fill="black" rx="2"/><rect x="342" y="272" width="70.03125" height="18" fill="black" rx="2"/><rect x="634.0234375" y="43" width="15.953125" height="17" fill="black" rx="2"/><rect x="96" y="434" width="35.796875" height="16" fill="black" rx="2"/><rect x="352" y="181" width="67.921875" height="26" fill="black" rx="2"/><rect x="353" y="203" width="115" height="17" fill="black" rx="2"/></mask></defs>
+<title>Stylized map of Ivanić-Grad centered on Linea studio za dizajn i tisak</title>
+<desc>A clean designed map showing simplified roads, a river, parks and highway 43, with Linea studio highlighted by a coral pin in the center.</desc>
+
+<rect x="0" y="0" width="680" height="460" style="fill:rgb(242, 239, 230);stroke:none"/>
+
+<path d="M0 55 C40 50 78 66 88 104 C93 136 70 158 40 158 L0 158 Z" style="fill:rgb(220, 231, 200);stroke:none"/>
+<path d="M175 292 C175 278 202 273 232 277 C272 282 296 290 296 320 C296 350 270 360 234 357 C194 354 175 338 175 292 Z" style="fill:rgb(220, 231, 200);stroke:none"/>
+<path d="M174 232 C196 227 228 230 240 247 C246 262 224 271 199 268 C180 266 170 246 174 232 Z" style="fill:rgb(220, 231, 200);stroke:none"/>
+<path d="M562 268 C602 263 650 268 680 272 L680 460 L468 460 C480 408 510 358 540 318 C551 300 554 282 562 268 Z" style="fill:rgb(220, 231, 200);stroke:none"/>
+
+<path stroke-width="6" d="M72 408 C140 393 196 410 232 440 C252 456 258 460 262 460" style="fill:none;stroke:rgb(166, 197, 213);stroke-width:6px;stroke-linecap:round;stroke-linejoin:round"/>
+<path stroke-width="4.5" d="M300 296 C296 342 290 402 286 460" mask="url(#imagine-text-gaps-86dfa3)" style="fill:none;stroke:rgb(166, 197, 213);stroke-width:4.5px;stroke-linecap:round;stroke-linejoin:round"/>
+<path stroke-width="4" d="M92 360 C120 382 110 402 78 408" style="fill:none;stroke:rgb(166, 197, 213);stroke-width:4px;stroke-linecap:round;stroke-linejoin:round"/>
+
+<g stroke-width="5.5" style="fill:none;stroke:rgb(230, 224, 210);stroke-width:5.5px;stroke-linecap:round;stroke-linejoin:round">
+<path d="M58 178 C90 200 122 232 142 272" mask="url(#imagine-text-gaps-86dfa3)"/>
+<path d="M150 148 C162 200 170 248 174 292"/>
+<path d="M230 88 C242 150 248 202 251 250"/>
+<path d="M88 280 C150 290 212 296 262 301" mask="url(#imagine-text-gaps-86dfa3)"/>
+<path d="M110 332 C172 337 232 342 282 347"/>
+<path d="M282 108 C292 160 297 210 300 248"/>
+<path d="M320 254 C360 272 402 302 432 342" mask="url(#imagine-text-gaps-86dfa3)"/>
+<path d="M534 184 C556 230 561 280 555 322"/>
+<path d="M468 214 C480 260 478 302 470 342" mask="url(#imagine-text-gaps-86dfa3)"/>
+<path d="M612 148 L678 176"/>
+<path d="M400 80 C452 96 502 112 540 122"/>
+</g>
+<g stroke-width="3" style="fill:none;stroke:rgb(251, 250, 245);stroke-width:3px;stroke-linecap:round;stroke-linejoin:round">
+<path d="M58 178 C90 200 122 232 142 272" mask="url(#imagine-text-gaps-86dfa3)"/>
+<path d="M150 148 C162 200 170 248 174 292"/>
+<path d="M230 88 C242 150 248 202 251 250"/>
+<path d="M88 280 C150 290 212 296 262 301" mask="url(#imagine-text-gaps-86dfa3)"/>
+<path d="M110 332 C172 337 232 342 282 347"/>
+<path d="M282 108 C292 160 297 210 300 248"/>
+<path d="M320 254 C360 272 402 302 432 342" mask="url(#imagine-text-gaps-86dfa3)"/>
+<path d="M534 184 C556 230 561 280 555 322"/>
+<path d="M468 214 C480 260 478 302 470 342" mask="url(#imagine-text-gaps-86dfa3)"/>
+<path d="M612 148 L678 176"/>
+<path d="M400 80 C452 96 502 112 540 122"/>
+</g>
+
+<g stroke-width="11" style="fill:none;stroke:rgb(226, 219, 203);stroke-width:11px;stroke-linecap:round;stroke-linejoin:round">
+<path d="M372 18 C360 70 340 130 326 185 C320 215 316 240 314 262 C311 300 305 360 296 420 C293 440 290 450 288 460"/>
+<path d="M318 252 C400 240 470 215 535 185 C565 170 590 158 610 148" mask="url(#imagine-text-gaps-86dfa3)"/>
+<path d="M95 205 C170 225 240 240 300 248 C306 249 311 250 318 252"/>
+</g>
+<g stroke-width="7.5" style="fill:none;stroke:rgb(255, 255, 255);stroke-width:7.5px;stroke-linecap:round;stroke-linejoin:round">
+<path d="M372 18 C360 70 340 130 326 185 C320 215 316 240 314 262 C311 300 305 360 296 420 C293 440 290 450 288 460"/>
+<path d="M318 252 C400 240 470 215 535 185 C565 170 590 158 610 148" mask="url(#imagine-text-gaps-86dfa3)"/>
+<path d="M95 205 C170 225 240 240 300 248 C306 249 311 250 318 252"/>
+</g>
+
+<g stroke-width="13" style="fill:none;stroke:rgb(226, 172, 83);stroke-width:13px;stroke-linecap:round;stroke-linejoin:round">
+<path d="M614 148 C626 200 615 255 588 305 C562 352 540 400 538 460"/>
+<path d="M612 130 C625 95 640 68 655 42" mask="url(#imagine-text-gaps-86dfa3)"/>
+</g>
+<g stroke-width="9.5" style="fill:none;stroke:rgb(246, 206, 126);stroke-width:9.5px;stroke-linecap:round;stroke-linejoin:round">
+<path d="M614 148 C626 200 615 255 588 305 C562 352 540 400 538 460"/>
+<path d="M612 130 C625 95 640 68 655 42" mask="url(#imagine-text-gaps-86dfa3)"/>
+</g>
+<circle cx="612" cy="140" r="9" style="fill:rgb(242, 239, 230);stroke:none"/>
+<circle cx="612" cy="140" r="9" stroke-width="4" style="fill:none;stroke:rgb(226, 172, 83);stroke-width:4px"/>
+
+<path stroke-width="3.2" d="M320 270 C410 262 500 246 600 220" mask="url(#imagine-text-gaps-86dfa3)" style="fill:none;stroke:rgb(186, 178, 163);stroke-width:3.2px;stroke-linecap:round"/>
+<path stroke-width="3.2" d="M320 270 C410 262 500 246 600 220" mask="url(#imagine-text-gaps-86dfa3)" style="fill:none;stroke:rgb(255, 255, 255);stroke-width:3.2px;stroke-dasharray:1.5px, 7px;stroke-linecap:round"/>
+
+<g style="fill:rgb(231, 225, 211);stroke:none">
+<rect x="70" y="180" width="16" height="12" rx="2"/>
+<rect x="95" y="165" width="14" height="10" rx="2"/>
+<rect x="120" y="150" width="18" height="12" rx="2"/>
+<rect x="150" y="172" width="14" height="16" rx="2"/>
+<rect x="176" y="200" width="16" height="12" rx="2"/>
+<rect x="140" y="216" width="14" height="10" rx="2"/>
+<rect x="110" y="236" width="18" height="12" rx="2"/>
+<rect x="85" y="256" width="14" height="12" rx="2"/>
+<rect x="200" y="210" width="14" height="14" rx="2"/>
+<rect x="225" y="180" width="16" height="12" rx="2"/>
+<rect x="255" y="160" width="14" height="12" rx="2"/>
+<rect x="420" y="150" width="16" height="12" rx="2"/>
+<rect x="455" y="172" width="14" height="12" rx="2"/>
+<rect x="500" y="160" width="16" height="10" rx="2"/>
+<rect x="545" y="140" width="14" height="12" rx="2"/>
+<rect x="430" y="300" width="16" height="12" rx="2"/>
+<rect x="465" y="292" width="14" height="10" rx="2"/>
+</g>
+
+<text x="430" y="56" style="fill:rgb(187, 180, 164);stroke:none;font-family:sans-serif;font-size:15px">Ivanić-Grad</text>
+
+<circle cx="170" cy="250" r="3" style="fill:rgb(154, 148, 136);stroke:none"/>
+<text x="162" y="246" text-anchor="end" style="fill:rgb(126, 120, 105);stroke:none;font-family:sans-serif;font-size:11px">Bolnica</text>
+<circle cx="258" cy="300" r="3" style="fill:rgb(154, 148, 136);stroke:none"/>
+<text x="264" y="304" style="fill:rgb(126, 120, 105);stroke:none;font-family:sans-serif;font-size:11px">Fratellos</text>
+<circle cx="468" cy="232" r="3" style="fill:rgb(154, 148, 136);stroke:none"/>
+<text x="476" y="236" style="fill:rgb(126, 120, 105);stroke:none;font-family:sans-serif;font-size:11px">Konzum</text>
+<circle cx="298" cy="402" r="3" style="fill:rgb(154, 148, 136);stroke:none"/>
+<text x="306" y="406" style="fill:rgb(126, 120, 105);stroke:none;font-family:sans-serif;font-size:11px">Rošo</text>
+<rect x="334" y="278" width="6" height="6" rx="1" style="fill:rgb(154, 148, 136);stroke:none"/>
+<text x="346" y="285" style="fill:rgb(105, 100, 90);stroke:none;font-family:sans-serif;font-size:12px;font-weight:500">Ivanić-Grad</text>
+
+<g style="fill:rgb(110, 104, 93);stroke:none;font-family:sans-serif;font-size:11px;font-weight:500">
+<circle cx="642" cy="42" r="14" fill="#F2EFE6" stroke="#D8D1C2" stroke-width="0.5"/>
+<path d="M642 32 L646 44 L642 41 L638 44 Z" fill="#D8442E"/>
+<text x="642" y="55" text-anchor="middle" style="fill:rgb(110, 104, 93);stroke:none;font-family:sans-serif;font-size:11px;font-weight:500">N</text>
+</g>
+
+<line x1="36" y1="442" x2="96" y2="442" stroke-width="2" mask="url(#imagine-text-gaps-86dfa3)" style="fill:none;stroke:rgb(138, 132, 122);stroke-width:2px"/>
+<line x1="36" y1="438" x2="36" y2="446" stroke-width="1.5" style="fill:none;stroke:rgb(138, 132, 122);stroke-width:1.5px"/>
+<line x1="96" y1="438" x2="96" y2="446" stroke-width="1.5" style="fill:none;stroke:rgb(138, 132, 122);stroke-width:1.5px"/>
+<text x="100" y="446" style="fill:rgb(138, 132, 122);stroke:none;font-family:sans-serif;font-size:10px">200 m</text>
+
+<circle cx="314" cy="222" r="40" opacity="0.12" style="fill:rgb(224, 83, 60);stroke:none"/>
+<circle cx="314" cy="222" r="30" stroke-width="1.5" opacity="0.45" style="fill:none;stroke:rgb(224, 83, 60);stroke-width:1.5px"/>
+<path d="M314 200 C302 200 293 209 293 221 C293 238 314 256 314 256 C314 256 335 238 335 221 C335 209 326 200 314 200 Z" style="fill:rgb(224, 83, 60);stroke:none"/>
+<path stroke-width="2" d="M314 200 C302 200 293 209 293 221 C293 238 314 256 314 256 C314 256 335 238 335 221 C335 209 326 200 314 200 Z" style="fill:none;stroke:rgb(255, 255, 255);stroke-width:2px"/>
+<circle cx="314" cy="220" r="6.5" style="fill:rgb(255, 255, 255);stroke:none"/>
+
+<rect x="340" y="178" width="178" height="44" rx="10" stroke-width="1" style="fill:rgb(255, 255, 255);stroke:rgb(235, 229, 216);stroke-width:1px"/>
+<text x="356" y="201" style="fill:rgb(216, 68, 46);stroke:none;font-family:sans-serif;font-size:19px;font-weight:500">LINEA</text>
+<text x="357" y="215" style="fill:rgb(107, 102, 92);stroke:none;font-family:sans-serif;font-size:11px">studio za dizajn i tisak</text>
+</svg>
