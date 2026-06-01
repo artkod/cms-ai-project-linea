@@ -17,6 +17,7 @@ import {
   Select,
   UnstyledButton,
   AspectRatio,
+  Image,
 } from "@mantine/core";
 import { icons } from "lucide-react";
 import {
@@ -34,6 +35,7 @@ import { useLocaleConfig } from "@/lib/locale";
 
 interface AboutUsData {
   altTitle: string;
+  heroImage: { cdnUrl?: string } | null;
   subtitle: string;
   description: string;
   btn1Link: Record<string, unknown> | null;
@@ -48,6 +50,7 @@ function readBlock(page: Page): AboutUsData {
   const d = (block?.data ?? {}) as Partial<AboutUsData>;
   return {
     altTitle: d.altTitle ?? "",
+    heroImage: (d.heroImage as { cdnUrl?: string }) ?? null,
     subtitle: d.subtitle ?? "",
     description: d.description ?? "",
     btn1Link: (d.btn1Link as Record<string, unknown>) ?? null,
@@ -56,6 +59,13 @@ function readBlock(page: Page): AboutUsData {
     section3Title: d.section3Title ?? "",
     section3Subtitle: d.section3Subtitle ?? "",
   };
+}
+
+// Smooth-scroll a same-page anchor (#id) into view.
+function scrollToAnchor(hash: string) {
+  const id = hash.replace(/^#/, "");
+  const el = document.getElementById(id);
+  if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
@@ -118,6 +128,15 @@ function CmsButton({
       {label}
     </Button>
   );
+  // Same-page anchor (e.g. a "remote URL" of "#kontakt") → smooth-scroll instead
+  // of navigating. Lets a CTA like "Kontaktiraj nas" focus section 3.
+  if (resolved.href.startsWith("#")) {
+    return (
+      <UnstyledButton onClick={() => scrollToAnchor(resolved.href)} title={tooltip}>
+        {btn}
+      </UnstyledButton>
+    );
+  }
   if (resolved.internal && !resolved.newTab) {
     return (
       <Link to={resolved.href} style={{ textDecoration: "none" }} title={tooltip}>
@@ -226,7 +245,9 @@ function ContactPanel({ contact }: { contact: ContactInfo | null }) {
             <Box c="teal.6" mt={2}><Phone size={18} /></Box>
             <div>
               <Text fz="xs" fw={700} c="dimmed" tt="uppercase">Phone</Text>
-              <Text fz="sm">{contact.phone}</Text>
+              <Text fz="sm" component="a" href={`tel:${contact.phone.replace(/[^+\d]/g, "")}`} style={{ color: "inherit" }}>
+                {contact.phone}
+              </Text>
             </div>
           </Group>
         )}
@@ -246,7 +267,9 @@ function ContactPanel({ contact }: { contact: ContactInfo | null }) {
             <Box c="teal.6" mt={2}><Phone size={18} /></Box>
             <div>
               <Text fz="xs" fw={700} c="dimmed" tt="uppercase">Fax</Text>
-              <Text fz="sm">{contact.fax}</Text>
+              <Text fz="sm" component="a" href={`tel:${contact.fax.replace(/[^+\d]/g, "")}`} style={{ color: "inherit" }}>
+                {contact.fax}
+              </Text>
             </div>
           </Group>
         )}
@@ -386,26 +409,26 @@ export function AboutUsView({ page, locale }: { page: Page; locale: string }) {
           </Grid.Col>
           <Grid.Col span={{ base: 12, md: 6 }}>
             <AspectRatio ratio={4 / 3}>
-              <Box bg="gray.2" style={{ borderRadius: 8 }} />
+              {d.heroImage?.cdnUrl ? (
+                <Image src={d.heroImage.cdnUrl} alt={d.altTitle} radius="md" fit="cover" />
+              ) : (
+                <Box bg="gray.2" style={{ borderRadius: 8 }} />
+              )}
             </AspectRatio>
           </Grid.Col>
         </Grid>
 
-        {/* ── Section 2: title + description + featured banners ─────────── */}
+        {/* ── Section 2: title → description → featured banners ─────────── */}
         <Stack gap="xl">
-          <Grid gutter={{ base: 24, md: 48 }} align="flex-end">
-            <Grid.Col span={{ base: 12, md: 5 }}>
-              {d.section2Title && <SectionTitle>{d.section2Title}</SectionTitle>}
-            </Grid.Col>
-            <Grid.Col span={{ base: 12, md: 7 }}>
-              {d.description && <Text c="dimmed">{d.description}</Text>}
-            </Grid.Col>
-          </Grid>
+          <Stack gap="md">
+            {d.section2Title && <SectionTitle>{d.section2Title}</SectionTitle>}
+            {d.description && <Text c="dimmed">{d.description}</Text>}
+          </Stack>
           <FeaturedBanners banners={banners} locale={locale} defaultLocale={defaultLocale} />
         </Stack>
 
         {/* ── Section 3: title + subtitle + form / contact ──────────────── */}
-        <Grid gutter={{ base: 40, md: 64 }}>
+        <Grid id="kontakt" gutter={{ base: 40, md: 64 }} style={{ scrollMarginTop: 80 }}>
           <Grid.Col span={{ base: 12, md: 6 }}>
             <Stack gap="lg">
               {d.section3Title && <Title order={2}>{d.section3Title}</Title>}

@@ -207,23 +207,23 @@ block on create and hides "+ Add new section" + the per-block Remove icon, so th
 editor shows a single fixed Content Section card. Content lives in the block
 (`admin/src/blocks/AboutUsBlock.tsx`, `aboutUsBlock` registered in `main.tsx`),
 **not** in page-level `typeData` fields. The block's `data` shape:
-- `altTitle: string` (Alternativni naslov), `subtitle`, `description: string` — under "Osnovni podaci"
-- `section2Title: string` (Naslov sekcije 2), `section3Title: string` (Naslov sekcije 3),
-  `section3Subtitle: string` (Podnaslov sekcije 3) — extra section headings. Editor group order is
-  **Osnovni podaci → Gumbi → Sekcija 2 → Sekcija 3** (section2Title under "Sekcija 2"; section3Title +
-  section3Subtitle under "Sekcija 3")
+- `altTitle: string` (Alternativni naslov), `heroImage: GalleryImage | null` (Hero slika, picked via
+  `ImagePickerModal` in `single` mode → `{ mediaId, cdnUrl }`), `subtitle: string` — under "Osnovni podaci"
+- `section2Title: string` (Naslov sekcije 2) + `description: string` (Opis) — under "Sekcija 2";
+  `section3Title` (Naslov sekcije 3) + `section3Subtitle` (Podnaslov sekcije 3) — under "Sekcija 3".
+  Editor group order is **Osnovni podaci → Gumbi → Sekcija 2 → Sekcija 3**.
 - `btn1Link` / `btn2Link: LinkData | null` — each button is a **single CMS link
   picker** (`LinkPickerModal` in `rte` mode, opened with `showTextFields`). The
   button's label and tooltip live **inside** the `LinkData` as `linkText` /
   `tooltip` — there is no longer a separate `btn1Text` / `btn2Text` field.
   `normalize()` folds any legacy `btn1Text` / `btn2Text` from older saves into
   the link's `linkText`, so pages authored before this change keep their copy.
+  **Anchor CTA:** point a button's link at a Remote URL of `#kontakt` and the
+  frontend smooth-scrolls to section 3 instead of navigating (e.g. "Kontaktiraj nas").
 The block previously had an `icon` field; it was **removed** (the editor no longer
 shows an icon picker for About-us). Older saves may still carry an `icon` key in
 their stored `data` — it's ignored by `normalize()` and harmless.
-Resolve a button link's href on the frontend with `computeLinkHref()` and read the
-label from `LinkData.linkText`. No custom `PageView.tsx` branch exists yet — add one when the
-About-us page gets a bespoke renderer (it renders the default view until then).
+Rendered by `AboutUsView` (see "Frontend rendering" below).
 
 The built-in `default` and the code-defined `products`, `product-category`, and
 `product-item` are all registered in code. `products` and `product-category`
@@ -292,18 +292,21 @@ inserts page types one at a time.
 - `product-item` — `ProductItemView`; `all-products` — `AllProductsView` (separate file).
 - `about-us` — **`AboutUsView`** (`src/routes/AboutUsView.tsx`). Plain-Mantine layout (positioning only, not
   pixel-perfect). Reads the singleton `about-us` block's data:
-  - **Hero**: `altTitle` (H1) + `subtitle` (lead) + `btn1Link` (filled) / `btn2Link` (outline) buttons +
-    a placeholder image box (the block has no image field). Buttons resolve `LinkData` → href via a local
-    `resolveHref()` (mirrors `PageView`'s `LinkRenderer`, using `page.linkPages` + locale); label is
-    `LinkData.linkText`.
-  - **Section 2**: `section2Title` (heading) + `description` (body), then the **Featured banners** cards.
+  - **Hero**: `altTitle` (H1) + `heroImage` (rendered via Mantine `Image`; grey placeholder when unset) +
+    `subtitle` (lead) + `btn1Link` (filled) / `btn2Link` (outline) buttons. Buttons resolve `LinkData` → href
+    via a local `resolveHref()` (mirrors `PageView`'s `LinkRenderer`, using `page.linkPages` + locale); label
+    is `LinkData.linkText`. A button whose href is a `#anchor` smooth-scrolls instead of navigating — section 3
+    has `id="kontakt"`, so a button linked to `#kontakt` scrolls there.
+  - **Section 2**: `section2Title` (heading) with `description` (body) directly under it, then the
+    **Featured banners** cards.
   - **Section 3**: `section3Title` + `section3Subtitle`, a static inquiry form (UI only, not wired), and the
     **Contact** panel.
   - **Featured banners** come from `getFeaturedBanners()` (`GET /api/project-settings/featured_banners`) —
     locale-aware `title`/`content` (`pickLocalized()` falls back to defaultLocale), icon resolved by name via
     `lucide-react`'s `icons` namespace. **`lucide-react` was added as a frontend dependency** for this.
   - **Contact** comes from `getContactInfo()` (`GET /api/project-settings/contact`) — phone/fax/email/address
-    + the map. The map renders `public/map.svg` (a **placeholder** — replace with the real asset); on desktop
+    + the map. Phone & fax render as `tel:` links (open the dialer on mobile); email as `mailto:`. The map
+    renders `public/map.svg` (a **placeholder** — replace with the real asset); on desktop
     clicking opens a `Modal` with an `<iframe>` of `contact.mapsUrl` (+ "Open in Google Maps"); on
     Android/iOS (UA-sniffed) clicking opens `mapsUrl` directly so the OS hands it to the native maps app.
 

@@ -1,11 +1,14 @@
 import { useMemo, useState } from "react";
-import { Box, Group, Stack, Text, TextInput, Textarea } from "@mantine/core";
+import { Box, Group, Image, Stack, Text, TextInput, Textarea } from "@mantine/core";
+import { Upload } from "lucide-react";
 import {
   Button,
+  ImagePickerModal,
   LinkPickerModal,
   computeLinkHref,
   type BlockEditorProps,
   type BlockTypeDefinition,
+  type GalleryImage,
   type LinkData,
 } from "@cms/admin-base";
 
@@ -21,6 +24,7 @@ import {
 
 interface AboutUsData {
   altTitle: string;
+  heroImage: GalleryImage | null;
   subtitle: string;
   description: string;
   btn1Link: LinkData | null;
@@ -32,6 +36,7 @@ interface AboutUsData {
 
 const DEFAULT_DATA: AboutUsData = {
   altTitle: "",
+  heroImage: null,
   subtitle: "",
   description: "",
   btn1Link: null,
@@ -40,6 +45,10 @@ const DEFAULT_DATA: AboutUsData = {
   section3Title: "",
   section3Subtitle: "",
 };
+
+function isGalleryImage(v: unknown): v is GalleryImage {
+  return typeof v === "object" && v !== null && "cdnUrl" in v;
+}
 
 function isLinkData(v: unknown): v is LinkData {
   return typeof v === "object" && v !== null && "linkType" in v;
@@ -65,6 +74,7 @@ function normalize(raw: Record<string, unknown>): AboutUsData {
   const r = raw as Partial<AboutUsData> & { btn1Text?: unknown; btn2Text?: unknown };
   return {
     altTitle: typeof r.altTitle === "string" ? r.altTitle : "",
+    heroImage: isGalleryImage(r.heroImage) ? r.heroImage : null,
     subtitle: typeof r.subtitle === "string" ? r.subtitle : "",
     description: typeof r.description === "string" ? r.description : "",
     btn1Link: migrateLink(r.btn1Link, r.btn1Text),
@@ -90,6 +100,56 @@ function SectionHeader({ title }: { title: string }) {
     >
       {title}
     </Text>
+  );
+}
+
+// ─── Single-image picker ─────────────────────────────────────────────────────
+
+function ImageField({
+  label,
+  modalTitle,
+  value,
+  onChange,
+}: {
+  label: string;
+  modalTitle: string;
+  value: GalleryImage | null;
+  onChange: (v: GalleryImage | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <Stack gap={6}>
+        <Text size="sm" fw={500}>{label}</Text>
+        {value ? (
+          <Group align="flex-start" gap={12}>
+            <Image src={value.cdnUrl} w={160} h={120} fit="cover" radius="sm" alt={label} />
+            <Stack gap={6}>
+              <Button variant="secondary" size="sm" onClick={() => setOpen(true)}>
+                Promijeni
+              </Button>
+              <Button variant="secondary" size="sm" onClick={() => onChange(null)}>
+                Ukloni
+              </Button>
+            </Stack>
+          </Group>
+        ) : (
+          <Button variant="secondary" size="sm" leftSection={<Upload size={14} />} onClick={() => setOpen(true)}>
+            Odaberi sliku
+          </Button>
+        )}
+      </Stack>
+      <ImagePickerModal
+        opened={open}
+        onClose={() => setOpen(false)}
+        title={modalTitle}
+        mode="single"
+        onConfirm={(imgs) => {
+          if (imgs[0]) onChange(imgs[0]);
+          setOpen(false);
+        }}
+      />
+    </>
   );
 }
 
@@ -203,6 +263,12 @@ function AboutUsEditor({ data, onChange }: BlockEditorProps) {
           value={d.altTitle}
           onChange={(e) => patch({ altTitle: e.currentTarget.value })}
         />
+        <ImageField
+          label="Hero slika"
+          modalTitle="Odaberi hero sliku"
+          value={d.heroImage}
+          onChange={(v) => patch({ heroImage: v })}
+        />
         <Textarea
           label="Podnaslov"
           placeholder="Podnaslov"
@@ -211,15 +277,6 @@ function AboutUsEditor({ data, onChange }: BlockEditorProps) {
           autosize
           minRows={2}
           maxRows={6}
-        />
-        <Textarea
-          label="Opis"
-          placeholder="Opis"
-          value={d.description}
-          onChange={(e) => patch({ description: e.currentTarget.value })}
-          autosize
-          minRows={3}
-          maxRows={10}
         />
       </Stack>
 
@@ -244,6 +301,15 @@ function AboutUsEditor({ data, onChange }: BlockEditorProps) {
           placeholder="Naslov sekcije 2"
           value={d.section2Title}
           onChange={(e) => patch({ section2Title: e.currentTarget.value })}
+        />
+        <Textarea
+          label="Opis"
+          placeholder="Opis"
+          value={d.description}
+          onChange={(e) => patch({ description: e.currentTarget.value })}
+          autosize
+          minRows={3}
+          maxRows={10}
         />
       </Stack>
 
