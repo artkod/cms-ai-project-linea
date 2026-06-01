@@ -289,6 +289,23 @@ inserts page types one at a time.
 ## Frontend rendering (`src/routes/PageView.tsx`)
 
 - `default` (and any unknown type) — `DefaultView`: H1 title + block list.
+- `product-item` — `ProductItemView`; `all-products` — `AllProductsView` (separate file).
+- `about-us` — **`AboutUsView`** (`src/routes/AboutUsView.tsx`). Plain-Mantine layout (positioning only, not
+  pixel-perfect). Reads the singleton `about-us` block's data:
+  - **Hero**: `altTitle` (H1) + `subtitle` (lead) + `btn1Link` (filled) / `btn2Link` (outline) buttons +
+    a placeholder image box (the block has no image field). Buttons resolve `LinkData` → href via a local
+    `resolveHref()` (mirrors `PageView`'s `LinkRenderer`, using `page.linkPages` + locale); label is
+    `LinkData.linkText`.
+  - **Section 2**: `section2Title` (heading) + `description` (body), then the **Featured banners** cards.
+  - **Section 3**: `section3Title` + `section3Subtitle`, a static inquiry form (UI only, not wired), and the
+    **Contact** panel.
+  - **Featured banners** come from `getFeaturedBanners()` (`GET /api/project-settings/featured_banners`) —
+    locale-aware `title`/`content` (`pickLocalized()` falls back to defaultLocale), icon resolved by name via
+    `lucide-react`'s `icons` namespace. **`lucide-react` was added as a frontend dependency** for this.
+  - **Contact** comes from `getContactInfo()` (`GET /api/project-settings/contact`) — phone/fax/email/address
+    + the map. The map renders `public/map.svg` (a **placeholder** — replace with the real asset); on desktop
+    clicking opens a `Modal` with an `<iframe>` of `contact.mapsUrl` (+ "Open in Google Maps"); on
+    Android/iOS (UA-sniffed) clicking opens `mapsUrl` directly so the OS hands it to the native maps app.
 
 Child pages can be fetched via
 `GET /api/pages?type=<childType>&parentId=<id>&locale=<locale>` if a custom
@@ -409,9 +426,9 @@ header used by `src/lib/api.ts`.
   isn't a valid address), `address` (single line), `mapsUrl` (Google Maps link). Visible to admin + developer.
   Saved under key `contact` (`GET|PUT /api/project-settings/contact`). Stored shape:
   `{ phone, fax, email, address, mapsUrl }`.
-- **Frontend consumption (TODO):** a public renderer can read each section via
-  `GET /api/project-settings/:key` (with `X-Project-Slug`) and reuse the data wherever needed.
-  The store is public-readable — never put secrets in a settings section.
+- **Frontend consumption:** read via `getFeaturedBanners()` / `getContactInfo()` in `src/lib/api.ts`
+  (thin wrappers over `GET /api/project-settings/:key`). Currently consumed by `AboutUsView`; reuse the
+  helpers anywhere else the data is needed. The store is public-readable — never put secrets in a section.
 
 After changing `cms-ai-core/packages/admin-base`:
 ```bash

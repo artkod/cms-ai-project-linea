@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" width="640" height="360" role="img" aria-label="Map">
+  <rect width="640" height="360" fill="#1f3a44"/>
+  <g stroke="#2c5563" stroke-width="2" fill="none" opacity="0.9">
+    <path d="M0 70 H640 M0 150 H640 M0 230 H640 M0 300 H640"/>
+    <path d="M90 0 V360 M210 0 V360 M330 0 V360 M450 0 V360 M560 0 V360"/>
+    <path d="M0 320 L180 200 L300 250 L460 120 L640 180" stroke="#3a6e7e" stroke-width="6"/>
+    <path d="M40 40 L260 110 L420 60 L600 130" stroke="#3a6e7e" stroke-width="4"/>
+  </g>
+  <g fill="#9fc7cf" opacity="0.5">
+    <rect x="120" y="90" width="60" height="40" rx="3"/>
+    <rect x="360" y="160" width="70" height="50" rx="3"/>
+    <rect x="250" y="250" width="55" height="45" rx="3"/>
+    <rect x="500" y="70" width="50" height="35" rx="3"/>
+  </g>
+  <g transform="translate(320 180)">
+    <path d="M0 -34 C -19 -34 -34 -19 -34 0 C -34 22 0 44 0 44 C 0 44 34 22 34 0 C 34 -19 19 -34 0 -34 Z" fill="#e2574c"/>
+    <circle cx="0" cy="-2" r="12" fill="#fff"/>
+  </g>
+  <text x="20" y="36" font-family="Inter, system-ui, sans-serif" font-size="20" font-weight="700" fill="#cfe4e9" opacity="0.85">MAP</text>
+</svg>

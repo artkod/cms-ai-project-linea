@@ -209,6 +209,43 @@ export async function getSiteSettings(locale?: string): Promise<SiteSettings | n
 /** Returns { key: value } map of frontend translation strings for the given locale.
  *  Bypasses the HTTP cache so editor saves are visible on the next StringsProvider
  *  fetch (which happens on mount + on every active-locale change). */
+// ── Project settings (generic per-project structured store) ───────────────────
+// Backs project-specific Settings sections in the admin (featured banners,
+// contact, …). Public GET; returns { value, version } (value = {} when unset).
+
+export interface FeaturedBanner {
+  icon: string | null;
+  title: Record<string, string>;
+  content: Record<string, string>;
+}
+
+export interface ContactInfo {
+  phone: string;
+  fax: string;
+  email: string;
+  address: string;
+  mapsUrl: string;
+}
+
+async function getProjectSettings<T>(key: string): Promise<T | null> {
+  const res = await fetch(`${API_URL}/api/project-settings/${encodeURIComponent(key)}`, {
+    headers: cmsHeaders,
+    cache: "no-store",
+  });
+  if (!res.ok) return null;
+  const body = await res.json();
+  return (body?.value ?? null) as T | null;
+}
+
+export async function getFeaturedBanners(): Promise<FeaturedBanner[]> {
+  const value = await getProjectSettings<{ boxes?: FeaturedBanner[] }>("featured_banners");
+  return value?.boxes ?? [];
+}
+
+export async function getContactInfo(): Promise<ContactInfo | null> {
+  return getProjectSettings<ContactInfo>("contact");
+}
+
 export async function getStrings(locale: string): Promise<Record<string, string>> {
   const res = await fetch(
     `${API_URL}/api/strings?locale=${encodeURIComponent(locale)}`,
