@@ -146,7 +146,18 @@
     { "locale": "hr", "key": "about.form_dropzone",              "value": "Povucite i ispustite tehničke specifikacije ili datoteke spremne za tisak (maks. 50 MB)" },
     { "locale": "en", "key": "about.form_dropzone",              "value": "Drag & drop technical specs or print-ready files here (Max 50MB)" },
     { "locale": "hr", "key": "about.form_submit",                "value": "Pošalji upit" },
-    { "locale": "en", "key": "about.form_submit",                "value": "Submit inquiry" }
+    { "locale": "en", "key": "about.form_submit",                "value": "Submit inquiry" },
+
+    { "locale": "hr", "key": "catalogues.download",              "value": "Preuzmi" },
+    { "locale": "en", "key": "catalogues.download",              "value": "Download" },
+    { "locale": "hr", "key": "catalogues.empty",                 "value": "Trenutno nema dostupnih dokumenata." },
+    { "locale": "en", "key": "catalogues.empty",                 "value": "No documents available at the moment." },
+    { "locale": "hr", "key": "catalogues.cta_heading",           "value": "Ne možete pronaći ono što tražite?" },
+    { "locale": "en", "key": "catalogues.cta_heading",           "value": "Can't find what you're looking for?" },
+    { "locale": "hr", "key": "catalogues.cta_text",              "value": "Naš tehnički tim dostupan je za izradu prilagođenih specifikacija i savjeta za složene projekte." },
+    { "locale": "en", "key": "catalogues.cta_text",              "value": "Our technical team is available to provide custom specifications and advice for complex projects." },
+    { "locale": "hr", "key": "catalogues.cta_button",            "value": "Kontaktirajte podršku" },
+    { "locale": "en", "key": "catalogues.cta_button",            "value": "Contact Support" }
   ],
 
   "pageTypes": [

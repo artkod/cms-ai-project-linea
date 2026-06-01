@@ -5,6 +5,7 @@ import { createAdmin, type PageTypeDefinition } from "@cms/admin-base";
 import { productItemBlock } from "./blocks/ProductItemBlock";
 import { productCategoryBlock } from "./blocks/ProductCategoryBlock";
 import { aboutUsBlock } from "./blocks/AboutUsBlock";
+import { cataloguesBlock } from "./blocks/CataloguesBlock";
 import { featuredBannersSection } from "./settings/FeaturedBannersSection";
 import { contactSection } from "./settings/ContactSection";
 
@@ -87,11 +88,30 @@ const aboutUsPageType: PageTypeDefinition = {
   allowedBlockTypes: ["about-us"],
 };
 
+// catalogues is a singleton root page: exactly one across the site, lives at
+// root, cannot be deleted, takes no parent and no children. Its content is the
+// "Katalozi" resource-library page, authored through a singleton "catalogues"
+// block (allowedBlockTypes.length === 1) — the framework auto-seeds one block on
+// create and hides the Add/Remove controls. The block (CataloguesBlock) holds an
+// intro subtitle, a list of downloadable documents (each with a display title)
+// and a contact CTA link.
+const cataloguesPageType: PageTypeDefinition = {
+  type: "catalogues",
+  label: { en: "Catalogues", hr: "Katalozi" },
+  deletable: false,
+  canBeRoot: true,
+  limit: 1,
+  allowedParentTypes: [],
+  allowedChildTypes: [],
+  allowBlocks: true,
+  allowedBlockTypes: ["catalogues"],
+};
+
 createAdmin({
   apiUrl: import.meta.env.VITE_API_URL,
   frontendUrl: import.meta.env.VITE_FRONTEND_URL,
   projectSlug: "project-linea",
-  pageTypes: [aboutUsPageType, allProductsPageType, productsPageType, productCategoryPageType, productItemPageType],
-  blockTypes: [productItemBlock, productCategoryBlock, aboutUsBlock],
+  pageTypes: [aboutUsPageType, cataloguesPageType, allProductsPageType, productsPageType, productCategoryPageType, productItemPageType],
+  blockTypes: [productItemBlock, productCategoryBlock, aboutUsBlock, cataloguesBlock],
   settingsSections: [featuredBannersSection, contactSection],
 });

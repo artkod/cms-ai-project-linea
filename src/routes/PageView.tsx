@@ -28,6 +28,7 @@ import { tiptapToHtml } from "@/lib/tiptapRenderer";
 import { usePageAlternates, useStrings, useLocaleConfig } from "@/lib/locale";
 import { AllProductsView } from "./AllProductsView";
 import { AboutUsView } from "./AboutUsView";
+import { CataloguesView } from "./CataloguesView";
 
 // ─── Render context (locale + linkPages, for nested renderers) ────────────────
 
@@ -1266,6 +1267,8 @@ export function PageView() {
         <AllProductsView page={page} />
       ) : page.type === "about-us" ? (
         <AboutUsView page={page} locale={activeLocale} />
+      ) : page.type === "catalogues" ? (
+        <CataloguesView page={page} locale={activeLocale} />
       ) : (
         <DefaultView page={page} />
       )}
