@@ -208,6 +208,9 @@ editor shows a single fixed Content Section card. Content lives in the block
 (`admin/src/blocks/AboutUsBlock.tsx`, `aboutUsBlock` registered in `main.tsx`),
 **not** in page-level `typeData` fields. The block's `data` shape:
 - `subtitle`, `description: string`
+- `section2Title: string` (Naslov sekcije 2), `section3Title: string` (Naslov sekcije 3),
+  `section3Subtitle: string` (Podnaslov sekcije 3) — extra section headings authored under the
+  "Dodatne sekcije" group in the editor
 - `btn1Link` / `btn2Link: LinkData | null` — each button is a **single CMS link
   picker** (`LinkPickerModal` in `rte` mode, opened with `showTextFields`). The
   button's label and tooltip live **inside** the `LinkData` as `linkText` /
@@ -400,8 +403,13 @@ header used by `src/lib/api.ts`.
   generic per-project store under key `featured_banners` via `saveProjectSettings`/`fetchProjectSettings`
   (`GET|PUT /api/project-settings/featured_banners`). Stored shape:
   `{ boxes: [{ icon, title: {hr,en}, content: {hr,en} }, …×3] }`.
-- **Frontend consumption (TODO):** a public renderer can read these via
-  `GET /api/project-settings/featured_banners` (with `X-Project-Slug`) and reuse the boxes wherever needed.
+- **Kontakt** (`admin/src/settings/ContactSection.tsx`, `contactSection`) — a single (not per-locale) set of
+  contact details: `phone`, `fax`, `email` (validated client-side; Save disabled while a non-empty value
+  isn't a valid address), `address` (single line), `mapsUrl` (Google Maps link). Visible to admin + developer.
+  Saved under key `contact` (`GET|PUT /api/project-settings/contact`). Stored shape:
+  `{ phone, fax, email, address, mapsUrl }`.
+- **Frontend consumption (TODO):** a public renderer can read each section via
+  `GET /api/project-settings/:key` (with `X-Project-Slug`) and reuse the data wherever needed.
   The store is public-readable — never put secrets in a settings section.
 
 After changing `cms-ai-core/packages/admin-base`:

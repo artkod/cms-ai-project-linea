@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Box, Group, Stack, Text, Textarea } from "@mantine/core";
+import { Box, Group, Stack, Text, TextInput, Textarea } from "@mantine/core";
 import {
   Button,
   LinkPickerModal,
@@ -24,6 +24,9 @@ interface AboutUsData {
   description: string;
   btn1Link: LinkData | null;
   btn2Link: LinkData | null;
+  section2Title: string;
+  section3Title: string;
+  section3Subtitle: string;
 }
 
 const DEFAULT_DATA: AboutUsData = {
@@ -31,6 +34,9 @@ const DEFAULT_DATA: AboutUsData = {
   description: "",
   btn1Link: null,
   btn2Link: null,
+  section2Title: "",
+  section3Title: "",
+  section3Subtitle: "",
 };
 
 function isLinkData(v: unknown): v is LinkData {
@@ -60,6 +66,9 @@ function normalize(raw: Record<string, unknown>): AboutUsData {
     description: typeof r.description === "string" ? r.description : "",
     btn1Link: migrateLink(r.btn1Link, r.btn1Text),
     btn2Link: migrateLink(r.btn2Link, r.btn2Text),
+    section2Title: typeof r.section2Title === "string" ? r.section2Title : "",
+    section3Title: typeof r.section3Title === "string" ? r.section3Title : "",
+    section3Subtitle: typeof r.section3Subtitle === "string" ? r.section3Subtitle : "",
   };
 }
 
@@ -202,6 +211,31 @@ function AboutUsEditor({ data, onChange }: BlockEditorProps) {
           autosize
           minRows={3}
           maxRows={10}
+        />
+      </Stack>
+
+      <Stack gap={10}>
+        <SectionHeader title="Dodatne sekcije" />
+        <TextInput
+          label="Naslov sekcije 2"
+          placeholder="Naslov sekcije 2"
+          value={d.section2Title}
+          onChange={(e) => patch({ section2Title: e.currentTarget.value })}
+        />
+        <TextInput
+          label="Naslov sekcije 3"
+          placeholder="Naslov sekcije 3"
+          value={d.section3Title}
+          onChange={(e) => patch({ section3Title: e.currentTarget.value })}
+        />
+        <Textarea
+          label="Podnaslov sekcije 3"
+          placeholder="Podnaslov sekcije 3"
+          value={d.section3Subtitle}
+          onChange={(e) => patch({ section3Subtitle: e.currentTarget.value })}
+          autosize
+          minRows={2}
+          maxRows={6}
         />
       </Stack>
 

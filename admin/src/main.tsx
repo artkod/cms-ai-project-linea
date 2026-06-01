@@ -6,6 +6,7 @@ import { productItemBlock } from "./blocks/ProductItemBlock";
 import { productCategoryBlock } from "./blocks/ProductCategoryBlock";
 import { aboutUsBlock } from "./blocks/AboutUsBlock";
 import { featuredBannersSection } from "./settings/FeaturedBannersSection";
+import { contactSection } from "./settings/ContactSection";
 
 // product-item is a singleton-block page type: it allows exactly one block
 // of type "product-item", auto-seeded on create. The framework hides
@@ -92,5 +93,5 @@ createAdmin({
   projectSlug: "project-linea",
   pageTypes: [aboutUsPageType, allProductsPageType, productsPageType, productCategoryPageType, productItemPageType],
   blockTypes: [productItemBlock, productCategoryBlock, aboutUsBlock],
-  settingsSections: [featuredBannersSection],
+  settingsSections: [featuredBannersSection, contactSection],
 });
