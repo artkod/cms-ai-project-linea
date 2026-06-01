@@ -166,6 +166,7 @@ The product taxonomy on this project is three-level:
 | `products` | Products / Proizvodi | code-defined (`admin/src/main.tsx`) | (root) | `product-category` |
 | `product-category` | Product category / Vrsta proizvoda | code-defined (`admin/src/main.tsx`) | `products` | `product-item` |
 | `product-item` | Product / Proizvod | code-defined (`admin/src/main.tsx`) | `product-category` | (leaf) |
+| `about-us` | About us / O nama | code-defined (`admin/src/main.tsx`) | (root) | (none) |
 
 `products` is `canBeRoot: true`, `deletable: true`, with **no limit** (multiple
 root "Products" pages are allowed and they can be deleted). `product-category`
@@ -197,6 +198,25 @@ sortable, paginated product grid (plain Mantine — no design system yet):
   `computeCardPrice()` (exported from `AllProductsView.tsx`).
 - All visible copy uses `allproducts.*` string keys (seeded in
   `project-data.seed.json`, EN + HR).
+
+`about-us` is a **singleton root page** (`canBeRoot: true`, `deletable: false`,
+`limit: 1`, no parent, no children). It is a **singleton-block page type**
+(`allowBlocks: true`, `allowedBlockTypes: ["about-us"]`) — same mechanics as
+`product-item` / `product-category`: the framework auto-seeds one `about-us`
+block on create and hides "+ Add new section" + the per-block Remove icon, so the
+editor shows a single fixed Content Section card. Content lives in the block
+(`admin/src/blocks/AboutUsBlock.tsx`, `aboutUsBlock` registered in `main.tsx`),
+**not** in page-level `typeData` fields. The block's `data` shape:
+- `icon: string | null` — a lucide icon name (PascalCase), picked via the shared
+  `IconPicker` from `@cms/admin-base`
+- `subtitle`, `description: string`
+- `btn1Text` / `btn2Text: string` + `btn1Link` / `btn2Link: LinkData | null` —
+  each button is a label-text input paired with a CMS link picker
+  (`LinkPickerModal` in `rte` mode).
+Resolve a button link's href on the frontend with `computeLinkHref()` and the
+icon with `lucide-react`'s `icons[name]` (or `getLucideIcon()` from
+`@cms/admin-base`). No custom `PageView.tsx` branch exists yet — add one when the
+About-us page gets a bespoke renderer (it renders the default view until then).
 
 The built-in `default` and the code-defined `products`, `product-category`, and
 `product-item` are all registered in code. `products` and `product-category`

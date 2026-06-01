@@ -4,6 +4,7 @@ import "@mantine/dates/styles.css";
 import { createAdmin, type PageTypeDefinition } from "@cms/admin-base";
 import { productItemBlock } from "./blocks/ProductItemBlock";
 import { productCategoryBlock } from "./blocks/ProductCategoryBlock";
+import { aboutUsBlock } from "./blocks/AboutUsBlock";
 
 // product-item is a singleton-block page type: it allows exactly one block
 // of type "product-item", auto-seeded on create. The framework hides
@@ -65,10 +66,29 @@ const allProductsPageType: PageTypeDefinition = {
   allowBlocks: false,
 };
 
+// about-us is a singleton root page: exactly one across the site, lives at
+// root, cannot be deleted, takes no parent and no children. Its content is
+// authored through a singleton "about-us" block (allowedBlockTypes.length === 1),
+// matching the product-item / product-category pattern — the framework
+// auto-seeds one block on create and hides the Add/Remove controls so the editor
+// shows a single fixed Content Section. The block (AboutUsBlock) holds an icon, a
+// subtitle + description, and two buttons (label text + link target).
+const aboutUsPageType: PageTypeDefinition = {
+  type: "about-us",
+  label: { en: "About us", hr: "O nama" },
+  deletable: false,
+  canBeRoot: true,
+  limit: 1,
+  allowedParentTypes: [],
+  allowedChildTypes: [],
+  allowBlocks: true,
+  allowedBlockTypes: ["about-us"],
+};
+
 createAdmin({
   apiUrl: import.meta.env.VITE_API_URL,
   frontendUrl: import.meta.env.VITE_FRONTEND_URL,
   projectSlug: "project-linea",
-  pageTypes: [allProductsPageType, productsPageType, productCategoryPageType, productItemPageType],
-  blockTypes: [productItemBlock, productCategoryBlock],
+  pageTypes: [aboutUsPageType, allProductsPageType, productsPageType, productCategoryPageType, productItemPageType],
+  blockTypes: [productItemBlock, productCategoryBlock, aboutUsBlock],
 });
