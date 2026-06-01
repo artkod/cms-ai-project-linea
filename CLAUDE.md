@@ -167,6 +167,7 @@ The product taxonomy on this project is three-level:
 | `product-category` | Product category / Vrsta proizvoda | code-defined (`admin/src/main.tsx`) | `products` | `product-item` |
 | `product-item` | Product / Proizvod | code-defined (`admin/src/main.tsx`) | `product-category` | (leaf) |
 | `about-us` | About us / O nama | code-defined (`admin/src/main.tsx`) | (root) | (none) |
+| `catalogues` | Catalogues / Katalozi | code-defined (`admin/src/main.tsx`) | (root) | (none) |
 
 `products` is `canBeRoot: true`, `deletable: true`, with **no limit** (multiple
 root "Products" pages are allowed and they can be deleted). `product-category`
@@ -224,6 +225,31 @@ The block previously had an `icon` field; it was **removed** (the editor no long
 shows an icon picker for About-us). Older saves may still carry an `icon` key in
 their stored `data` — it's ignored by `normalize()` and harmless.
 Rendered by `AboutUsView` (see "Frontend rendering" below).
+
+`catalogues` is a **singleton root page** (`canBeRoot: true`, `deletable: false`,
+`limit: 1`, no parent, no children) powering the public **"Katalozi" resource
+library** page. It is a **singleton-block page type** (`allowBlocks: true`,
+`allowedBlockTypes: ["catalogues"]`) — same mechanics as `about-us`. Content lives
+in the `catalogues` block (`admin/src/blocks/CataloguesBlock.tsx`, `cataloguesBlock`
+registered in `main.tsx`). The block's `data` shape:
+- `subtitle: string` — intro lead under the page title (Croatian).
+- `documents: Array<{ id, title, file }>` — the downloadable list. Each `file` is a
+  media reference `{ mediaId, cdnUrl, name, size, mimeType }` **picked from the media
+  library as a document** (not an image) via `ImagePickerModal` opened with
+  `fileType="document"` (the picker shows file-icon tiles and returns the extra
+  `name`/`size`/`mimeType` metadata — see cms-ai-core CLAUDE.md). `title` is an
+  author-supplied **display title** (defaults to a tidied filename) so the frontend
+  shows nice names instead of raw PDF filenames. Rows reorder/remove in the editor.
+- `coverImages: GalleryImage[]` — a pool of placeholder cover photos the frontend
+  **rotates through** to give each document card an image (`coverImages[i % len]`).
+  Seeded once (no editor UI) and round-tripped by `normalize()` so author saves keep it.
+- `contactLink: LinkData | null` — the "Contact support" CTA target (configurable link
+  picker; seeded as a Remote URL `/hr/o-nama#kontakt` → the About-us contact section).
+Rendered by `CataloguesView` (see "Frontend rendering" below). Unlike `about-us`, this
+page type is **not** in `project-data.seed.json` — it's code-only (matching
+`about-us` / `all-products`). The 5 sample PDFs + 10 placeholder covers + the
+catalogues page itself were prepopulated via API into the running project (not via
+the from-scratch seeder).
 
 The built-in `default` and the code-defined `products`, `product-category`, and
 `product-item` are all registered in code. `products` and `product-category`
@@ -290,6 +316,14 @@ inserts page types one at a time.
 
 - `default` (and any unknown type) — `DefaultView`: H1 title + block list.
 - `product-item` — `ProductItemView`; `all-products` — `AllProductsView` (separate file).
+- `catalogues` — **`CataloguesView`** (`src/routes/CataloguesView.tsx`). Plain-Mantine resource-library
+  layout: page title + `subtitle` lead, a **featured first document** card (cover + meta + download), then a
+  `SimpleGrid` of the remaining document cards, and a "Contact support" CTA card at the bottom. Each card's
+  cover photo is taken from `coverImages` by index (rotating). The download button links to `file.cdnUrl`;
+  the meta line shows `TYPE • size` (e.g. `PDF • 4.2 MB`) derived from the file's `mimeType`/`size`. Static
+  copy (`catalogues.download` / `catalogues.empty` / `catalogues.cta_heading` / `catalogues.cta_text` /
+  `catalogues.cta_button`) reads from `useStrings().t('catalogues.*')` (seeded in `project-data.seed.json`,
+  EN+HR). The CTA button resolves `contactLink` via the same local `resolveHref()` as `AboutUsView`.
 - `about-us` — **`AboutUsView`** (`src/routes/AboutUsView.tsx`). Plain-Mantine layout (positioning only, not
   pixel-perfect). Reads the singleton `about-us` block's data:
   - **Hero**: `altTitle` (H1) + `heroImage` (rendered via Mantine `Image`; grey placeholder when unset) +
