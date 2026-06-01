@@ -65,10 +65,35 @@ const allProductsPageType: PageTypeDefinition = {
   allowBlocks: false,
 };
 
+// about-us is a singleton root page: exactly one across the site, lives at
+// root, cannot be deleted, takes no parent and no children. Its content is
+// authored entirely through structured fields (no content blocks): an icon
+// (lucide), a subtitle + description, and two configurable buttons (label text
+// + link target picked via the CMS link picker).
+const aboutUsPageType: PageTypeDefinition = {
+  type: "about-us",
+  label: { en: "About us", hr: "O nama" },
+  deletable: false,
+  canBeRoot: true,
+  limit: 1,
+  allowedParentTypes: [],
+  allowedChildTypes: [],
+  allowBlocks: false,
+  fields: [
+    { name: "icon", label: "Icon", type: "icon" },
+    { name: "subtitle", label: "Subtitle", type: "textarea" },
+    { name: "description", label: "Description", type: "textarea" },
+    { name: "btn1Text", label: "Button 1 text", type: "text" },
+    { name: "btn1Link", label: "Button 1 link", type: "link" },
+    { name: "btn2Text", label: "Button 2 text", type: "text" },
+    { name: "btn2Link", label: "Button 2 link", type: "link" },
+  ],
+};
+
 createAdmin({
   apiUrl: import.meta.env.VITE_API_URL,
   frontendUrl: import.meta.env.VITE_FRONTEND_URL,
   projectSlug: "project-linea",
-  pageTypes: [allProductsPageType, productsPageType, productCategoryPageType, productItemPageType],
+  pageTypes: [aboutUsPageType, allProductsPageType, productsPageType, productCategoryPageType, productItemPageType],
   blockTypes: [productItemBlock, productCategoryBlock],
 });
