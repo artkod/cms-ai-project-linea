@@ -4,6 +4,7 @@ import "@mantine/dates/styles.css";
 import { createAdmin, type PageTypeDefinition } from "@cms/admin-base";
 import { productItemBlock } from "./blocks/ProductItemBlock";
 import { productCategoryBlock } from "./blocks/ProductCategoryBlock";
+import { aboutUsBlock } from "./blocks/AboutUsBlock";
 
 // product-item is a singleton-block page type: it allows exactly one block
 // of type "product-item", auto-seeded on create. The framework hides
@@ -67,9 +68,11 @@ const allProductsPageType: PageTypeDefinition = {
 
 // about-us is a singleton root page: exactly one across the site, lives at
 // root, cannot be deleted, takes no parent and no children. Its content is
-// authored entirely through structured fields (no content blocks): an icon
-// (lucide), a subtitle + description, and two configurable buttons (label text
-// + link target picked via the CMS link picker).
+// authored through a singleton "about-us" block (allowedBlockTypes.length === 1),
+// matching the product-item / product-category pattern — the framework
+// auto-seeds one block on create and hides the Add/Remove controls so the editor
+// shows a single fixed Content Section. The block (AboutUsBlock) holds an icon, a
+// subtitle + description, and two buttons (label text + link target).
 const aboutUsPageType: PageTypeDefinition = {
   type: "about-us",
   label: { en: "About us", hr: "O nama" },
@@ -78,16 +81,8 @@ const aboutUsPageType: PageTypeDefinition = {
   limit: 1,
   allowedParentTypes: [],
   allowedChildTypes: [],
-  allowBlocks: false,
-  fields: [
-    { name: "icon", label: "Icon", type: "icon" },
-    { name: "subtitle", label: "Subtitle", type: "textarea" },
-    { name: "description", label: "Description", type: "textarea" },
-    { name: "btn1Text", label: "Button 1 text", type: "text" },
-    { name: "btn1Link", label: "Button 1 link", type: "link" },
-    { name: "btn2Text", label: "Button 2 text", type: "text" },
-    { name: "btn2Link", label: "Button 2 link", type: "link" },
-  ],
+  allowBlocks: true,
+  allowedBlockTypes: ["about-us"],
 };
 
 createAdmin({
@@ -95,5 +90,5 @@ createAdmin({
   frontendUrl: import.meta.env.VITE_FRONTEND_URL,
   projectSlug: "project-linea",
   pageTypes: [aboutUsPageType, allProductsPageType, productsPageType, productCategoryPageType, productItemPageType],
-  blockTypes: [productItemBlock, productCategoryBlock],
+  blockTypes: [productItemBlock, productCategoryBlock, aboutUsBlock],
 });
