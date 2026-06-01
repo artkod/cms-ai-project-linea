@@ -162,6 +162,7 @@ The product taxonomy on this project is three-level:
 
 | Slug | Label (en / hr) | Source | Parent | Children |
 |---|---|---|---|---|
+| `all-products` | All products / Svi proizvodi | code-defined (`admin/src/main.tsx`) | (root) | (none) |
 | `products` | Products / Proizvodi | code-defined (`admin/src/main.tsx`) | (root) | `product-category` |
 | `product-category` | Product category / Vrsta proizvoda | code-defined (`admin/src/main.tsx`) | `products` | `product-item` |
 | `product-item` | Product / Proizvod | code-defined (`admin/src/main.tsx`) | `product-category` | (leaf) |
@@ -171,14 +172,40 @@ root "Products" pages are allowed and they can be deleted). `product-category`
 has no limit and is a singleton-block page type. `product-item` is a
 singleton-block page type — see the sections above.
 
+`all-products` is the public **catalogue landing page**: `canBeRoot: true`,
+`deletable: false`, `limit: 1` (singleton), no children, no blocks, and no
+fields beyond the title. Its frontend renderer (`AllProductsView` in
+`src/routes/AllProductsView.tsx`, branched on `page.type === "all-products"` in
+`PageView.tsx`) fetches **every** published `products` / `product-category` /
+`product-item` page in the active locale (via `getAllPages()` in `lib/api.ts`,
+which paginates past the API's 100-row cap) and joins each item to its category
+(parent) and products (grandparent). It renders a left filter sidebar + a
+sortable, paginated product grid (plain Mantine — no design system yet):
+- **Search** (title), **Categories** (the `products` grandparent), **Subcategories**
+  (the `product-category` parent — options narrow to the picked categories), and
+  a **price range**. None of these re-filter the grid until **Apply filters** is
+  pressed (Enter in the search box also applies); a price bound excludes
+  inquiry-only products.
+- **Sort** (newest / oldest / name / price low→high / price high→low) and
+  **per-page** size (12/24/48) + pagination apply immediately. Inquiry-only
+  products always sort last under price sorts.
+- **Card price** uses the same rules as `ProductItemView`: a fixed `priceEur`
+  shows bare; a configurator product shows its **cheapest full build**
+  (cheapest Konstrukcija + its cheapest Grafika + cheapest Baza, only groups
+  with rows) prefixed "Već od" (`allproducts.price_from`); products with no
+  usable price show "Cijena na upit". The shared price logic lives in
+  `computeCardPrice()` (exported from `AllProductsView.tsx`).
+- All visible copy uses `allproducts.*` string keys (seeded in
+  `project-data.seed.json`, EN + HR).
+
 The built-in `default` and the code-defined `products`, `product-category`, and
 `product-item` are all registered in code. `products` and `product-category`
 also have seed entries in `project-data.seed.json` that predate their code
 definitions — the code defs shadow those rows (PageTypeContext drops runtime
 rows whose slug clashes with a code slug), but the seed entries are kept
 consistent so a fresh DB matches. The frontend renders the default view for any
-page type without a `case` branch in `PageView.tsx` — currently only
-`product-item` has a custom view.
+page type without a `case` branch in `PageView.tsx` — currently
+`product-item` and `all-products` have custom views.
 
 **Slugs are immutable** after create. The previous taxonomy
 (`product-main-category`, `product-sub-category`, `product-item`) was migrated

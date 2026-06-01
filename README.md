@@ -31,7 +31,7 @@ Default developer user (seeded on first run):
 ```
 src/                   Frontend (React 19 + Vite 6, Mantine 7 light/teal)
   App.tsx              Locale-aware route tree
-  routes/              RootLayout, HomePage, PageView, LanguageSwitcher, NotFound
+  routes/              RootLayout, HomePage, PageView, AllProductsView, LanguageSwitcher, NotFound
   lib/                 api.ts (CMS client), locale.tsx (providers), tiptapRenderer.ts
 admin/                 Admin panel shell (three lines — calls createAdmin)
 docker-compose.yml     PostgreSQL 16 container
@@ -41,7 +41,8 @@ CLAUDE.md              Project guide for Claude Code (kept current)
 
 ## Customising
 
-This project ships with **no custom page types** — every page uses the
+This project ships a product taxonomy of code-defined page types
+(`all-products`, `products`, `product-category`, `product-item`) plus the
 built-in `default` type. To add a project-specific page type, see the
 "Page types" section of `CLAUDE.md` (and the matching block in
 `cms-ai-core/docs/project-CLAUDE-template.md`).

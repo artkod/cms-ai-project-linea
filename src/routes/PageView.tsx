@@ -26,6 +26,7 @@ import { useMediaQuery } from "@mantine/hooks";
 import { getPageBySlug, type Page, type Block, type LinkPagesMap } from "@/lib/api";
 import { tiptapToHtml } from "@/lib/tiptapRenderer";
 import { usePageAlternates, useStrings, useLocaleConfig } from "@/lib/locale";
+import { AllProductsView } from "./AllProductsView";
 
 // ─── Render context (locale + linkPages, for nested renderers) ────────────────
 
@@ -1260,6 +1261,8 @@ export function PageView() {
       {previewBanner}
       {page.type === "product-item" ? (
         <ProductItemView page={page} />
+      ) : page.type === "all-products" ? (
+        <AllProductsView page={page} />
       ) : (
         <DefaultView page={page} />
       )}
