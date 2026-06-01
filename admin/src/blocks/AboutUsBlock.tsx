@@ -215,13 +215,31 @@ function AboutUsEditor({ data, onChange }: BlockEditorProps) {
       </Stack>
 
       <Stack gap={10}>
-        <SectionHeader title="Dodatne sekcije" />
+        <SectionHeader title="Gumbi" />
+        <ButtonGroup
+          title="Gumb 1"
+          link={d.btn1Link}
+          onLinkChange={(v) => patch({ btn1Link: v })}
+        />
+        <ButtonGroup
+          title="Gumb 2"
+          link={d.btn2Link}
+          onLinkChange={(v) => patch({ btn2Link: v })}
+        />
+      </Stack>
+
+      <Stack gap={10}>
+        <SectionHeader title="Sekcija 2" />
         <TextInput
           label="Naslov sekcije 2"
           placeholder="Naslov sekcije 2"
           value={d.section2Title}
           onChange={(e) => patch({ section2Title: e.currentTarget.value })}
         />
+      </Stack>
+
+      <Stack gap={10}>
+        <SectionHeader title="Sekcija 3" />
         <TextInput
           label="Naslov sekcije 3"
           placeholder="Naslov sekcije 3"
@@ -236,20 +254,6 @@ function AboutUsEditor({ data, onChange }: BlockEditorProps) {
           autosize
           minRows={2}
           maxRows={6}
-        />
-      </Stack>
-
-      <Stack gap={10}>
-        <SectionHeader title="Gumbi" />
-        <ButtonGroup
-          title="Gumb 1"
-          link={d.btn1Link}
-          onLinkChange={(v) => patch({ btn1Link: v })}
-        />
-        <ButtonGroup
-          title="Gumb 2"
-          link={d.btn2Link}
-          onLinkChange={(v) => patch({ btn2Link: v })}
         />
       </Stack>
     </Stack>

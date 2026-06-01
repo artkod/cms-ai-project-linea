@@ -209,8 +209,9 @@ editor shows a single fixed Content Section card. Content lives in the block
 **not** in page-level `typeData` fields. The block's `data` shape:
 - `subtitle`, `description: string`
 - `section2Title: string` (Naslov sekcije 2), `section3Title: string` (Naslov sekcije 3),
-  `section3Subtitle: string` (Podnaslov sekcije 3) — extra section headings authored under the
-  "Dodatne sekcije" group in the editor
+  `section3Subtitle: string` (Podnaslov sekcije 3) — extra section headings. Editor group order is
+  **Osnovni podaci → Gumbi → Sekcija 2 → Sekcija 3** (section2Title under "Sekcija 2"; section3Title +
+  section3Subtitle under "Sekcija 3")
 - `btn1Link` / `btn2Link: LinkData | null` — each button is a **single CMS link
   picker** (`LinkPickerModal` in `rte` mode, opened with `showTextFields`). The
   button's label and tooltip live **inside** the `LinkData` as `linkText` /
