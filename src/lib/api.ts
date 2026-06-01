@@ -97,6 +97,45 @@ export async function getPages(params?: { type?: string; parentId?: string | nul
   return data;
 }
 
+// Fetch EVERY published page of a given type in a locale, paginating past the
+// API's 100-row-per-request cap. Drops pages whose translation in `locale` is
+// inactive and promotes that translation into the flat fields (same contract
+// as getPages). Used by the all-products listing, which needs the full set of
+// product-items / categories at once to filter and sort client-side.
+export async function getAllPages(type: string, locale: string): Promise<Page[]> {
+  const PAGE = 100;
+  const out: Page[] = [];
+  let offset = 0;
+  for (;;) {
+    const qs = new URLSearchParams({
+      status: "published",
+      limit: String(PAGE),
+      offset: String(offset),
+      type,
+      locale,
+    });
+    const res = await fetch(`${API_URL}/api/pages?${qs}`, { headers: cmsHeaders });
+    if (!res.ok) throw new Error("Failed to fetch pages");
+    const body = await res.json();
+    const data: Page[] = body.data ?? [];
+    for (const p of data) {
+      const t = p.translations?.[locale];
+      if (t?.active !== true) continue;
+      out.push({
+        ...p,
+        title: t.title,
+        slug: t.slug,
+        typeData: (t.typeData ?? {}) as Record<string, unknown>,
+        blocks: t.blocks ?? [],
+      });
+    }
+    offset += PAGE;
+    const total = typeof body.total === "number" ? body.total : data.length;
+    if (data.length === 0 || offset >= total) break;
+  }
+  return out;
+}
+
 // `path` is the full hierarchical slug path (e.g. "proizvodi/busilice/x").
 // Each segment is encoded individually so the "/" separators survive.
 export async function getPageBySlug(locale: string, path: string, previewToken?: string): Promise<Page | null> {

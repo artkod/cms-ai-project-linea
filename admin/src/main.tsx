@@ -50,10 +50,25 @@ const productCategoryPageType: PageTypeDefinition = {
   allowedBlockTypes: ["product-category"],
 };
 
+// all-products is the public catalogue landing page. It collects every
+// product-item across the taxonomy and renders a filterable/sortable grid on
+// the frontend (see src/routes/AllProductsView.tsx). It is a singleton root
+// page with no fields beyond the title, no blocks, and cannot be deleted.
+const allProductsPageType: PageTypeDefinition = {
+  type: "all-products",
+  label: { en: "All products", hr: "Svi proizvodi" },
+  deletable: false,
+  canBeRoot: true,
+  limit: 1,
+  allowedParentTypes: [],
+  allowedChildTypes: [],
+  allowBlocks: false,
+};
+
 createAdmin({
   apiUrl: import.meta.env.VITE_API_URL,
   frontendUrl: import.meta.env.VITE_FRONTEND_URL,
   projectSlug: "project-linea",
-  pageTypes: [productsPageType, productCategoryPageType, productItemPageType],
+  pageTypes: [allProductsPageType, productsPageType, productCategoryPageType, productItemPageType],
   blockTypes: [productItemBlock, productCategoryBlock],
 });
