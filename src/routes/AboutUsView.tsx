@@ -29,7 +29,7 @@ import {
   getFeaturedBanners,
   getContactInfo,
 } from "@/lib/api";
-import { useLocaleConfig } from "@/lib/locale";
+import { useLocaleConfig, useStrings } from "@/lib/locale";
 
 // ─── about-us block data ──────────────────────────────────────────────────────
 
@@ -66,6 +66,22 @@ function scrollToAnchor(hash: string) {
   const id = hash.replace(/^#/, "");
   const el = document.getElementById(id);
   if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+// Settings stores either a bare URL or the full Google Maps "Embed a map"
+// <iframe …> snippet. Pull the embeddable URL out of the snippet; pass a bare
+// URL through unchanged. (Putting the whole <iframe> string into an iframe's
+// src is what made the modal load our own site.)
+function extractMapEmbedSrc(value: string): string {
+  const m = value.match(/src\s*=\s*["']([^"']+)["']/i);
+  return m ? m[1] : value.trim();
+}
+
+// A maps link the native app can deep-link to. Prefer a place search built from
+// the address (reliable on iOS/Android); fall back to the embed src.
+function mapsAppLink(address: string, embedSrc: string): string {
+  if (address.trim()) return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
+  return embedSrc;
 }
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
@@ -217,6 +233,7 @@ function FeaturedBanners({ banners, locale, defaultLocale }: { banners: Featured
 // ─── Contact panel (info + map) ───────────────────────────────────────────────
 
 function ContactPanel({ contact }: { contact: ContactInfo | null }) {
+  const { t } = useStrings();
   const [mapOpen, setMapOpen] = useState(false);
   if (!contact) return null;
 
@@ -225,13 +242,15 @@ function ContactPanel({ contact }: { contact: ContactInfo | null }) {
   const Pin = icons.MapPin;
 
   const hasMaps = Boolean(contact.mapsUrl && contact.mapsUrl.trim());
+  const embedSrc = extractMapEmbedSrc(contact.mapsUrl);
+  const appLink = mapsAppLink(contact.address, embedSrc);
 
   function onMapClick() {
     if (!hasMaps) return;
-    // On phones/tablets, open the link directly so the OS hands it to the
+    // On phones/tablets, open a place link directly so the OS hands it to the
     // native Google Maps / Apple Maps app. On desktop, show the embed modal.
     if (IS_MOBILE) {
-      window.open(contact!.mapsUrl, "_blank", "noopener,noreferrer");
+      window.open(appLink, "_blank", "noopener,noreferrer");
     } else {
       setMapOpen(true);
     }
@@ -244,7 +263,7 @@ function ContactPanel({ contact }: { contact: ContactInfo | null }) {
           <Group gap="sm" align="flex-start" wrap="nowrap">
             <Box c="teal.6" mt={2}><Phone size={18} /></Box>
             <div>
-              <Text fz="xs" fw={700} c="dimmed" tt="uppercase">Phone</Text>
+              <Text fz="xs" fw={700} c="dimmed" tt="uppercase">{t("about.contact_phone")}</Text>
               <Text fz="sm" component="a" href={`tel:${contact.phone.replace(/[^+\d]/g, "")}`} style={{ color: "inherit" }}>
                 {contact.phone}
               </Text>
@@ -255,7 +274,7 @@ function ContactPanel({ contact }: { contact: ContactInfo | null }) {
           <Group gap="sm" align="flex-start" wrap="nowrap">
             <Box c="teal.6" mt={2}><Mail size={18} /></Box>
             <div>
-              <Text fz="xs" fw={700} c="dimmed" tt="uppercase">Email</Text>
+              <Text fz="xs" fw={700} c="dimmed" tt="uppercase">{t("about.contact_email")}</Text>
               <Text fz="sm" component="a" href={`mailto:${contact.email}`} style={{ color: "inherit" }}>
                 {contact.email}
               </Text>
@@ -266,7 +285,7 @@ function ContactPanel({ contact }: { contact: ContactInfo | null }) {
           <Group gap="sm" align="flex-start" wrap="nowrap">
             <Box c="teal.6" mt={2}><Phone size={18} /></Box>
             <div>
-              <Text fz="xs" fw={700} c="dimmed" tt="uppercase">Fax</Text>
+              <Text fz="xs" fw={700} c="dimmed" tt="uppercase">{t("about.contact_fax")}</Text>
               <Text fz="sm" component="a" href={`tel:${contact.fax.replace(/[^+\d]/g, "")}`} style={{ color: "inherit" }}>
                 {contact.fax}
               </Text>
@@ -277,7 +296,7 @@ function ContactPanel({ contact }: { contact: ContactInfo | null }) {
           <Group gap="sm" align="flex-start" wrap="nowrap">
             <Box c="teal.6" mt={2}><Pin size={18} /></Box>
             <div>
-              <Text fz="xs" fw={700} c="dimmed" tt="uppercase">Address</Text>
+              <Text fz="xs" fw={700} c="dimmed" tt="uppercase">{t("about.contact_address")}</Text>
               <Text fz="sm">{contact.address}</Text>
             </div>
           </Group>
@@ -288,41 +307,33 @@ function ContactPanel({ contact }: { contact: ContactInfo | null }) {
         onClick={onMapClick}
         disabled={!hasMaps}
         style={{ display: "block", cursor: hasMaps ? "pointer" : "default", borderRadius: 8, overflow: "hidden" }}
-        aria-label="Open map"
+        aria-label={t("about.map_title")}
       >
-        <Box
-          style={{
-            backgroundImage: "url(/map.svg)",
-            backgroundSize: "cover",
-            backgroundPosition: "center",
-            width: "100%",
-            height: 260,
-            borderRadius: 8,
-          }}
-        />
+        <Image src="/map.svg" alt={t("about.map_title")} radius="md" />
       </UnstyledButton>
 
-      <Modal opened={mapOpen} onClose={() => setMapOpen(false)} title="Location" size="xl" centered>
+      <Modal opened={mapOpen} onClose={() => setMapOpen(false)} title={t("about.map_title")} size="xl" centered>
         <Stack gap="md">
           <AspectRatio ratio={16 / 9}>
             <iframe
               title="Google Maps"
-              src={contact.mapsUrl}
+              src={embedSrc}
               style={{ border: 0, width: "100%", height: "100%", borderRadius: 8 }}
               loading="lazy"
               referrerPolicy="no-referrer-when-downgrade"
+              allowFullScreen
             />
           </AspectRatio>
           <Group justify="flex-end">
             <Button
               component="a"
-              href={contact.mapsUrl}
+              href={appLink}
               target="_blank"
               rel="noopener noreferrer"
               variant="light"
               color="teal"
             >
-              Open in Google Maps
+              {t("about.map_open")}
             </Button>
           </Group>
         </Stack>
@@ -334,23 +345,32 @@ function ContactPanel({ contact }: { contact: ContactInfo | null }) {
 // ─── Static contact form (UI only) ────────────────────────────────────────────
 
 function InquiryForm() {
+  const { t } = useStrings();
+  const serviceOptions = [
+    t("about.form_service_opt1"),
+    t("about.form_service_opt2"),
+    t("about.form_service_opt3"),
+    t("about.form_service_opt4"),
+    t("about.form_service_opt5"),
+    t("about.form_service_opt6"),
+  ];
   return (
     <form onSubmit={(e) => e.preventDefault()}>
       <Stack gap="md">
         <Grid gutter="md">
           <Grid.Col span={{ base: 12, sm: 6 }}>
-            <TextInput label="Full name" placeholder="John Doe" />
+            <TextInput label={t("about.form_fullname")} placeholder={t("about.form_fullname_ph")} />
           </Grid.Col>
           <Grid.Col span={{ base: 12, sm: 6 }}>
-            <TextInput label="Email address" type="email" placeholder="john@company.com" />
+            <TextInput label={t("about.form_email")} type="email" placeholder={t("about.form_email_ph")} />
           </Grid.Col>
         </Grid>
         <Select
-          label="Service type"
-          placeholder="Select a service…"
-          data={["Banners", "Signage", "Large Format", "Displays", "Stationery", "Custom"]}
+          label={t("about.form_service")}
+          placeholder={t("about.form_service_ph")}
+          data={serviceOptions}
         />
-        <Textarea label="Message" placeholder="Describe your project requirements…" autosize minRows={4} />
+        <Textarea label={t("about.form_message")} placeholder={t("about.form_message_ph")} autosize minRows={4} />
         <Box
           p="md"
           style={{
@@ -361,10 +381,10 @@ function InquiryForm() {
             fontSize: 14,
           }}
         >
-          Drag &amp; drop technical specs or print-ready files here (Max 50MB)
+          {t("about.form_dropzone")}
         </Box>
         <Button type="submit" color="teal" size="md" fullWidth>
-          Submit inquiry
+          {t("about.form_submit")}
         </Button>
       </Stack>
     </form>

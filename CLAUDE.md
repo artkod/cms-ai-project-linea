@@ -300,15 +300,20 @@ inserts page types one at a time.
   - **Section 2**: `section2Title` (heading) with `description` (body) directly under it, then the
     **Featured banners** cards.
   - **Section 3**: `section3Title` + `section3Subtitle`, a static inquiry form (UI only, not wired), and the
-    **Contact** panel.
+    **Contact** panel. All static chrome (form labels/placeholders/options, contact labels, map button) reads
+    from editor-managed strings via `useStrings().t('about.*')` — keys live in `project-data.seed.json` (EN+HR)
+    and are editable in **Settings → Strings**. No hardcoded English remains in this view.
   - **Featured banners** come from `getFeaturedBanners()` (`GET /api/project-settings/featured_banners`) —
     locale-aware `title`/`content` (`pickLocalized()` falls back to defaultLocale), icon resolved by name via
     `lucide-react`'s `icons` namespace. **`lucide-react` was added as a frontend dependency** for this.
   - **Contact** comes from `getContactInfo()` (`GET /api/project-settings/contact`) — phone/fax/email/address
     + the map. Phone & fax render as `tel:` links (open the dialer on mobile); email as `mailto:`. The map
-    renders `public/map.svg` (a **placeholder** — replace with the real asset); on desktop
-    clicking opens a `Modal` with an `<iframe>` of `contact.mapsUrl` (+ "Open in Google Maps"); on
-    Android/iOS (UA-sniffed) clicking opens `mapsUrl` directly so the OS hands it to the native maps app.
+    thumbnail is `public/map.svg` (a stylized Ivanić-Grad map). The `mapsUrl` setting may hold **either a bare
+    URL or the full Google Maps "Embed a map" `<iframe …>` snippet** — `extractMapEmbedSrc()` pulls the real
+    `src` URL out (pasting the whole `<iframe>` into an iframe `src` is what previously loaded our own site).
+    Desktop click → `Modal` with an `<iframe src={embedSrc}>` + an "Open in Google Maps" button; Android/iOS
+    (UA-sniffed) click opens a place link built from the address (`maps/search/?api=1&query=…`) so the OS
+    hands it to the native maps app.
 
 Child pages can be fetched via
 `GET /api/pages?type=<childType>&parentId=<id>&locale=<locale>` if a custom
