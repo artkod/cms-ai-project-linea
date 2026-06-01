@@ -51,6 +51,15 @@
     { "locale": "hr", "key": "product.aria_view_image",     "value": "Pregledaj sliku" },
     { "locale": "en", "key": "product.aria_view_image",     "value": "View image" },
 
+    { "locale": "hr", "key": "home.heading",            "value": "Dobrodošli" },
+    { "locale": "en", "key": "home.heading",            "value": "Welcome" },
+    { "locale": "hr", "key": "home.intro",              "value": "Pregledajte naše stranice i proizvode." },
+    { "locale": "en", "key": "home.intro",              "value": "Browse our pages and products." },
+    { "locale": "hr", "key": "home.all_pages_heading",  "value": "Stranice" },
+    { "locale": "en", "key": "home.all_pages_heading",  "value": "Pages" },
+    { "locale": "hr", "key": "home.empty_state",        "value": "Još nema objavljenih stranica." },
+    { "locale": "en", "key": "home.empty_state",        "value": "No published pages yet." },
+
     { "locale": "hr", "key": "allproducts.search_label",         "value": "Pretraži proizvode" },
     { "locale": "en", "key": "allproducts.search_label",         "value": "Search products" },
     { "locale": "hr", "key": "allproducts.search_placeholder",   "value": "npr. PVC mreža…" },
