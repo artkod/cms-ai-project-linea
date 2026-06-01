@@ -51,6 +51,13 @@ The admin already supports adding runtime page types from **Pages →
 Options** (developer-only); the frontend just needs a matching `case` in
 `src/routes/PageView.tsx` to render anything beyond the default view.
 
+The admin **Settings** screen also carries linea-only tabs (passed via
+`createAdmin({ settingsSections })` in `admin/src/main.tsx`). The first is
+**Featured banners** (`admin/src/settings/FeaturedBannersSection.tsx`) — three
+reusable highlight boxes saved under `project_settings` key `featured_banners`;
+a frontend renderer can read them via `GET /api/project-settings/featured_banners`.
+See the "Project-only Settings tabs" section of `CLAUDE.md`.
+
 See [`cms-ai-core/CLAUDE.md`](../cms-ai-core/CLAUDE.md) and
 [`cms-ai-core/docs/DECISIONS.md`](../cms-ai-core/docs/DECISIONS.md) for the
 shared CMS engine — schema, API, admin behaviour, and known pitfalls.

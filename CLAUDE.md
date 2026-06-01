@@ -381,11 +381,28 @@ createAdmin({
   apiUrl: import.meta.env.VITE_API_URL,
   frontendUrl: import.meta.env.VITE_FRONTEND_URL,
   projectSlug: "project-linea",
+  pageTypes: [/* … */],
+  blockTypes: [/* … */],
+  settingsSections: [featuredBannersSection],   // project-only Settings tabs
 });
 ```
 
 `projectSlug` must match the Bunny CDN folder prefix and the `X-Project-Slug`
 header used by `src/lib/api.ts`.
+
+### Project-only Settings tabs (`admin/src/settings/`)
+
+`createAdmin({ settingsSections: [...] })` appends linea-only tabs to the admin **Settings** screen.
+
+- **Featured banners** (`admin/src/settings/FeaturedBannersSection.tsx`, `featuredBannersSection`) — three
+  fixed boxes, each with a per-locale **title** + per-locale **content** + a shared lucide **icon**. The
+  editing language follows the sidebar content-locale switcher; visible to admin + developer. Saved to the
+  generic per-project store under key `featured_banners` via `saveProjectSettings`/`fetchProjectSettings`
+  (`GET|PUT /api/project-settings/featured_banners`). Stored shape:
+  `{ boxes: [{ icon, title: {hr,en}, content: {hr,en} }, …×3] }`.
+- **Frontend consumption (TODO):** a public renderer can read these via
+  `GET /api/project-settings/featured_banners` (with `X-Project-Slug`) and reuse the boxes wherever needed.
+  The store is public-readable — never put secrets in a settings section.
 
 After changing `cms-ai-core/packages/admin-base`:
 ```bash
