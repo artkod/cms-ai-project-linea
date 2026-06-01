@@ -207,7 +207,7 @@ block on create and hides "+ Add new section" + the per-block Remove icon, so th
 editor shows a single fixed Content Section card. Content lives in the block
 (`admin/src/blocks/AboutUsBlock.tsx`, `aboutUsBlock` registered in `main.tsx`),
 **not** in page-level `typeData` fields. The block's `data` shape:
-- `subtitle`, `description: string`
+- `altTitle: string` (Alternativni naslov), `subtitle`, `description: string` — under "Osnovni podaci"
 - `section2Title: string` (Naslov sekcije 2), `section3Title: string` (Naslov sekcije 3),
   `section3Subtitle: string` (Podnaslov sekcije 3) — extra section headings. Editor group order is
   **Osnovni podaci → Gumbi → Sekcija 2 → Sekcija 3** (section2Title under "Sekcija 2"; section3Title +

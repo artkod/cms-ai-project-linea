@@ -20,6 +20,7 @@ import {
 // behaves consistently across page types.
 
 interface AboutUsData {
+  altTitle: string;
   subtitle: string;
   description: string;
   btn1Link: LinkData | null;
@@ -30,6 +31,7 @@ interface AboutUsData {
 }
 
 const DEFAULT_DATA: AboutUsData = {
+  altTitle: "",
   subtitle: "",
   description: "",
   btn1Link: null,
@@ -62,6 +64,7 @@ function migrateLink(link: unknown, legacyText: unknown): LinkData | null {
 function normalize(raw: Record<string, unknown>): AboutUsData {
   const r = raw as Partial<AboutUsData> & { btn1Text?: unknown; btn2Text?: unknown };
   return {
+    altTitle: typeof r.altTitle === "string" ? r.altTitle : "",
     subtitle: typeof r.subtitle === "string" ? r.subtitle : "",
     description: typeof r.description === "string" ? r.description : "",
     btn1Link: migrateLink(r.btn1Link, r.btn1Text),
@@ -194,6 +197,12 @@ function AboutUsEditor({ data, onChange }: BlockEditorProps) {
     <Stack gap={20}>
       <Stack gap={10}>
         <SectionHeader title="Osnovni podaci" />
+        <TextInput
+          label="Alternativni naslov"
+          placeholder="Alternativni naslov"
+          value={d.altTitle}
+          onChange={(e) => patch({ altTitle: e.currentTarget.value })}
+        />
         <Textarea
           label="Podnaslov"
           placeholder="Podnaslov"
