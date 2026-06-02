@@ -29,6 +29,7 @@ import { usePageAlternates, useStrings, useLocaleConfig } from "@/lib/locale";
 import { AllProductsView } from "./AllProductsView";
 import { AboutUsView } from "./AboutUsView";
 import { CataloguesView } from "./CataloguesView";
+import { NewsView } from "./NewsView";
 import { SearchView } from "./SearchView";
 import { CartView } from "./CartView";
 import { NotFound } from "./NotFound";
@@ -1278,6 +1279,8 @@ export function PageView() {
         <AboutUsView page={page} locale={activeLocale} />
       ) : page.type === "catalogues" ? (
         <CataloguesView page={page} locale={activeLocale} />
+      ) : page.type === "news" ? (
+        <NewsView page={page} locale={activeLocale} />
       ) : page.type === "search" ? (
         <SearchView page={page} />
       ) : page.type === "cart" ? (

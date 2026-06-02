@@ -269,10 +269,16 @@ sections**. It uses the admin-base `multiBlock: true` flag
 alongside `allowedBlockTypes: ["mixed-content"]` so the editor is restricted to
 mixed-content yet escapes the singleton-block behaviour (the "+ Add new section"
 button + layout picker stay visible; no block is auto-seeded). Neither type is in
-`project-data.seed.json` — both are code-only. **Frontend renderers are not yet
-wired** (`news` / `article` currently fall through to `DefaultView` in
-`PageView.tsx`); add `case "news"` / `case "article"` branches when building the
-article index + detail views.
+`project-data.seed.json` — both are code-only. **`news` has a frontend renderer**
+(`NewsView` in `src/routes/NewsView.tsx`, branched on `page.type === "news"` in
+`PageView.tsx`): it fetches every published `article` page (`getAllPages("article", locale)`),
+keeps the ones whose `parentId` is this news page, and renders a journal-style listing —
+a featured (latest) article, a filter bar built from the distinct `articleType` values,
+a Latest/Oldest sort, an article grid (cardPhoto / type badge / date / SEO-meta excerpt),
+and client-side pagination (9 per page). Article links resolve to `/{locale}/{news-slug}/{article-slug}`.
+**`article` itself has no custom renderer yet** — an article detail page falls through to
+`DefaultView` (title + Mixed Content blocks); add a `case "article"` branch when building
+a richer detail view (e.g. surfacing `articlePhoto` / `articleType`).
 
 `search`, `cart`, and `404` (together with `all-products`) are **functional
 singleton root pages** flagged **`system: true`** (`canBeRoot: true`,
@@ -296,8 +302,9 @@ definitions — the code defs shadow those rows (PageTypeContext drops runtime
 rows whose slug clashes with a code slug), but the seed entries are kept
 consistent so a fresh DB matches. The frontend renders the default view for any
 page type without a `case` branch in `PageView.tsx` — currently
-`product-item`, `all-products`, `about-us`, `catalogues`, `search`, `cart`, and
-`404` have custom views (see "Frontend rendering").
+`product-item`, `all-products`, `about-us`, `catalogues`, `news`, `search`, `cart`, and
+`404` have custom views (see "Frontend rendering"). `article` has no custom view yet
+(falls through to `DefaultView`).
 
 **Slugs are immutable** after create. The previous taxonomy
 (`product-main-category`, `product-sub-category`, `product-item`) was migrated
@@ -363,6 +370,15 @@ inserts page types one at a time.
   copy (`catalogues.download` / `catalogues.empty` / `catalogues.cta_heading` / `catalogues.cta_text` /
   `catalogues.cta_button`) reads from `useStrings().t('catalogues.*')` (seeded in `project-data.seed.json`,
   EN+HR). The CTA button resolves `contactLink` via the same local `resolveHref()` as `AboutUsView`.
+- `news` — **`NewsView`** (`src/routes/NewsView.tsx`). Plain-Mantine journal listing. Fetches every published
+  `article` page via `getAllPages("article", locale)`, keeps those whose `parentId === page.id`, and derives a
+  card per article from `typeData` (`articleType`, `cardPhoto`/`articlePhoto`) + the article's SEO
+  `metaDescription` as the excerpt. Renders a **featured** (latest) article, a **filter bar** built from the
+  distinct `articleType` values present (chips + an "All"/"Sve" reset), a **Latest/Oldest sort** `Select`, a
+  responsive `SimpleGrid` of article `Card`s (cover image, type `Badge`, date, title, excerpt, "read" link), and
+  client-side **`Pagination`** (9 per page; featured excluded from the grid). Article hrefs are
+  `/{locale}/{news-slug}/{article-slug}`. UI labels use a small inline locale map (`LABELS.en`/`LABELS.hr`) — no
+  string keys needed; all article content is real CMS data.
 - `about-us` — **`AboutUsView`** (`src/routes/AboutUsView.tsx`). Plain-Mantine layout (positioning only, not
   pixel-perfect). Reads the singleton `about-us` block's data:
   - **Hero**: `altTitle` (H1) + `heroImage` (rendered via Mantine `Image`; grey placeholder when unset) +
@@ -556,6 +572,7 @@ cd ../cms-ai-core && pnpm --filter @cms/admin-base build
 | `src/routes/RootLayout.tsx` | Shared layout — sticky header, cascading flyout nav, `LanguageSwitcher`, footer |
 | `src/routes/HomePage.tsx` | Locale-aware list of root-level published pages |
 | `src/routes/PageView.tsx` | Renders the `default` page type and its Mixed Content blocks; switches custom views on `page.type` |
+| `src/routes/NewsView.tsx` | `news` page type — journal listing of child `article` pages (featured + type filter + sort + grid + pagination) |
 | `src/routes/SearchView.tsx` | `search` page type — `?q=`-driven product-item results (cards + sort + pagination, no sidebar) + no-results template |
 | `src/routes/CartView.tsx` | `cart` page type — placeholder simple-Mantine cart (sample line items + summary; empty-cart branch) |
 | `src/routes/NotFound.tsx` | `404` page type — simple centered Mantine 404; localized via `t('notfound.*')` |
