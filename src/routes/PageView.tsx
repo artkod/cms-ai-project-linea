@@ -7,6 +7,7 @@ import {
   Box,
   Button,
   Anchor,
+  Badge,
   SimpleGrid,
   Image,
   Accordion,
@@ -29,6 +30,7 @@ import { usePageAlternates, useStrings, useLocaleConfig } from "@/lib/locale";
 import { AllProductsView } from "./AllProductsView";
 import { AboutUsView } from "./AboutUsView";
 import { CataloguesView } from "./CataloguesView";
+import { NewsView } from "./NewsView";
 import { SearchView } from "./SearchView";
 import { CartView } from "./CartView";
 import { NotFound } from "./NotFound";
@@ -1203,6 +1205,37 @@ function DefaultView({ page }: { page: Page }) {
   );
 }
 
+// ─── Article view ───────────────────────────────────────────────────────────
+//
+// Article detail page: the type badge (`articleType`) + the large article photo
+// ("fotografija članka", `articlePhoto`) above the title, then the Mixed Content
+// body. The smaller `cardPhoto` is only used by the news listing cards.
+
+function ArticleView({ page }: { page: Page }) {
+  const td = page.typeData ?? {};
+  const articleType = typeof td.articleType === "string" ? td.articleType : "";
+  const photo =
+    td.articlePhoto && typeof td.articlePhoto === "object" &&
+    typeof (td.articlePhoto as { cdnUrl?: unknown }).cdnUrl === "string"
+      ? (td.articlePhoto as { cdnUrl: string }).cdnUrl
+      : null;
+
+  return (
+    <article>
+      {articleType && (
+        <Badge variant="light" mb="sm" size="lg">{articleType}</Badge>
+      )}
+      <Title order={1} mb="lg">{page.title}</Title>
+      {photo && (
+        <Image src={photo} alt={page.title} radius="md" mb="xl" />
+      )}
+      {page.blocks?.map((block) => (
+        <BlockRenderer key={block.id} block={block} />
+      ))}
+    </article>
+  );
+}
+
 // ─── Main export ──────────────────────────────────────────────────────────────
 
 export function PageView() {
@@ -1278,6 +1311,10 @@ export function PageView() {
         <AboutUsView page={page} locale={activeLocale} />
       ) : page.type === "catalogues" ? (
         <CataloguesView page={page} locale={activeLocale} />
+      ) : page.type === "news" ? (
+        <NewsView page={page} locale={activeLocale} />
+      ) : page.type === "article" ? (
+        <ArticleView page={page} />
       ) : page.type === "search" ? (
         <SearchView page={page} />
       ) : page.type === "cart" ? (

@@ -8,6 +8,7 @@ import { aboutUsBlock } from "./blocks/AboutUsBlock";
 import { cataloguesBlock } from "./blocks/CataloguesBlock";
 import { featuredBannersSection } from "./settings/FeaturedBannersSection";
 import { contactSection } from "./settings/ContactSection";
+import { articleSection } from "./settings/ArticleSection";
 
 // product-item is a singleton-block page type: it allows exactly one block
 // of type "product-item", auto-seeded on create. The framework hides
@@ -152,11 +153,52 @@ const notFoundPageType: PageTypeDefinition = {
   system: true,
 };
 
+// news is the singleton root container for the article listing. Exactly one
+// across the site (limit: 1), lives at root, cannot be deleted, takes no
+// parent. Its only direct children are `article` pages. It holds no authored
+// content beyond the title (allowBlocks: false, no fields) — the frontend
+// renders the article index from its children.
+const newsPageType: PageTypeDefinition = {
+  type: "news",
+  label: { en: "News", hr: "Novosti" },
+  deletable: false,
+  canBeRoot: true,
+  limit: 1,
+  allowedParentTypes: [],
+  allowedChildTypes: ["article"],
+  allowBlocks: false,
+};
+
+// article is a child of `news` only — never at root. Deletable, no cap. Beyond
+// the page title it carries two structured images (the main article photo and a
+// smaller card photo used in listings) plus an unlimited number of Mixed Content
+// sections. `multiBlock: true` keeps the editor restricted to mixed-content
+// while still allowing several sections (without it, a single allowed block type
+// would make the page a singleton-block page — see PageTypeDefinition.multiBlock).
+const articlePageType: PageTypeDefinition = {
+  type: "article",
+  label: { en: "Article", hr: "Članak" },
+  deletable: true,
+  canBeRoot: false,
+  allowedParentTypes: ["news"],
+  allowedChildTypes: [],
+  fields: [
+    // Options come from Settings → Article ("article" project-settings key) — an
+    // admin-managed list, so editors can add types without a redeploy.
+    { name: "articleType", label: "Vrsta članka", type: "select", optionsSource: "article" },
+    { name: "articlePhoto", label: "Fotografija članka", type: "image-url" },
+    { name: "cardPhoto", label: "Fotografija kartice", type: "image-url" },
+  ],
+  allowBlocks: true,
+  allowedBlockTypes: ["mixed-content"],
+  multiBlock: true,
+};
+
 createAdmin({
   apiUrl: import.meta.env.VITE_API_URL,
   frontendUrl: import.meta.env.VITE_FRONTEND_URL,
   projectSlug: "project-linea",
-  pageTypes: [aboutUsPageType, cataloguesPageType, allProductsPageType, productsPageType, productCategoryPageType, productItemPageType, searchPageType, cartPageType, notFoundPageType],
+  pageTypes: [aboutUsPageType, cataloguesPageType, allProductsPageType, productsPageType, productCategoryPageType, productItemPageType, newsPageType, articlePageType, searchPageType, cartPageType, notFoundPageType],
   blockTypes: [productItemBlock, productCategoryBlock, aboutUsBlock, cataloguesBlock],
-  settingsSections: [featuredBannersSection, contactSection],
+  settingsSections: [featuredBannersSection, contactSection, articleSection],
 });
