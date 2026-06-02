@@ -194,11 +194,50 @@ const articlePageType: PageTypeDefinition = {
   multiBlock: true,
 };
 
+// eu-projects is the singleton root container for the EU-project listing.
+// Exactly one across the site (limit: 1), lives at root, cannot be deleted,
+// takes no parent. Its only direct children are `eu-project-item` pages. It
+// carries a single main photo beyond the title — the frontend renders the
+// project index from its children.
+const euProjectsPageType: PageTypeDefinition = {
+  type: "eu-projects",
+  label: { en: "EU Projects", hr: "EU Projekti" },
+  deletable: false,
+  canBeRoot: true,
+  limit: 1,
+  allowedParentTypes: [],
+  allowedChildTypes: ["eu-project-item"],
+  fields: [
+    { name: "mainPhoto", label: "Glavna fotografija", type: "image-url" },
+  ],
+  allowBlocks: false,
+};
+
+// eu-project-item is a child of `eu-projects` only — never at root. Deletable,
+// no cap. Beyond the page title it carries one main photo plus an unlimited
+// number of Mixed Content sections. `multiBlock: true` keeps the editor
+// restricted to mixed-content while still allowing several sections (without
+// it, a single allowed block type would make the page a singleton-block page).
+const euProjectItemPageType: PageTypeDefinition = {
+  type: "eu-project-item",
+  label: { en: "EU Project", hr: "EU Projekt" },
+  deletable: true,
+  canBeRoot: false,
+  allowedParentTypes: ["eu-projects"],
+  allowedChildTypes: [],
+  fields: [
+    { name: "mainPhoto", label: "Glavna fotografija", type: "image-url" },
+  ],
+  allowBlocks: true,
+  allowedBlockTypes: ["mixed-content"],
+  multiBlock: true,
+};
+
 createAdmin({
   apiUrl: import.meta.env.VITE_API_URL,
   frontendUrl: import.meta.env.VITE_FRONTEND_URL,
   projectSlug: "project-linea",
-  pageTypes: [aboutUsPageType, cataloguesPageType, allProductsPageType, productsPageType, productCategoryPageType, productItemPageType, newsPageType, articlePageType, searchPageType, cartPageType, notFoundPageType],
+  pageTypes: [aboutUsPageType, cataloguesPageType, allProductsPageType, productsPageType, productCategoryPageType, productItemPageType, newsPageType, articlePageType, euProjectsPageType, euProjectItemPageType, searchPageType, cartPageType, notFoundPageType],
   blockTypes: [productItemBlock, productCategoryBlock, aboutUsBlock, cataloguesBlock],
   settingsSections: [featuredBannersSection, contactSection, articleSection],
 });
