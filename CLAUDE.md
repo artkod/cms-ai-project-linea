@@ -168,6 +168,8 @@ The product taxonomy on this project is three-level:
 | `product-item` | Product / Proizvod | code-defined (`admin/src/main.tsx`) | `product-category` | (leaf) |
 | `about-us` | About us / O nama | code-defined (`admin/src/main.tsx`) | (root) | (none) |
 | `catalogues` | Catalogues / Katalozi | code-defined (`admin/src/main.tsx`) | (root) | (none) |
+| `news` | News / Novosti | code-defined (`admin/src/main.tsx`) | (root) | `article` |
+| `article` | Article / Članak | code-defined (`admin/src/main.tsx`) | `news` | (leaf) |
 | `search` | Search / Pretraga | code-defined (`admin/src/main.tsx`) | (root) | (none) |
 | `cart` | Cart / Košarica | code-defined (`admin/src/main.tsx`) | (root) | (none) |
 | `404` | 404 / 404 | code-defined (`admin/src/main.tsx`) | (root) | (none) |
@@ -254,6 +256,21 @@ page type is **not** in `project-data.seed.json` — it's code-only (matching
 `about-us` / `all-products`). The 5 sample PDFs + 10 placeholder covers + the
 catalogues page itself were prepopulated via API into the running project (not via
 the from-scratch seeder).
+
+`news` is the **singleton root container** for the article listing
+(`canBeRoot: true`, `deletable: false`, `limit: 1`, no parent, `allowBlocks: false`,
+no fields beyond the title). Its only direct children are `article` pages. `article`
+(`canBeRoot: false`, `allowedParentTypes: ["news"]`, **deletable, no limit**) is a
+content page that carries two structured `image-url` fields — `articlePhoto` (the
+main image) and `cardPhoto` (the smaller listing thumbnail) — **plus an unlimited
+number of Mixed Content sections**. It uses the admin-base `multiBlock: true` flag
+alongside `allowedBlockTypes: ["mixed-content"]` so the editor is restricted to
+mixed-content yet escapes the singleton-block behaviour (the "+ Add new section"
+button + layout picker stay visible; no block is auto-seeded). Neither type is in
+`project-data.seed.json` — both are code-only. **Frontend renderers are not yet
+wired** (`news` / `article` currently fall through to `DefaultView` in
+`PageView.tsx`); add `case "news"` / `case "article"` branches when building the
+article index + detail views.
 
 `search`, `cart`, and `404` (together with `all-products`) are **functional
 singleton root pages** flagged **`system: true`** (`canBeRoot: true`,
