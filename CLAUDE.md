@@ -170,6 +170,8 @@ The product taxonomy on this project is three-level:
 | `catalogues` | Catalogues / Katalozi | code-defined (`admin/src/main.tsx`) | (root) | (none) |
 | `news` | News / Novosti | code-defined (`admin/src/main.tsx`) | (root) | `article` |
 | `article` | Article / Članak | code-defined (`admin/src/main.tsx`) | `news` | (leaf) |
+| `eu-projects` | EU Projects / EU Projekti | code-defined (`admin/src/main.tsx`) | (root) | `eu-project-item` |
+| `eu-project-item` | EU Project / EU Projekt | code-defined (`admin/src/main.tsx`) | `eu-projects` | (leaf) |
 | `search` | Search / Pretraga | code-defined (`admin/src/main.tsx`) | (root) | (none) |
 | `cart` | Cart / Košarica | code-defined (`admin/src/main.tsx`) | (root) | (none) |
 | `404` | 404 / 404 | code-defined (`admin/src/main.tsx`) | (root) | (none) |
@@ -283,6 +285,25 @@ branched on `page.type === "article"`): the `articleType` **type badge** + the l
 (reusing `BlockRenderer`). So `cardPhoto` is the listing thumbnail and `articlePhoto` is the
 detail-page hero — the two image fields never overlap in use.
 
+`eu-projects` / `eu-project-item` mirror the news/article pattern. `eu-projects`
+is the **singleton root container** for the EU-project listing (`canBeRoot: true`,
+`deletable: false`, `limit: 1`, no parent, `allowBlocks: false`) — it carries a
+single `mainPhoto` **`image-url` field** beyond the title. Its only direct children
+are `eu-project-item` pages. `eu-project-item` (`canBeRoot: false`,
+`allowedParentTypes: ["eu-projects"]`, **deletable, no limit**) carries one
+`mainPhoto` `image-url` field **plus an unlimited number of Mixed Content sections**
+(`multiBlock: true` + `allowedBlockTypes: ["mixed-content"]`) — **no badge/select
+fields**. Both are code-only (not in `project-data.seed.json`). **`eu-projects` has
+a frontend renderer** (`EuProjectsView` in `src/routes/EuProjectsView.tsx`, branched
+on `page.type === "eu-projects"` in `PageView.tsx`): it fetches every published
+`eu-project-item` page (`getAllPages("eu-project-item", locale)`), keeps those whose
+`parentId` is this page, and renders a plain-Mantine card grid (project `mainPhoto` +
+title + SEO-meta excerpt) with client-side pagination (9 per page) — no featured card,
+no filter bar (no type field). Item links resolve to `/{locale}/{eu-projects-slug}/{item-slug}`.
+**`eu-project-item` detail pages** render via **`EuProjectItemView`** (a small component
+in `PageView.tsx`): the `mainPhoto` above the title, then the Mixed Content body
+(reusing `BlockRenderer`) — no badges or other chrome.
+
 `search`, `cart`, and `404` (together with `all-products`) are **functional
 singleton root pages** flagged **`system: true`** (`canBeRoot: true`,
 `deletable: false`, `limit: 1`, no parent, no children, `allowBlocks: false`).
@@ -305,7 +326,8 @@ definitions — the code defs shadow those rows (PageTypeContext drops runtime
 rows whose slug clashes with a code slug), but the seed entries are kept
 consistent so a fresh DB matches. The frontend renders the default view for any
 page type without a `case` branch in `PageView.tsx` — currently
-`product-item`, `all-products`, `about-us`, `catalogues`, `news`, `article`, `search`, `cart`,
+`product-item`, `all-products`, `about-us`, `catalogues`, `news`, `article`,
+`eu-projects`, `eu-project-item`, `search`, `cart`,
 and `404` have custom views (see "Frontend rendering").
 
 **Slugs are immutable** after create. The previous taxonomy
@@ -385,6 +407,16 @@ inserts page types one at a time.
 - `article` — **`ArticleView`** (a component inside `src/routes/PageView.tsx`). Article detail page: the
   `articleType` **type `Badge`** + the large **`articlePhoto` ("fotografija članka")** above the title, then the
   Mixed Content body (reuses `BlockRenderer`). Reads both fields straight from `page.typeData`.
+- `eu-projects` — **`EuProjectsView`** (`src/routes/EuProjectsView.tsx`). Plain-Mantine card listing (the
+  simpler news cousin). Fetches every published `eu-project-item` page via `getAllPages("eu-project-item", locale)`,
+  keeps those whose `parentId === page.id`, and derives a card from `typeData.mainPhoto` + the item's SEO
+  `metaDescription` as the excerpt. Renders a responsive `SimpleGrid` of `Card`s (main photo, title, excerpt,
+  "view" link) with client-side **`Pagination`** (9 per page) — no featured card and no filter bar (the type has
+  no badge/select field). Item hrefs are `/{locale}/{eu-projects-slug}/{item-slug}`. UI labels use a small inline
+  locale map (`LABELS.en`/`LABELS.hr`).
+- `eu-project-item` — **`EuProjectItemView`** (a component inside `src/routes/PageView.tsx`). Detail page: the
+  **`mainPhoto` ("glavna fotografija")** above the title, then the Mixed Content body (reuses `BlockRenderer`).
+  No badges or other chrome.
 - `about-us` — **`AboutUsView`** (`src/routes/AboutUsView.tsx`). Plain-Mantine layout (positioning only, not
   pixel-perfect). Reads the singleton `about-us` block's data:
   - **Hero**: `altTitle` (H1) + `heroImage` (rendered via Mantine `Image`; grey placeholder when unset) +
@@ -579,6 +611,7 @@ cd ../cms-ai-core && pnpm --filter @cms/admin-base build
 | `src/routes/HomePage.tsx` | Locale-aware list of root-level published pages |
 | `src/routes/PageView.tsx` | Renders the `default` page type and its Mixed Content blocks; switches custom views on `page.type` |
 | `src/routes/NewsView.tsx` | `news` page type — journal listing of child `article` pages (featured + type filter + sort + grid + pagination) |
+| `src/routes/EuProjectsView.tsx` | `eu-projects` page type — plain card listing of child `eu-project-item` pages (grid + pagination) |
 | `src/routes/SearchView.tsx` | `search` page type — `?q=`-driven product-item results (cards + sort + pagination, no sidebar) + no-results template |
 | `src/routes/CartView.tsx` | `cart` page type — placeholder simple-Mantine cart (sample line items + summary; empty-cart branch) |
 | `src/routes/NotFound.tsx` | `404` page type — simple centered Mantine 404; localized via `t('notfound.*')` |

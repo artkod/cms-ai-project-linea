@@ -31,6 +31,7 @@ import { AllProductsView } from "./AllProductsView";
 import { AboutUsView } from "./AboutUsView";
 import { CataloguesView } from "./CataloguesView";
 import { NewsView } from "./NewsView";
+import { EuProjectsView } from "./EuProjectsView";
 import { SearchView } from "./SearchView";
 import { CartView } from "./CartView";
 import { NotFound } from "./NotFound";
@@ -1239,6 +1240,32 @@ function ArticleView({ page }: { page: Page }) {
   );
 }
 
+// ─── EU project view ──────────────────────────────────────────────────────────
+//
+// EU-project detail page: the main photo ("glavna fotografija", `mainPhoto`)
+// above the title, then the Mixed Content body. No badges or other chrome.
+
+function EuProjectItemView({ page }: { page: Page }) {
+  const td = page.typeData ?? {};
+  const photo =
+    td.mainPhoto && typeof td.mainPhoto === "object" &&
+    typeof (td.mainPhoto as { cdnUrl?: unknown }).cdnUrl === "string"
+      ? (td.mainPhoto as { cdnUrl: string }).cdnUrl
+      : null;
+
+  return (
+    <article>
+      <Title order={1} mb="lg">{page.title}</Title>
+      {photo && (
+        <Image src={photo} alt={page.title} radius="md" mb="xl" />
+      )}
+      {page.blocks?.map((block) => (
+        <BlockRenderer key={block.id} block={block} />
+      ))}
+    </article>
+  );
+}
+
 // ─── Main export ──────────────────────────────────────────────────────────────
 
 export function PageView() {
@@ -1318,6 +1345,10 @@ export function PageView() {
         <NewsView page={page} locale={activeLocale} />
       ) : page.type === "article" ? (
         <ArticleView page={page} />
+      ) : page.type === "eu-projects" ? (
+        <EuProjectsView page={page} locale={activeLocale} />
+      ) : page.type === "eu-project-item" ? (
+        <EuProjectItemView page={page} />
       ) : page.type === "search" ? (
         <SearchView page={page} />
       ) : page.type === "cart" ? (
