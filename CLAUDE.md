@@ -179,7 +179,8 @@ singleton-block page type — see the sections above.
 
 `all-products` is the public **catalogue landing page**: `canBeRoot: true`,
 `deletable: false`, `limit: 1` (singleton), no children, no blocks, and no
-fields beyond the title. Its frontend renderer (`AllProductsView` in
+fields beyond the title. It is also a **`system: true`** type (see the
+search/cart/404 note below) — developer-only in the admin tree, orange-tagged. Its frontend renderer (`AllProductsView` in
 `src/routes/AllProductsView.tsx`, branched on `page.type === "all-products"` in
 `PageView.tsx`) fetches **every** published `products` / `product-category` /
 `product-item` page in the active locale (via `getAllPages()` in `lib/api.ts`,
@@ -254,11 +255,16 @@ page type is **not** in `project-data.seed.json` — it's code-only (matching
 catalogues page itself were prepopulated via API into the running project (not via
 the from-scratch seeder).
 
-`search`, `cart`, and `404` are **functional singleton root pages**
-(`canBeRoot: true`, `deletable: false`, `limit: 1`, no parent, no children,
-`allowBlocks: false`). They hold no authored content — they exist only as
-page slots so the frontend can render the search-results, cart, and 404 views
-at CMS-managed URLs (default slugs `/pretraga`, `/kosarica`, `/404`). There are
+`search`, `cart`, and `404` (together with `all-products`) are **functional
+singleton root pages** flagged **`system: true`** (`canBeRoot: true`,
+`deletable: false`, `limit: 1`, no parent, no children, `allowBlocks: false`).
+They hold no authored content — they exist only as page slots so the frontend
+can render the search-results, cart, and 404 views at CMS-managed URLs (default
+slugs `/pretraga`, `/kosarica`, `/404`). `system: true` (admin-base feature)
+**hides them from the Pages tree + New-Page picker for every role except
+`developer`**, and renders them with an **orange accent** (instead of the green
+level palette) for developers — so editors/admins never see this developer-only
+plumbing. There are
 **no in-chrome search/cart controls yet** — those land with the navigation work
 later; until then the search view reads its query from `?q=…` on the URL and the
 cart view shows placeholder line items. Rendered by `SearchView` / `CartView` /

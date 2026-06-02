@@ -67,6 +67,8 @@ const allProductsPageType: PageTypeDefinition = {
   allowedParentTypes: [],
   allowedChildTypes: [],
   allowBlocks: false,
+  // Developer-only frontend-route slot — hidden from the Pages tree (orange for devs).
+  system: true,
 };
 
 // about-us is a singleton root page: exactly one across the site, lives at
@@ -111,7 +113,9 @@ const cataloguesPageType: PageTypeDefinition = {
 // each across the site, live at root, cannot be deleted, take no parent and no
 // children, and hold no authored content (allowBlocks: false). They exist only
 // as page slots so the frontend can render the search results, cart, and 404
-// views at a CMS-managed URL — same shape as all-products.
+// views at a CMS-managed URL — same shape as all-products. `system: true` hides
+// them from the Pages tree + New-Page picker for every role except developer
+// (developers see them with an orange accent).
 const searchPageType: PageTypeDefinition = {
   type: "search",
   label: { en: "Search", hr: "Pretraga" },
@@ -121,6 +125,7 @@ const searchPageType: PageTypeDefinition = {
   allowedParentTypes: [],
   allowedChildTypes: [],
   allowBlocks: false,
+  system: true,
 };
 
 const cartPageType: PageTypeDefinition = {
@@ -132,6 +137,7 @@ const cartPageType: PageTypeDefinition = {
   allowedParentTypes: [],
   allowedChildTypes: [],
   allowBlocks: false,
+  system: true,
 };
 
 const notFoundPageType: PageTypeDefinition = {
@@ -143,6 +149,7 @@ const notFoundPageType: PageTypeDefinition = {
   allowedParentTypes: [],
   allowedChildTypes: [],
   allowBlocks: false,
+  system: true,
 };
 
 createAdmin({
