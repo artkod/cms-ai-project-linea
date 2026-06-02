@@ -261,9 +261,11 @@ the from-scratch seeder).
 (`canBeRoot: true`, `deletable: false`, `limit: 1`, no parent, `allowBlocks: false`,
 no fields beyond the title). Its only direct children are `article` pages. `article`
 (`canBeRoot: false`, `allowedParentTypes: ["news"]`, **deletable, no limit**) is a
-content page that carries two structured `image-url` fields — `articlePhoto` (the
-main image) and `cardPhoto` (the smaller listing thumbnail) — **plus an unlimited
-number of Mixed Content sections**. It uses the admin-base `multiBlock: true` flag
+content page that carries an `articleType` **`select` field whose options come from
+Settings → Article** (`optionsSource: "article"` → `GET /api/project-settings/article`),
+two structured `image-url` fields — `articlePhoto` (the main image) and `cardPhoto`
+(the smaller listing thumbnail) — **plus an unlimited number of Mixed Content
+sections**. It uses the admin-base `multiBlock: true` flag
 alongside `allowedBlockTypes: ["mixed-content"]` so the editor is restricted to
 mixed-content yet escapes the singleton-block behaviour (the "+ Add new section"
 button + layout picker stay visible; no block is auto-seeded). Neither type is in
@@ -502,7 +504,7 @@ createAdmin({
   projectSlug: "project-linea",
   pageTypes: [/* … */],
   blockTypes: [/* … */],
-  settingsSections: [featuredBannersSection],   // project-only Settings tabs
+  settingsSections: [featuredBannersSection, contactSection, articleSection],  // project-only Settings tabs
 });
 ```
 
@@ -524,6 +526,12 @@ header used by `src/lib/api.ts`.
   isn't a valid address), `address` (single line), `mapsUrl` (Google Maps link). Visible to admin + developer.
   Saved under key `contact` (`GET|PUT /api/project-settings/contact`). Stored shape:
   `{ phone, fax, email, address, mapsUrl }`.
+- **Article** (`admin/src/settings/ArticleSection.tsx`, `articleSection`) — a Mantine `TagsInput` (chips +
+  "start typing…") that manages the editable list of **article types**. Visible to admin + developer. Saved
+  under key `article` (`GET|PUT /api/project-settings/article`). Stored shape: `{ options: string[] }`. The
+  `article` page type's `articleType` **`select` field uses `optionsSource: "article"`** so the editor's
+  dropdown is fed by this list (admin-base fetches `GET /api/project-settings/article` and reads `options`) —
+  add/remove a type here and it appears in the dropdown with no redeploy.
 - **Frontend consumption:** read via `getFeaturedBanners()` / `getContactInfo()` in `src/lib/api.ts`
   (thin wrappers over `GET /api/project-settings/:key`). Currently consumed by `AboutUsView`; reuse the
   helpers anywhere else the data is needed. The store is public-readable — never put secrets in a section.

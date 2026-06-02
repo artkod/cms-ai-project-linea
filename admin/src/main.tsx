@@ -8,6 +8,7 @@ import { aboutUsBlock } from "./blocks/AboutUsBlock";
 import { cataloguesBlock } from "./blocks/CataloguesBlock";
 import { featuredBannersSection } from "./settings/FeaturedBannersSection";
 import { contactSection } from "./settings/ContactSection";
+import { articleSection } from "./settings/ArticleSection";
 
 // product-item is a singleton-block page type: it allows exactly one block
 // of type "product-item", auto-seeded on create. The framework hides
@@ -182,6 +183,9 @@ const articlePageType: PageTypeDefinition = {
   allowedParentTypes: ["news"],
   allowedChildTypes: [],
   fields: [
+    // Options come from Settings → Article ("article" project-settings key) — an
+    // admin-managed list, so editors can add types without a redeploy.
+    { name: "articleType", label: "Vrsta članka", type: "select", optionsSource: "article" },
     { name: "articlePhoto", label: "Fotografija članka", type: "image-url" },
     { name: "cardPhoto", label: "Fotografija kartice", type: "image-url" },
   ],
@@ -196,5 +200,5 @@ createAdmin({
   projectSlug: "project-linea",
   pageTypes: [aboutUsPageType, cataloguesPageType, allProductsPageType, productsPageType, productCategoryPageType, productItemPageType, newsPageType, articlePageType, searchPageType, cartPageType, notFoundPageType],
   blockTypes: [productItemBlock, productCategoryBlock, aboutUsBlock, cataloguesBlock],
-  settingsSections: [featuredBannersSection, contactSection],
+  settingsSections: [featuredBannersSection, contactSection, articleSection],
 });
