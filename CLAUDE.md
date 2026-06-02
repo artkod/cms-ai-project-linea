@@ -274,11 +274,14 @@ button + layout picker stay visible; no block is auto-seeded). Neither type is i
 `PageView.tsx`): it fetches every published `article` page (`getAllPages("article", locale)`),
 keeps the ones whose `parentId` is this news page, and renders a journal-style listing —
 a featured (latest) article, a filter bar built from the distinct `articleType` values,
-a Latest/Oldest sort, an article grid (cardPhoto / type badge / date / SEO-meta excerpt),
-and client-side pagination (9 per page). Article links resolve to `/{locale}/{news-slug}/{article-slug}`.
-**`article` itself has no custom renderer yet** — an article detail page falls through to
-`DefaultView` (title + Mixed Content blocks); add a `case "article"` branch when building
-a richer detail view (e.g. surfacing `articlePhoto` / `articleType`).
+a Latest/Oldest sort, an article grid, and client-side pagination (9 per page). Listing cards
+(featured + grid) always use **`cardPhoto` ("fotografija kartice")**, plus a type badge / date /
+SEO-meta excerpt. Article links resolve to `/{locale}/{news-slug}/{article-slug}`.
+**`article` detail pages** render via **`ArticleView`** (a small component in `PageView.tsx`,
+branched on `page.type === "article"`): the `articleType` **type badge** + the large
+**`articlePhoto` ("fotografija članka")** above the title, then the Mixed Content body
+(reusing `BlockRenderer`). So `cardPhoto` is the listing thumbnail and `articlePhoto` is the
+detail-page hero — the two image fields never overlap in use.
 
 `search`, `cart`, and `404` (together with `all-products`) are **functional
 singleton root pages** flagged **`system: true`** (`canBeRoot: true`,
@@ -302,9 +305,8 @@ definitions — the code defs shadow those rows (PageTypeContext drops runtime
 rows whose slug clashes with a code slug), but the seed entries are kept
 consistent so a fresh DB matches. The frontend renders the default view for any
 page type without a `case` branch in `PageView.tsx` — currently
-`product-item`, `all-products`, `about-us`, `catalogues`, `news`, `search`, `cart`, and
-`404` have custom views (see "Frontend rendering"). `article` has no custom view yet
-(falls through to `DefaultView`).
+`product-item`, `all-products`, `about-us`, `catalogues`, `news`, `article`, `search`, `cart`,
+and `404` have custom views (see "Frontend rendering").
 
 **Slugs are immutable** after create. The previous taxonomy
 (`product-main-category`, `product-sub-category`, `product-item`) was migrated
@@ -372,13 +374,17 @@ inserts page types one at a time.
   EN+HR). The CTA button resolves `contactLink` via the same local `resolveHref()` as `AboutUsView`.
 - `news` — **`NewsView`** (`src/routes/NewsView.tsx`). Plain-Mantine journal listing. Fetches every published
   `article` page via `getAllPages("article", locale)`, keeps those whose `parentId === page.id`, and derives a
-  card per article from `typeData` (`articleType`, `cardPhoto`/`articlePhoto`) + the article's SEO
-  `metaDescription` as the excerpt. Renders a **featured** (latest) article, a **filter bar** built from the
-  distinct `articleType` values present (chips + an "All"/"Sve" reset), a **Latest/Oldest sort** `Select`, a
-  responsive `SimpleGrid` of article `Card`s (cover image, type `Badge`, date, title, excerpt, "read" link), and
-  client-side **`Pagination`** (9 per page; featured excluded from the grid). Article hrefs are
+  card per article from `typeData` (`articleType`, **`cardPhoto`**) + the article's SEO `metaDescription` as the
+  excerpt. Renders a **featured** (latest) article, a **filter bar** built from the distinct `articleType` values
+  present (chips + an "All"/"Sve" reset), a **Latest/Oldest sort** `Select`, a responsive `SimpleGrid` of article
+  `Card`s (card image, type `Badge`, date, title, excerpt, "read" link), and client-side **`Pagination`** (9 per
+  page; featured excluded from the grid). **All listing cards use `cardPhoto` ("fotografija kartice")** — the
+  larger `articlePhoto` is only used on the article detail page. Article hrefs are
   `/{locale}/{news-slug}/{article-slug}`. UI labels use a small inline locale map (`LABELS.en`/`LABELS.hr`) — no
   string keys needed; all article content is real CMS data.
+- `article` — **`ArticleView`** (a component inside `src/routes/PageView.tsx`). Article detail page: the
+  `articleType` **type `Badge`** + the large **`articlePhoto` ("fotografija članka")** above the title, then the
+  Mixed Content body (reuses `BlockRenderer`). Reads both fields straight from `page.typeData`.
 - `about-us` — **`AboutUsView`** (`src/routes/AboutUsView.tsx`). Plain-Mantine layout (positioning only, not
   pixel-perfect). Reads the singleton `about-us` block's data:
   - **Hero**: `altTitle` (H1) + `heroImage` (rendered via Mantine `Image`; grey placeholder when unset) +

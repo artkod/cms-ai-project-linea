@@ -35,8 +35,9 @@ interface ArticleCard {
   title: string;
   slug: string;
   type: string;
+  // Listing cards always use the card photo ("fotografija kartice"); the larger
+  // article photo is reserved for the article detail page.
   cardImage: string | null;
-  heroImage: string | null;
   excerpt: string;
   date: string;
 }
@@ -55,8 +56,7 @@ function toArticle(p: Page, locale: string): ArticleCard {
     title: p.title,
     slug: p.slug,
     type: typeof td.articleType === "string" ? td.articleType : "",
-    cardImage: imgUrl(td.cardPhoto) ?? imgUrl(td.articlePhoto),
-    heroImage: imgUrl(td.articlePhoto) ?? imgUrl(td.cardPhoto),
+    cardImage: imgUrl(td.cardPhoto),
     excerpt: p.translations?.[locale]?.metaDescription ?? "",
     date: p.updatedAt ?? p.createdAt ?? "",
   };
@@ -170,8 +170,8 @@ export function NewsView({ page, locale }: { page: Page; locale: string }) {
               <Group align="stretch" wrap="nowrap" gap="lg">
                 <Box style={{ flex: "0 0 45%", minWidth: 0 }}>
                   <AspectRatio ratio={16 / 10}>
-                    {featured.heroImage ? (
-                      <Image src={featured.heroImage} alt={featured.title} radius="sm" fit="cover" />
+                    {featured.cardImage ? (
+                      <Image src={featured.cardImage} alt={featured.title} radius="sm" fit="cover" />
                     ) : (
                       <Box bg="gray.1" style={{ borderRadius: 8 }} />
                     )}
