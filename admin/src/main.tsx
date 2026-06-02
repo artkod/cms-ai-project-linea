@@ -67,6 +67,8 @@ const allProductsPageType: PageTypeDefinition = {
   allowedParentTypes: [],
   allowedChildTypes: [],
   allowBlocks: false,
+  // Developer-only frontend-route slot — hidden from the Pages tree (orange for devs).
+  system: true,
 };
 
 // about-us is a singleton root page: exactly one across the site, lives at
@@ -107,11 +109,54 @@ const cataloguesPageType: PageTypeDefinition = {
   allowedBlockTypes: ["catalogues"],
 };
 
+// search / cart / notFound are functional singleton root pages: exactly one
+// each across the site, live at root, cannot be deleted, take no parent and no
+// children, and hold no authored content (allowBlocks: false). They exist only
+// as page slots so the frontend can render the search results, cart, and 404
+// views at a CMS-managed URL — same shape as all-products. `system: true` hides
+// them from the Pages tree + New-Page picker for every role except developer
+// (developers see them with an orange accent).
+const searchPageType: PageTypeDefinition = {
+  type: "search",
+  label: { en: "Search", hr: "Pretraga" },
+  deletable: false,
+  canBeRoot: true,
+  limit: 1,
+  allowedParentTypes: [],
+  allowedChildTypes: [],
+  allowBlocks: false,
+  system: true,
+};
+
+const cartPageType: PageTypeDefinition = {
+  type: "cart",
+  label: { en: "Cart", hr: "Košarica" },
+  deletable: false,
+  canBeRoot: true,
+  limit: 1,
+  allowedParentTypes: [],
+  allowedChildTypes: [],
+  allowBlocks: false,
+  system: true,
+};
+
+const notFoundPageType: PageTypeDefinition = {
+  type: "404",
+  label: { en: "404", hr: "404" },
+  deletable: false,
+  canBeRoot: true,
+  limit: 1,
+  allowedParentTypes: [],
+  allowedChildTypes: [],
+  allowBlocks: false,
+  system: true,
+};
+
 createAdmin({
   apiUrl: import.meta.env.VITE_API_URL,
   frontendUrl: import.meta.env.VITE_FRONTEND_URL,
   projectSlug: "project-linea",
-  pageTypes: [aboutUsPageType, cataloguesPageType, allProductsPageType, productsPageType, productCategoryPageType, productItemPageType],
+  pageTypes: [aboutUsPageType, cataloguesPageType, allProductsPageType, productsPageType, productCategoryPageType, productItemPageType, searchPageType, cartPageType, notFoundPageType],
   blockTypes: [productItemBlock, productCategoryBlock, aboutUsBlock, cataloguesBlock],
   settingsSections: [featuredBannersSection, contactSection],
 });
