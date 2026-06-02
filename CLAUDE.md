@@ -143,15 +143,27 @@ Custom core path: `CMS_CORE_DIR=/path/to/cms-ai-core ./start.sh`
 React 19 + Vite 6, React Router v7, Mantine 7 (light, teal), TypeScript,
 PostgreSQL 16 (Docker)
 
-**Site-wide content width** is **1140px** (Bootstrap 5 `container-xl` default).
-All three `Container` instances in `src/routes/RootLayout.tsx` (header / main /
-footer) use `size={1140}`. Mantine's default named sizes (md=992, lg=1184) don't
-match Bootstrap, so we pass the number directly. Change all three if you ever
-need to widen/narrow the layout.
+**Site-wide content width** is **1140px**. The redesigned header, footer and
+homepage use the CSS class **`.ln-container`** (max-width 1140px + responsive
+gutter, defined in `src/styles/linea-home.css`); the remaining (Mantine) routes
+still use `<Container size={1140}>` in `src/routes/RootLayout.tsx`'s `<main>`.
+**The homepage renders full-bleed** — `RootLayout` drops the `<main>` container
+for the index route (`isHome`) so the homepage's alternating tinted bands span
+the viewport, while each section keeps its own inner `.ln-container`.
 
-**Inter font** is loaded site-wide via Google Fonts (`<link>` in `index.html`)
-and set in the Mantine theme (`src/main.tsx`) at the front of the font stack
-for both `fontFamily` and `headings.fontFamily`. System fonts fall back if the
+**Direction A redesign (lime).** Header, footer and homepage follow the "Clean &
+Corporate" design: lime `#9acb34` accent, **Archivo** (headings/wordmark) +
+**Hanken Grotesk** (body), styled by the drop-in stylesheet
+`src/styles/linea-home.css` (imported once in `src/main.tsx`). It is plain
+`className`-based CSS scoped with `.ln-*` (chrome/buttons) and `.a-*` / `.ln-home`
+(homepage) prefixes, so it coexists with Mantine. **The global Mantine theme is
+still light/teal** (`src/main.tsx`) — the redesigned surfaces are lime purely via
+this stylesheet's CSS vars and `.ln-btn` classes, so a full theme swap (which
+would re-tint every Mantine content route) is still pending.
+
+**Fonts** — Archivo + Hanken Grotesk + Inter are loaded site-wide via Google
+Fonts (`<link>` in `index.html`). The Mantine theme still uses Inter; the lime
+surfaces pull Archivo/Hanken via the stylesheet. System fonts fall back if the
 network blocks Google Fonts.
 
 ---
@@ -382,6 +394,38 @@ inserts page types one at a time.
 
 ---
 
+## Header, footer & homepage (Direction A — `RootLayout.tsx`, `HomePage.tsx`)
+
+- **Header** (`SiteHeader` in `RootLayout.tsx`) — sticky white 64px bar: lime-dot
+  wordmark, **flat single-level** primary nav (no dropdowns; top-level
+  `getMenu("primary", locale)` items only, `NavLink` → `.is-active` lime
+  underline), a **functional product search**, a visual-only cart link, the
+  `LanguageSwitcher`, and a hamburger + mobile panel. **Search**: typing + Enter
+  navigates to the search page with `?q=` — `SearchView` reads the query from the
+  URL and filters live `product-item`s. The search/cart page slugs are resolved
+  per-locale via `getSystemPageSlug("search"|"cart", locale)` (live slug, falling
+  back to `pretraga`/`kosarica`) rather than hardcoded.
+- **Footer** (`SiteFooter` in `RootLayout.tsx`) — dark deep-green band: brand +
+  `tagline` (from site settings, rendered only when set) · **"Stranice"**
+  (dynamic `getMenu("footer", locale)`) · **"Kontakt"** (real values from the
+  `contact` project-setting; the maps link reuses `AboutUsView`'s exported
+  `extractMapEmbedSrc` + `mapsAppLink` to turn the stored `<iframe>` embed into a
+  deep-link), then a copyright bottom bar. Structural labels go through `t()`
+  (`footer.*` keys) with Croatian fallbacks.
+- **Homepage** (`HomePage.tsx`) — full-bleed, six sections: typographic **hero**
+  (stat strip counts computed from `groups`/`categories`), **product groups grid**
+  (live `products` + a fixed "Cijeli katalog" CTA tile; group thumbnail = first
+  child category `mainImage` → child product `mainPhoto` → tinted empty),
+  **featured banners** (`getFeaturedBanners()`, icon resolved via lucide's `icons`
+  registry), **"Zašto Linea" trust strip**, **newest 4 `product-item`s** (reuses
+  `computeCardPrice`), and a **contact CTA band** (phone from the `contact`
+  setting). The "Browse products"/"Full catalogue"/"Request a quote" CTAs resolve
+  `all-products` (`svi-proizvodi`) and `about-us` (`o-nama`) slugs dynamically via
+  `getSystemPageSlug`. All non-dynamic copy lives in the strings DB under
+  `home.*` (EN + HR, seeded in `project-data.seed.json`).
+
+---
+
 ## Frontend rendering (`src/routes/PageView.tsx`)
 
 - `default` (and any unknown type) — `DefaultView`: H1 title + block list.
@@ -497,6 +541,13 @@ hardcoded strings and seed both locales:
 The `t()` helper does **not** support interpolation — for things like
 `View image N` we concat `${t("product.aria_view_image")} ${i + 1}`.
 
+The **homepage** uses ~35 keys under the **`home.*`** namespace (hero, stat
+strip, product-groups head + count suffixes, banners head, the 4 trust facts,
+newest-products head, `home.price_vat`, contact band) and the **footer** uses
+**`footer.*`** (column headings + contact-field labels) — all seeded EN + HR.
+The hero's lime word is split into `home.hero_title_pre/_em/_post` so the
+emphasised phrase stays editable without storing HTML.
+
 ## URLs and i18n
 
 - URL shape: `/{locale}/{slug}`. Root `/` and any legacy `/{slug}` redirect to
@@ -603,12 +654,13 @@ cd ../cms-ai-core && pnpm --filter @cms/admin-base build
 
 | File | Purpose |
 |---|---|
-| `src/lib/api.ts` | CMS API client (`getPages({ locale })`, `getPageBySlug(locale, slug)`, `getMenu(name, locale)`, `getSiteSettings`, `getStrings`) — locale-aware; `Page` carries `translations`, `alternates`, `linkPages` |
+| `src/lib/api.ts` | CMS API client (`getPages({ locale })`, `getPageBySlug(locale, slug)`, `getMenu(name, locale)`, `getSiteSettings`, `getStrings`, `getFeaturedBanners`, `getContactInfo`, `getSystemPageSlug(type, locale)`) — locale-aware; `Page` carries `translations`, `alternates`, `linkPages` |
 | `src/lib/locale.tsx` | `LocaleConfigProvider` + `useLocaleConfig()`; `PageAlternatesProvider` + `usePageAlternates()`; `StringsProvider` + `useStrings()` — `t('key')` falls back to the key itself when missing |
 | `src/lib/tiptapRenderer.ts` | Tiptap JSON → HTML (no Tiptap runtime needed) |
 | `src/App.tsx` | Route tree: `/` → defaultLocale redirect; `/:locale/*` gated by `LocaleGate` |
-| `src/routes/RootLayout.tsx` | Shared layout — sticky header, cascading flyout nav, `LanguageSwitcher`, footer |
-| `src/routes/HomePage.tsx` | Locale-aware list of root-level published pages |
+| `src/routes/RootLayout.tsx` | Shared layout — Direction A `SiteHeader` (flat nav + functional search + cart + mobile panel) and `SiteFooter` (dark deep-green, dynamic links + `contact` block); homepage renders full-bleed |
+| `src/styles/linea-home.css` | Direction A drop-in stylesheet (lime; `.ln-*` chrome/buttons + `.a-*`/`.ln-home` homepage), imported once in `main.tsx` |
+| `src/routes/HomePage.tsx` | Direction A homepage — hero, product groups grid, featured banners, trust strip, newest products, contact CTA band |
 | `src/routes/PageView.tsx` | Renders the `default` page type and its Mixed Content blocks; switches custom views on `page.type` |
 | `src/routes/NewsView.tsx` | `news` page type — journal listing of child `article` pages (featured + type filter + sort + grid + pagination) |
 | `src/routes/EuProjectsView.tsx` | `eu-projects` page type — plain card listing of child `eu-project-item` pages (grid + pagination) |

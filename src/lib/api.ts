@@ -167,6 +167,28 @@ export async function getPageBySlug(locale: string, path: string, previewToken?:
   return data;
 }
 
+// System pages (search, cart, …) are regular pages whose slug is editor-defined
+// in the admin — so we resolve the live slug per-locale instead of hardcoding
+// "pretraga"/"kosarica". Falls back to the conventional slug if the page hasn't
+// been created in this locale yet, so the header links never dead-end.
+const SYSTEM_PAGE_FALLBACK_SLUG: Record<string, string> = {
+  search: "pretraga",
+  cart: "kosarica",
+  "all-products": "svi-proizvodi",
+  "about-us": "o-nama",
+};
+
+export async function getSystemPageSlug(type: string, locale: string): Promise<string> {
+  try {
+    const pages = await getPages({ type, locale });
+    const slug = pages[0]?.slug;
+    if (slug) return slug;
+  } catch {
+    /* fall through to the conventional slug */
+  }
+  return SYSTEM_PAGE_FALLBACK_SLUG[type] ?? type;
+}
+
 export interface MenuItem {
   id: string;
   label: string;
