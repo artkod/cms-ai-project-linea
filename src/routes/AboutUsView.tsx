@@ -72,14 +72,14 @@ function scrollToAnchor(hash: string) {
 // <iframe …> snippet. Pull the embeddable URL out of the snippet; pass a bare
 // URL through unchanged. (Putting the whole <iframe> string into an iframe's
 // src is what made the modal load our own site.)
-function extractMapEmbedSrc(value: string): string {
+export function extractMapEmbedSrc(value: string): string {
   const m = value.match(/src\s*=\s*["']([^"']+)["']/i);
   return m ? m[1] : value.trim();
 }
 
 // A maps link the native app can deep-link to. Prefer a place search built from
 // the address (reliable on iOS/Android); fall back to the embed src.
-function mapsAppLink(address: string, embedSrc: string): string {
+export function mapsAppLink(address: string, embedSrc: string): string {
   if (address.trim()) return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
   return embedSrc;
 }

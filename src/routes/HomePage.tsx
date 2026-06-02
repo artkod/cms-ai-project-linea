@@ -1,61 +1,389 @@
-import { useEffect, useState } from "react";
-import { Title, Text, Anchor, List, Loader, Stack } from "@mantine/core";
+import { useEffect, useMemo, useState } from "react";
+import { Loader } from "@mantine/core";
 import { Link, useParams } from "react-router";
-import { getPages, type Page } from "@/lib/api";
-import { usePageAlternates, useStrings } from "@/lib/locale";
+import { icons, ArrowRight } from "lucide-react";
+import {
+  getAllPages,
+  getFeaturedBanners,
+  getContactInfo,
+  getSystemPageSlug,
+  type Page,
+  type FeaturedBanner,
+  type ContactInfo,
+} from "@/lib/api";
+import { usePageAlternates, useStrings, useLocaleConfig } from "@/lib/locale";
+import { computeCardPrice } from "./AllProductsView";
+
+// Homepage — Direction A ("Clean & Corporate"). Full-bleed alternating bands
+// (RootLayout drops its container for the index route); inner content stays
+// inside `.ln-container`. Marketing copy that has no CMS field flows through
+// t() (seeded in project-data.seed.json) so it's editable in the Strings
+// manager; the product/banner sections are wired to live CMS data.
+
+const eurFmt = new Intl.NumberFormat("hr-HR", {
+  style: "currency",
+  currency: "EUR",
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
+interface ProductBlockData {
+  mainPhoto?: { mediaId: string; cdnUrl: string } | null;
+  description?: string;
+  priceEur?: string;
+  konfiguratorCijene?: Record<string, unknown>;
+}
+
+interface CategoryBlockData {
+  mainImage?: { mediaId: string; cdnUrl: string } | null;
+}
+
+interface GroupCard {
+  id: string;
+  title: string;
+  url: string;
+  catNames: string;
+  catCount: number;
+  image: string | null;
+}
+
+interface ProductCard {
+  id: string;
+  title: string;
+  categoryTitle: string;
+  image: string | null;
+  url: string;
+  price: { amount: number; from: boolean } | null;
+}
+
+function productData(p: Page): ProductBlockData {
+  return (p.blocks?.find((b) => b.type === "product-item")?.data ?? {}) as ProductBlockData;
+}
+function categoryData(p: Page): CategoryBlockData {
+  return (p.blocks?.find((b) => b.type === "product-category")?.data ?? {}) as CategoryBlockData;
+}
 
 export function HomePage() {
   const { locale } = useParams<{ locale: string }>();
-  const activeLocale = locale ?? "hr";
+  const { defaultLocale } = useLocaleConfig();
+  const activeLocale = locale ?? defaultLocale;
   const { setAlternates } = usePageAlternates();
   const { t } = useStrings();
-  const [pages, setPages] = useState<Page[]>([]);
-  const [loading, setLoading] = useState(true);
 
-  // HomePage is locale-aware but has no per-page alternates payload — clear it.
+  const [loading, setLoading] = useState(true);
+  const [groups, setGroups] = useState<Page[]>([]);
+  const [categories, setCategories] = useState<Page[]>([]);
+  const [items, setItems] = useState<Page[]>([]);
+  const [banners, setBanners] = useState<FeaturedBanner[]>([]);
+  const [contact, setContact] = useState<ContactInfo | null>(null);
+  const [allProductsSlug, setAllProductsSlug] = useState("svi-proizvodi");
+  const [aboutSlug, setAboutSlug] = useState("o-nama");
+
+  // Home has no per-page alternates payload — clear it so the language
+  // switcher falls back to the locale root.
   useEffect(() => {
     setAlternates(null);
   }, [setAlternates, activeLocale]);
 
   useEffect(() => {
+    let alive = true;
     setLoading(true);
-    getPages({ locale: activeLocale })
-      .then(setPages)
-      .catch(console.error)
-      .finally(() => setLoading(false));
+    Promise.all([
+      getAllPages("products", activeLocale),
+      getAllPages("product-category", activeLocale),
+      getAllPages("product-item", activeLocale),
+      getFeaturedBanners(),
+      getContactInfo(),
+      getSystemPageSlug("all-products", activeLocale),
+      getSystemPageSlug("about-us", activeLocale),
+    ])
+      .then(([grp, cats, its, bnr, ct, allSlug, abSlug]) => {
+        if (!alive) return;
+        setGroups(grp);
+        setCategories(cats);
+        setItems(its);
+        setBanners(bnr);
+        setContact(ct);
+        setAllProductsSlug(allSlug);
+        setAboutSlug(abSlug);
+      })
+      .catch(() => {
+        if (!alive) return;
+        setGroups([]);
+        setCategories([]);
+        setItems([]);
+        setBanners([]);
+      })
+      .finally(() => {
+        if (alive) setLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
   }, [activeLocale]);
 
-  if (loading) return <Loader />;
+  const allProductsUrl = `/${activeLocale}/${allProductsSlug}`;
+  const aboutUrl = `/${activeLocale}/${aboutSlug}`;
 
-  // Only show root-level pages on the home page; deeper pages still resolve
-  // via direct slug URLs.
-  const rootPages = pages.filter((p) => !p.parentId);
+  // Resolve a banner's localized field, falling back to defaultLocale.
+  const loc = (m: Record<string, string> | undefined): string =>
+    (m?.[activeLocale] || m?.[defaultLocale] || "").trim();
+
+  // Group cards: name list + count from child categories; representative image
+  // from the first child category's mainImage, else a child product's photo.
+  const groupCards = useMemo<GroupCard[]>(() => {
+    return groups.map((g) => {
+      const childCats = categories.filter((c) => c.parentId === g.id);
+      let image: string | null = null;
+      for (const c of childCats) {
+        const mi = categoryData(c).mainImage?.cdnUrl;
+        if (mi) {
+          image = mi;
+          break;
+        }
+      }
+      if (!image) {
+        const childCatIds = new Set(childCats.map((c) => c.id));
+        const firstItem = items.find((it) => it.parentId && childCatIds.has(it.parentId));
+        image = firstItem ? productData(firstItem).mainPhoto?.cdnUrl ?? null : null;
+      }
+      return {
+        id: g.id,
+        title: g.title,
+        url: `/${activeLocale}/${g.slug}`,
+        catNames: childCats.map((c) => c.title).join(" · "),
+        catCount: childCats.length,
+        image,
+      };
+    });
+  }, [groups, categories, items, activeLocale]);
+
+  // Newest 4 product-items by createdAt desc, joined to category + group for a
+  // reachable hierarchical URL.
+  const newest = useMemo<ProductCard[]>(() => {
+    const catById = new Map(categories.map((c) => [c.id, c]));
+    const grpById = new Map(groups.map((g) => [g.id, g]));
+    return [...items]
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .slice(0, 4)
+      .map((it) => {
+        const cat = it.parentId ? catById.get(it.parentId) : undefined;
+        const grp = cat?.parentId ? grpById.get(cat.parentId) : undefined;
+        const d = productData(it);
+        return {
+          id: it.id,
+          title: it.title,
+          categoryTitle: cat?.title ?? "",
+          image: d.mainPhoto?.cdnUrl ?? null,
+          url: grp && cat ? `/${activeLocale}/${grp.slug}/${cat.slug}/${it.slug}` : "#",
+          price: computeCardPrice(d),
+        };
+      });
+  }, [items, categories, groups, activeLocale]);
+
+  const trustImage = newest.find((p) => p.image)?.image ?? null;
+  const phoneTel = contact?.phone ? contact.phone.replace(/[^+\d]/g, "") : "";
+
+  if (loading) {
+    return (
+      <div style={{ padding: "96px 0", textAlign: "center" }}>
+        <Loader color="#9acb34" />
+      </div>
+    );
+  }
 
   return (
-    <Stack gap="xl">
-      <Stack gap="xs">
-        <Title order={1}>{t("home.heading")}</Title>
-        {t("home.intro") !== "home.intro" && (
-          <Text c="dimmed">{t("home.intro")}</Text>
-        )}
-      </Stack>
+    <div className="ln-home">
+      {/* ── HERO ──────────────────────────────────────────────── */}
+      <section className="a-hero">
+        <div className="ln-container">
+          <span className="a-eyebrow">{t("home.hero_eyebrow")}</span>
+          <h1>
+            {t("home.hero_title_pre")}
+            <em>{t("home.hero_title_em")}</em>
+            {t("home.hero_title_post")}
+          </h1>
+          <p>{t("home.hero_sub")}</p>
+          <div className="a-hero__cta">
+            <Link className="ln-btn ln-btn--primary ln-btn--lg" to={allProductsUrl}>
+              {t("home.hero_cta_primary")}
+            </Link>
+            <Link className="ln-btn ln-btn--ghost ln-btn--lg" to={aboutUrl}>
+              {t("home.hero_cta_secondary")}
+            </Link>
+          </div>
+          <div className="a-hero__stats">
+            <div>
+              <b>{groups.length}</b>
+              <span>{t("home.stat_groups_label")}</span>
+            </div>
+            <div>
+              <b>{categories.length}</b>
+              <span>{t("home.stat_categories_label")}</span>
+            </div>
+            <div>
+              <b>{t("home.stat_facility_value")}</b>
+              <span>{t("home.stat_facility_label")}</span>
+            </div>
+          </div>
+        </div>
+      </section>
 
-      {rootPages.length > 0 ? (
-        <Stack gap="xs">
-          <Title order={3}>{t("home.all_pages_heading")}</Title>
-          <List spacing="xs">
-            {rootPages.map((page) => (
-              <List.Item key={page.id}>
-                <Anchor component={Link} to={`/${activeLocale}/${page.slug}`}>
-                  {page.title}
-                </Anchor>
-              </List.Item>
+      {/* ── PRODUCT GROUPS ────────────────────────────────────── */}
+      <section className="a-section">
+        <div className="ln-container">
+          <div className="a-head">
+            <span className="a-eyebrow">{t("home.groups_eyebrow")}</span>
+            <h2>{t("home.groups_title")}</h2>
+            <p>{t("home.groups_subtitle")}</p>
+          </div>
+          <div className="a-groups">
+            {groupCards.map((g) => (
+              <Link key={g.id} to={g.url} className="a-group">
+                <div className="a-thumb">
+                  {g.image && <img className="ln-img" src={g.image} alt={g.title} loading="lazy" />}
+                </div>
+                <div className="a-group__body">
+                  <h3>{g.title}</h3>
+                  {g.catNames && <p className="a-group__cats">{g.catNames}</p>}
+                  <div className="a-group__foot">
+                    <span className="a-group__count">
+                      {g.catCount} {t("home.groups_count_suffix")}
+                    </span>
+                    <ArrowRight className="ln-arrow" aria-hidden="true" />
+                  </div>
+                </div>
+              </Link>
             ))}
-          </List>
-        </Stack>
-      ) : (
-        <Text c="dimmed">{t("home.empty_state")}</Text>
+            {/* Fixed "Cijeli katalog" CTA tile */}
+            <Link to={allProductsUrl} className="a-group a-group--cta">
+              <div className="a-group__body">
+                <h3>{t("home.groups_cta_title")}</h3>
+                <p className="a-group__cats">{t("home.groups_cta_desc")}</p>
+                <div className="a-group__foot">
+                  <span className="a-group__count">
+                    {items.length} {t("home.groups_cta_count_suffix")}
+                  </span>
+                  <ArrowRight className="ln-arrow" aria-hidden="true" />
+                </div>
+              </div>
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* ── FEATURED BANNERS ──────────────────────────────────── */}
+      {banners.length > 0 && (
+        <section className="a-section a-section--tint">
+          <div className="ln-container">
+            <div className="a-head">
+              <span className="a-eyebrow">{t("home.banners_eyebrow")}</span>
+              <h2>{t("home.banners_title")}</h2>
+            </div>
+            <div className="a-banners">
+              {banners.map((b, i) => {
+                const Icon = b.icon ? (icons as Record<string, typeof icons.Truck>)[b.icon] : null;
+                return (
+                  <div className="a-banner" key={i}>
+                    <div className="a-banner__ico">{Icon && <Icon aria-hidden="true" />}</div>
+                    <h3>{loc(b.title)}</h3>
+                    <p>{loc(b.content)}</p>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </section>
       )}
-    </Stack>
+
+      {/* ── TRUST STRIP ───────────────────────────────────────── */}
+      <section className="a-section">
+        <div className="ln-container">
+          <div className="a-trust">
+            <div>
+              <span className="a-eyebrow">{t("home.trust_eyebrow")}</span>
+              <h2>{t("home.trust_title")}</h2>
+              <ul className="a-trust__list">
+                {[1, 2, 3, 4].map((n) => (
+                  <li key={n}>
+                    <span className="n">{`0${n}`}</span>
+                    <div>
+                      <b>{t(`home.trust_${n}_title`)}</b>
+                      <span>{t(`home.trust_${n}_text`)}</span>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className="a-trust__media">
+              <div className="a-thumb">
+                {trustImage && <img className="ln-img" src={trustImage} alt="" loading="lazy" />}
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── NEWEST PRODUCTS ───────────────────────────────────── */}
+      {newest.length > 0 && (
+        <section className="a-section a-section--tint">
+          <div className="ln-container">
+            <div
+              className="a-head"
+              style={{ maxWidth: "none", display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 24 }}
+            >
+              <div>
+                <span className="a-eyebrow">{t("home.newest_eyebrow")}</span>
+                <h2>{t("home.newest_title")}</h2>
+              </div>
+              <Link to={allProductsUrl} className="ln-btn ln-btn--ghost">
+                {t("home.newest_all_btn")}
+              </Link>
+            </div>
+            <div className="a-products">
+              {newest.map((p) => (
+                <Link key={p.id} to={p.url} className="a-prod">
+                  <div className="a-thumb">
+                    {p.image && <img className="ln-img" src={p.image} alt={p.title} loading="lazy" />}
+                  </div>
+                  <div className="a-prod__b">
+                    {p.categoryTitle && <div className="a-prod__cat">{p.categoryTitle}</div>}
+                    <h3>{p.title}</h3>
+                    {p.price ? (
+                      <div className="a-prod__price">
+                        {p.price.from ? `${t("allproducts.price_from")} ` : ""}
+                        {eurFmt.format(p.price.amount)} <small>{t("home.price_vat")}</small>
+                      </div>
+                    ) : (
+                      <div className="a-prod__price a-prod__price--upit">{t("allproducts.price_inquiry")}</div>
+                    )}
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* ── CONTACT CTA BAND ──────────────────────────────────── */}
+      <section className="a-section">
+        <div className="ln-container">
+          <div className="a-contact">
+            <h2>{t("home.contact_title")}</h2>
+            <p>{t("home.contact_text")}</p>
+            <div className="a-contact__cta">
+              <Link className="ln-btn ln-btn--primary ln-btn--lg" to={aboutUrl}>
+                {t("home.contact_cta_primary")}
+              </Link>
+              {contact?.phone && (
+                <a className="ln-btn ln-btn--ghost ln-btn--lg" href={`tel:${phoneTel}`}>
+                  {contact.phone}
+                </a>
+              )}
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
   );
 }
