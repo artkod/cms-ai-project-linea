@@ -107,11 +107,49 @@ const cataloguesPageType: PageTypeDefinition = {
   allowedBlockTypes: ["catalogues"],
 };
 
+// search / cart / notFound are functional singleton root pages: exactly one
+// each across the site, live at root, cannot be deleted, take no parent and no
+// children, and hold no authored content (allowBlocks: false). They exist only
+// as page slots so the frontend can render the search results, cart, and 404
+// views at a CMS-managed URL — same shape as all-products.
+const searchPageType: PageTypeDefinition = {
+  type: "search",
+  label: { en: "Search", hr: "Pretraga" },
+  deletable: false,
+  canBeRoot: true,
+  limit: 1,
+  allowedParentTypes: [],
+  allowedChildTypes: [],
+  allowBlocks: false,
+};
+
+const cartPageType: PageTypeDefinition = {
+  type: "cart",
+  label: { en: "Cart", hr: "Košarica" },
+  deletable: false,
+  canBeRoot: true,
+  limit: 1,
+  allowedParentTypes: [],
+  allowedChildTypes: [],
+  allowBlocks: false,
+};
+
+const notFoundPageType: PageTypeDefinition = {
+  type: "404",
+  label: { en: "404", hr: "404" },
+  deletable: false,
+  canBeRoot: true,
+  limit: 1,
+  allowedParentTypes: [],
+  allowedChildTypes: [],
+  allowBlocks: false,
+};
+
 createAdmin({
   apiUrl: import.meta.env.VITE_API_URL,
   frontendUrl: import.meta.env.VITE_FRONTEND_URL,
   projectSlug: "project-linea",
-  pageTypes: [aboutUsPageType, cataloguesPageType, allProductsPageType, productsPageType, productCategoryPageType, productItemPageType],
+  pageTypes: [aboutUsPageType, cataloguesPageType, allProductsPageType, productsPageType, productCategoryPageType, productItemPageType, searchPageType, cartPageType, notFoundPageType],
   blockTypes: [productItemBlock, productCategoryBlock, aboutUsBlock, cataloguesBlock],
   settingsSections: [featuredBannersSection, contactSection],
 });

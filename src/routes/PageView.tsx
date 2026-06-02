@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { useParams, useNavigate, useSearchParams } from "react-router";
+import { useParams, useSearchParams } from "react-router";
 import {
   Title,
   Text,
@@ -29,6 +29,9 @@ import { usePageAlternates, useStrings, useLocaleConfig } from "@/lib/locale";
 import { AllProductsView } from "./AllProductsView";
 import { AboutUsView } from "./AboutUsView";
 import { CataloguesView } from "./CataloguesView";
+import { SearchView } from "./SearchView";
+import { CartView } from "./CartView";
+import { NotFound } from "./NotFound";
 
 // ─── Render context (locale + linkPages, for nested renderers) ────────────────
 
@@ -1207,34 +1210,40 @@ export function PageView() {
   const locale = params.locale;
   // Splat = the full hierarchical path after the locale (e.g. "proizvodi/busilice/x").
   const path = params["*"] ?? "";
-  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const previewToken = searchParams.get("previewToken") ?? undefined;
   const [page, setPage] = useState<Page | null>(null);
   const [loading, setLoading] = useState(true);
+  // Any path that doesn't resolve to a published page renders the 404 view
+  // (rather than redirecting home), so a bad/stale URL stays on the URL the
+  // visitor typed and shows a proper "not found" page.
+  const [notFound, setNotFound] = useState(false);
   const { setAlternates } = usePageAlternates();
 
   useEffect(() => {
     if (!path || !locale) return;
     setLoading(true);
+    setNotFound(false);
     getPageBySlug(locale, path, previewToken)
       .then((data) => {
         if (!data || (!previewToken && data.status !== "published")) {
-          navigate("/", { replace: true });
+          setPage(null);
+          setNotFound(true);
         } else {
           setPage(data);
           setAlternates(data.alternates ?? null);
         }
       })
-      .catch(() => navigate("/", { replace: true }))
+      .catch(() => setNotFound(true))
       .finally(() => setLoading(false));
-  }, [locale, path, previewToken, navigate, setAlternates]);
+  }, [locale, path, previewToken, setAlternates]);
 
   useEffect(() => {
     return () => setAlternates(null);
   }, [setAlternates]);
 
   if (loading) return <Loader />;
+  if (notFound) return <NotFound />;
   if (!page) return null;
 
   const activeLocale = locale ?? page.locale ?? "hr";
@@ -1269,6 +1278,12 @@ export function PageView() {
         <AboutUsView page={page} locale={activeLocale} />
       ) : page.type === "catalogues" ? (
         <CataloguesView page={page} locale={activeLocale} />
+      ) : page.type === "search" ? (
+        <SearchView page={page} />
+      ) : page.type === "cart" ? (
+        <CartView page={page} />
+      ) : page.type === "404" ? (
+        <NotFound />
       ) : (
         <DefaultView page={page} />
       )}

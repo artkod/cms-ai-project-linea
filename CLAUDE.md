@@ -168,6 +168,9 @@ The product taxonomy on this project is three-level:
 | `product-item` | Product / Proizvod | code-defined (`admin/src/main.tsx`) | `product-category` | (leaf) |
 | `about-us` | About us / O nama | code-defined (`admin/src/main.tsx`) | (root) | (none) |
 | `catalogues` | Catalogues / Katalozi | code-defined (`admin/src/main.tsx`) | (root) | (none) |
+| `search` | Search / Pretraga | code-defined (`admin/src/main.tsx`) | (root) | (none) |
+| `cart` | Cart / Košarica | code-defined (`admin/src/main.tsx`) | (root) | (none) |
+| `404` | 404 / 404 | code-defined (`admin/src/main.tsx`) | (root) | (none) |
 
 `products` is `canBeRoot: true`, `deletable: true`, with **no limit** (multiple
 root "Products" pages are allowed and they can be deleted). `product-category`
@@ -251,6 +254,16 @@ page type is **not** in `project-data.seed.json` — it's code-only (matching
 catalogues page itself were prepopulated via API into the running project (not via
 the from-scratch seeder).
 
+`search`, `cart`, and `404` are **functional singleton root pages**
+(`canBeRoot: true`, `deletable: false`, `limit: 1`, no parent, no children,
+`allowBlocks: false`). They hold no authored content — they exist only as
+page slots so the frontend can render the search-results, cart, and 404 views
+at CMS-managed URLs (default slugs `/pretraga`, `/kosarica`, `/404`). There are
+**no in-chrome search/cart controls yet** — those land with the navigation work
+later; until then the search view reads its query from `?q=…` on the URL and the
+cart view shows placeholder line items. Rendered by `SearchView` / `CartView` /
+`NotFound` (see "Frontend rendering").
+
 The built-in `default` and the code-defined `products`, `product-category`, and
 `product-item` are all registered in code. `products` and `product-category`
 also have seed entries in `project-data.seed.json` that predate their code
@@ -258,7 +271,8 @@ definitions — the code defs shadow those rows (PageTypeContext drops runtime
 rows whose slug clashes with a code slug), but the seed entries are kept
 consistent so a fresh DB matches. The frontend renders the default view for any
 page type without a `case` branch in `PageView.tsx` — currently
-`product-item` and `all-products` have custom views.
+`product-item`, `all-products`, `about-us`, `catalogues`, `search`, `cart`, and
+`404` have custom views (see "Frontend rendering").
 
 **Slugs are immutable** after create. The previous taxonomy
 (`product-main-category`, `product-sub-category`, `product-item`) was migrated
@@ -348,6 +362,25 @@ inserts page types one at a time.
     Desktop click → `Modal` with an `<iframe src={embedSrc}>` + an "Open in Google Maps" button; Android/iOS
     (UA-sniffed) click opens a place link built from the address (`maps/search/?api=1&query=…`) so the OS
     hands it to the native maps app.
+- `search` — **`SearchView`** (`src/routes/SearchView.tsx`). Reads the query from `?q=…` (no in-chrome search
+  input yet). Fetches `products` / `product-category` / `product-item` via `getAllPages()` (same as
+  `AllProductsView`), builds the same product cards (reuses `computeCardPrice` exported from `AllProductsView`),
+  and free-text-matches title + description. No left sidebar — just a `"Showing N results for 'q'"` headline,
+  a sort `Select` (reuses `allproducts.sort_*` keys), the card grid, and pagination (reuses
+  `allproducts.per_page_label`). Three states: no query → `search.prompt`; query with no matches → no-results
+  template (`search.empty_title` / `search.empty_text` + back-home button); query with matches → results.
+- `cart` — **`CartView`** (`src/routes/CartView.tsx`). **Placeholder** simple-Mantine cart (no cart store /
+  "add to cart" control exists yet). Seeds a few sample line items so the layout is reviewable: a list of
+  item cards (image, name, unit price, quantity stepper via `NumberInput` + `lucide-react` Minus/Plus,
+  remove via `Trash2`) on the left, an order-summary card (subtotal / shipping note / total + checkout +
+  continue-shopping buttons) on the right, and an empty-cart branch (`ShoppingCart` icon + `cart.empty_*`).
+  Swap the `INITIAL` constant for the real cart store when it lands. Copy via `t('cart.*')` (seeded EN+HR).
+- `404` — **`NotFound`** (`src/routes/NotFound.tsx`). Simple centered Mantine 404 (big "404" + title + text +
+  back-home button); copy via `t('notfound.*')` (seeded EN+HR). Rendered both for the `404` page type AND —
+  more importantly — for **any path that doesn't resolve to a published page**: `PageView` now flips a
+  `notFound` state (instead of redirecting home) when `getPageBySlug` returns null / an unpublished page / an
+  error, and renders `<NotFound />` in place. The bad URL stays in the address bar. Unknown top-level paths
+  are first rewritten to `/{defaultLocale}/…` by `LocaleGate`, then fall through to the same not-found path.
 
 Child pages can be fetched via
 `GET /api/pages?type=<childType>&parentId=<id>&locale=<locale>` if a custom
@@ -491,7 +524,10 @@ cd ../cms-ai-core && pnpm --filter @cms/admin-base build
 | `src/App.tsx` | Route tree: `/` → defaultLocale redirect; `/:locale/*` gated by `LocaleGate` |
 | `src/routes/RootLayout.tsx` | Shared layout — sticky header, cascading flyout nav, `LanguageSwitcher`, footer |
 | `src/routes/HomePage.tsx` | Locale-aware list of root-level published pages |
-| `src/routes/PageView.tsx` | Renders the `default` page type and its Mixed Content blocks |
+| `src/routes/PageView.tsx` | Renders the `default` page type and its Mixed Content blocks; switches custom views on `page.type` |
+| `src/routes/SearchView.tsx` | `search` page type — `?q=`-driven product-item results (cards + sort + pagination, no sidebar) + no-results template |
+| `src/routes/CartView.tsx` | `cart` page type — placeholder simple-Mantine cart (sample line items + summary; empty-cart branch) |
+| `src/routes/NotFound.tsx` | `404` page type — simple centered Mantine 404; localized via `t('notfound.*')` |
 | `src/routes/LanguageSwitcher.tsx` | Globe-icon dropdown; hidden when only one locale is available |
 | `src/nav.css` | CSS-only cascading dropdown nav (`.cms-nav`, `.cms-nav-dropdown`, `.cms-nav-sub`) |
 | `admin/src/main.tsx` | `createAdmin` config |
