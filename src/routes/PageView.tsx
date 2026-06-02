@@ -196,16 +196,19 @@ function renderWidget(widget: MixedContentWidget) {
   if (widget.type === "video") {
     const embedUrl = getVideoEmbedUrl((widget.data.url as string) || "");
     if (!embedUrl) return null;
+    // Always keep a 16:9 frame so the embed fills its box edge-to-edge (no
+    // black side bars). An author-set width caps how wide the frame grows.
+    const maxW = widget.data.width ? Number(widget.data.width) : undefined;
     return (
-      <Box key={widget.id} mb="sm">
-        <iframe
-          src={embedUrl}
-          width={widget.data.width ? Number(widget.data.width) : "100%"}
-          height={widget.data.height ? Number(widget.data.height) : 315}
-          style={{ border: 0, display: "block", maxWidth: "100%" }}
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-          allowFullScreen
-        />
+      <Box key={widget.id} mb="sm" style={{ maxWidth: maxW, width: "100%" }}>
+        <AspectRatio ratio={16 / 9}>
+          <iframe
+            src={embedUrl}
+            style={{ border: 0, display: "block", width: "100%", height: "100%" }}
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+          />
+        </AspectRatio>
       </Box>
     );
   }
