@@ -182,8 +182,8 @@ const articlePageType: PageTypeDefinition = {
   allowedParentTypes: ["news"],
   allowedChildTypes: [],
   fields: [
-    { name: "articlePhoto", label: "Article photo", type: "image-url" },
-    { name: "cardPhoto", label: "Card photo", type: "image-url" },
+    { name: "articlePhoto", label: "Fotografija članka", type: "image-url" },
+    { name: "cardPhoto", label: "Fotografija kartice", type: "image-url" },
   ],
   allowBlocks: true,
   allowedBlockTypes: ["mixed-content"],
