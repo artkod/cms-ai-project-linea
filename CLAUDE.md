@@ -497,8 +497,8 @@ The `t()` helper does **not** support interpolation — for things like
 
 | Widget | Rendered as |
 |---|---|
-| `text` | Tiptap JSON → HTML via `src/lib/tiptapRenderer.ts` |
-| `video` | `<iframe>`, YouTube URLs auto-normalised |
+| `text` | Tiptap JSON → HTML via `src/lib/tiptapRenderer.ts` — mirrors the admin RichTextEditor's stored attrs: marks (bold/italic/underline/strike/code/link), `textAlign` + `indent` on paragraph/heading, image `alignment`/`width`/`height`. **Adding an editor attr means updating this walker too** (see core DECISIONS.md) |
+| `video` | `<iframe>` inside `<AspectRatio ratio={16/9}>` so the embed always fills its box (no black side bars); an author-set width caps the frame as `maxWidth`. YouTube URLs auto-normalised |
 | `link` | Anchor or Mantine Button; supports page/remote/email/file |
 | `accordion` | Mantine `Accordion` |
 | `gallery` | `SimpleGrid` (2 cols mobile, 3 on sm+), square 1:1 images |

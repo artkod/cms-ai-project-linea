@@ -57,6 +57,17 @@ function renderChildren(node: TiptapNode): string {
   return (node.content ?? []).map(renderNode).join("");
 }
 
+// Inline style for block nodes (paragraph/heading) — carries text alignment
+// (TextAlign extension) and indentation (custom Indent extension) the editor stores.
+function blockStyle(node: TiptapNode): string {
+  const styles: string[] = [];
+  const align = node.attrs?.textAlign as string | undefined;
+  if (align && align !== "left") styles.push(`text-align:${align}`);
+  const indent = node.attrs?.indent as number | undefined;
+  if (indent && indent > 0) styles.push(`margin-left:${indent * 24}px`);
+  return styles.length ? ` style="${styles.join(";")}"` : "";
+}
+
 function renderNode(node: TiptapNode): string {
   if (node.type === "text") {
     const escaped = escapeHtml(node.text ?? "");
@@ -74,10 +85,15 @@ function renderNode(node: TiptapNode): string {
       left: "float:left;margin-right:12px;margin-bottom:8px",
       right: "float:right;margin-left:12px;margin-bottom:8px",
     };
-    const styles = ["max-width:100%", "height:auto", "border-radius:4px"];
-    if (align && alignStyle[align]) styles.push(alignStyle[align]);
     const w = node.attrs?.width;
-    const dims = w != null ? ` width="${Number(w)}"` : "";
+    const h = node.attrs?.height;
+    const styles = ["max-width:100%", "border-radius:4px"];
+    // Only force height:auto when no explicit height is set, otherwise it would
+    // override an author-chosen height and ignore the resize.
+    if (h == null) styles.push("height:auto");
+    if (align && alignStyle[align]) styles.push(alignStyle[align]);
+    const dims =
+      (w != null ? ` width="${Number(w)}"` : "") + (h != null ? ` height="${Number(h)}"` : "");
     return `<img src="${escapeHtml(src)}" alt="${alt}"${dims} style="${styles.join(";")}" />`;
   }
 
@@ -85,10 +101,10 @@ function renderNode(node: TiptapNode): string {
 
   switch (node.type) {
     case "doc":        return inner;
-    case "paragraph":  return inner ? `<p>${inner}</p>` : "<p><br /></p>";
+    case "paragraph":  return inner ? `<p${blockStyle(node)}>${inner}</p>` : "<p><br /></p>";
     case "heading": {
       const lvl = (node.attrs?.level as number) || 2;
-      return `<h${lvl}>${inner}</h${lvl}>`;
+      return `<h${lvl}${blockStyle(node)}>${inner}</h${lvl}>`;
     }
     case "bulletList":  return `<ul>${inner}</ul>`;
     case "orderedList": return `<ol>${inner}</ol>`;
