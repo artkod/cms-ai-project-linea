@@ -137,20 +137,25 @@ function LinkRenderer({ data }: { data: Record<string, unknown> }) {
   const justifyMap: Record<string, string> = { left: "flex-start", center: "center", right: "flex-end" };
 
   if (asButton) {
+    // The admin now stores a *semantic* button type (primary/secondary/tertiary)
+    // plus size (sm/md/lg) and position. The frontend owns the concrete visual
+    // mapping — adjust the variant/color here to match the design system.
     const size = (data.buttonSize as string) || "md";
-    const color = (data.buttonColor as string) || "teal";
-    const variant = (data.buttonVariant as string) || "filled";
+    const buttonType = (data.buttonType as string) || "primary";
+    const variant =
+      buttonType === "secondary" ? "outline" : buttonType === "tertiary" ? "subtle" : "filled";
+    const color = "teal";
     const position = (data.buttonPosition as string) || "left";
 
     const inner = isInternal ? (
       <Link to={href} style={{ textDecoration: "none" }} title={tooltip}>
-        <Button size={size as "xs" | "sm" | "md" | "lg" | "xl"} color={color} variant={variant as "filled" | "outline" | "light" | "subtle"}>
+        <Button size={size as "sm" | "md" | "lg"} color={color} variant={variant as "filled" | "outline" | "subtle"}>
           {label}
         </Button>
       </Link>
     ) : (
       <a href={href} target={target} rel={rel} style={{ textDecoration: "none" }} title={tooltip}>
-        <Button size={size as "xs" | "sm" | "md" | "lg" | "xl"} color={color} variant={variant as "filled" | "outline" | "light" | "subtle"}>
+        <Button size={size as "sm" | "md" | "lg"} color={color} variant={variant as "filled" | "outline" | "subtle"}>
           {label}
         </Button>
       </a>
