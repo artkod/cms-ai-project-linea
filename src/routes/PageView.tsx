@@ -769,7 +769,9 @@ function ProductItemView({ page }: { page: Page }) {
     });
     setJustAdded(true);
     window.setTimeout(() => setJustAdded(false), 1600);
-    notifications.show({ color: "teal", title: addedLabel, message: page.title });
+    // Accent comes from the brand-green default in notifications.scss — no
+    // off-brand `color: "teal"` override.
+    notifications.show({ title: addedLabel, message: page.title });
   };
 
   const activeTab = tabs.find((tb) => tb.id === activeTabId) ?? tabs[0] ?? null;

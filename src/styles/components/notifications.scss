@@ -1,0 +1,62 @@
+// ============================================================
+// Toast / notification chrome  ·  Direction A "Clean & Corporate"
+// ------------------------------------------------------------
+// @mantine/notifications renders globally (see main.tsx). Out of the
+// box it ships stock Mantine chrome with a teal accent — off-brand for
+// this green-led site. We restyle it to the site's surface / border /
+// radius / shadow with Archivo titles + Hanken Grotesk body, and a
+// brand-green accent bar, so toasts read as part of the site.
+//
+// The accent bar colour comes from Mantine's `--notification-color`,
+// which is set inline ONLY when a `notifications.show({ color })` is
+// passed. We provide a brand default here (no !important) so untinted
+// success toasts go green while an explicit `color: "red"` error toast
+// still wins via the inline style.
+// ============================================================
+
+.mantine-Notification-root {
+  --notification-radius: 12px;
+  --notification-color: var(--brand-deep);
+
+  border: 1px solid var(--border);
+  border-radius: var(--notification-radius);
+  background: var(--surface);
+  box-shadow: 0 18px 44px -20px rgba(29, 32, 20, 0.45);
+  font-family: "Hanken Grotesk", system-ui, sans-serif;
+  padding-block: 14px;
+
+  // Round the accent bar's ends to sit nicely inside the card radius.
+  &::before {
+    border-radius: 6px;
+  }
+}
+
+.mantine-Notification-title {
+  font-family: "Archivo", system-ui, sans-serif;
+  font-weight: 700;
+  font-size: 0.95rem;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+
+.mantine-Notification-description {
+  color: var(--ink-2);
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+// Icon chip (only present when a toast passes an `icon`).
+.mantine-Notification-icon {
+  border-radius: 9px;
+}
+
+.mantine-Notification-closeButton {
+  color: var(--ink-2);
+  border-radius: 8px;
+  transition: background 0.14s, color 0.14s;
+
+  &:hover {
+    background: var(--brand-tint);
+    color: var(--brand-deep);
+  }
+}
