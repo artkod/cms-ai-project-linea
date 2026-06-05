@@ -690,7 +690,6 @@ cd ../cms-ai-core && pnpm --filter @cms/admin-base build
 | `src/routes/CartView.tsx` | `cart` page type — placeholder simple-Mantine cart (sample line items + summary; empty-cart branch) |
 | `src/routes/NotFound.tsx` | `404` page type — simple centered Mantine 404; localized via `t('notfound.*')` |
 | `src/routes/LanguageSwitcher.tsx` | Globe-icon dropdown; hidden when only one locale is available |
-| `src/nav.css` | CSS-only cascading dropdown nav (`.cms-nav`, `.cms-nav-dropdown`, `.cms-nav-sub`) |
 | `admin/src/main.tsx` | `createAdmin` config |
 
 ---
