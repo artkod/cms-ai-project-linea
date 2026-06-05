@@ -13,7 +13,7 @@ import {
   getSystemPageSlug,
 } from "@/lib/api";
 import { useLocaleConfig, useStrings } from "@/lib/locale";
-import "@/styles/linea-about.css";
+import "@/styles/pages/about.scss";
 
 // ─── about-us block data ──────────────────────────────────────────────────────
 

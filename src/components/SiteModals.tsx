@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Cookie, X, Mail, Check } from "lucide-react";
 import { useStrings } from "@/lib/locale";
-import "@/styles/linea-modals.css";
+import "@/styles/components/modals.scss";
 
 // Global cookie consent + newsletter, mounted once at the site shell.
 //  • Cookie banner: shown only when nothing is stored yet. Accept / Reject /

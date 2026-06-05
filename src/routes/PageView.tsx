@@ -22,9 +22,9 @@ import { usePageAlternates, useStrings, useLocaleConfig, usePageLayout } from "@
 import { parsePrice, eur } from "@/lib/pricing";
 import { useCart } from "@/lib/cart";
 import { AllProductsView, computeCardPrice } from "./AllProductsView";
-import "@/styles/linea-product.css";
-import "@/styles/linea-mixed.css";
-import "@/styles/linea-detail.css";
+import "@/styles/pages/product.scss";
+import "@/styles/pages/mixed.scss";
+import "@/styles/pages/detail.scss";
 import { AboutUsView } from "./AboutUsView";
 import { CataloguesView } from "./CataloguesView";
 import { NewsView } from "./NewsView";

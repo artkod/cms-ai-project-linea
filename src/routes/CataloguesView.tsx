@@ -3,7 +3,7 @@ import { Link } from "react-router";
 import { FileText, Download, Star } from "lucide-react";
 import { getSystemPageSlug, type Page, type Block, type LinkPagesMap } from "@/lib/api";
 import { useStrings } from "@/lib/locale";
-import "@/styles/linea-catalogues.css";
+import "@/styles/pages/catalogues.scss";
 
 // ─── catalogues block data ──────────────────────────────────────────────────
 

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Check, X } from "lucide-react";
 import { useStrings } from "@/lib/locale";
 import { eur } from "@/lib/pricing";
-import "@/styles/linea-modals.css";
+import "@/styles/components/modals.scss";
 
 // Shared order / inquiry modal — built on the site's `.lm-*` modal shell (same
 // chrome as the cookie + newsletter modals). Two contexts:
