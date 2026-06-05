@@ -126,6 +126,32 @@ export function usePageAlternates(): PageAlternatesValue {
   return v;
 }
 
+// ─── Page layout mode (full-bleed) ────────────────────────────────────────────
+// Most routes render inside RootLayout's centered 1140px container. Some
+// Direction-A pages (the homepage, the product page, …) own full-bleed bands —
+// flush breadcrumb bars and edge-to-edge tinted sections with their own inner
+// `.ln-container`. PageView flips this flag per page type so RootLayout drops
+// the container for those.
+
+interface PageLayoutValue {
+  fullBleed: boolean;
+  setFullBleed: (v: boolean) => void;
+}
+
+const PageLayoutContext = createContext<PageLayoutValue | null>(null);
+
+export function PageLayoutProvider({ children }: { children: ReactNode }) {
+  const [fullBleed, setFullBleed] = useState(false);
+  const value = useMemo(() => ({ fullBleed, setFullBleed }), [fullBleed]);
+  return <PageLayoutContext.Provider value={value}>{children}</PageLayoutContext.Provider>;
+}
+
+export function usePageLayout(): PageLayoutValue {
+  const v = useContext(PageLayoutContext);
+  if (!v) throw new Error("usePageLayout must be used inside <PageLayoutProvider>");
+  return v;
+}
+
 // ─── Project translation strings (I7) ────────────────────────────────────────
 // Loaded from `/api/strings?locale=…` on every active-locale change. `t(key)`
 // returns the editor-managed value, or the key itself if missing/empty — so a

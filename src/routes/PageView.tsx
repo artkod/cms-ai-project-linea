@@ -1,33 +1,30 @@
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, Fragment, useContext, useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useParams, useSearchParams } from "react-router";
-import {
-  Title,
-  Text,
-  Loader,
-  Box,
-  Button,
-  Anchor,
-  Badge,
-  SimpleGrid,
-  Image,
-  Accordion,
-  Group,
-  Select,
-  Stack,
-  Tabs,
-  Card,
-  Divider,
-  Grid,
-  Breadcrumbs,
-  AspectRatio,
-  UnstyledButton,
-} from "@mantine/core";
+import { Loader, Box } from "@mantine/core";
 import { Link } from "react-router";
 import { useMediaQuery } from "@mantine/hooks";
-import { getPageBySlug, type Page, type Block, type LinkPagesMap } from "@/lib/api";
+import {
+  Check, Truck, Share2, Link2, Mail, ArrowLeft, ChevronDown, ShoppingCart,
+  X, ChevronLeft, ChevronRight, ZoomIn,
+} from "lucide-react";
+import { notifications } from "@mantine/notifications";
+import {
+  getPageBySlug,
+  getAllPages,
+  getSystemPageSlug,
+  type Page,
+  type Block,
+  type LinkPagesMap,
+  type AncestorEntry,
+} from "@/lib/api";
 import { tiptapToHtml } from "@/lib/tiptapRenderer";
-import { usePageAlternates, useStrings, useLocaleConfig } from "@/lib/locale";
-import { AllProductsView } from "./AllProductsView";
+import { usePageAlternates, useStrings, useLocaleConfig, usePageLayout } from "@/lib/locale";
+import { parsePrice, eur } from "@/lib/pricing";
+import { useCart } from "@/lib/cart";
+import { AllProductsView, computeCardPrice } from "./AllProductsView";
+import "@/styles/linea-product.css";
+import "@/styles/linea-mixed.css";
+import "@/styles/linea-detail.css";
 import { AboutUsView } from "./AboutUsView";
 import { CataloguesView } from "./CataloguesView";
 import { NewsView } from "./NewsView";
@@ -89,6 +86,7 @@ interface MixedContentData {
 interface GalleryImage {
   mediaId: string;
   cdnUrl: string;
+  name?: string;
 }
 
 interface AccordionItem {
@@ -97,7 +95,7 @@ interface AccordionItem {
   content: Record<string, unknown> | null;
 }
 
-// ─── Link renderer ────────────────────────────────────────────────────────────
+// ─── Link widget (text link / semantic button) ──────────────────────────────
 
 function LinkRenderer({ data }: { data: Record<string, unknown> }) {
   const { locale, linkPages } = useRender();
@@ -115,9 +113,6 @@ function LinkRenderer({ data }: { data: Record<string, unknown> }) {
   const target = openInNewTab ? "_blank" : undefined;
 
   if (linkType === "page") {
-    // Resolve pageId → /{locale}/{hierarchical path} via the page-payload
-    // `linkPages` map. Fall back to the bare slug, then to /{locale}/ when the
-    // target page has no active translation here.
     const pageId = (data.pageId as string) || "";
     const resolved = pageId ? linkPages[pageId]?.[locale] : null;
     const linkPath = resolved?.path && resolved.path.length ? resolved.path.join("/") : resolved?.slug;
@@ -134,164 +129,211 @@ function LinkRenderer({ data }: { data: Record<string, unknown> }) {
   }
 
   const label = displayText || href;
-  const justifyMap: Record<string, string> = { left: "flex-start", center: "center", right: "flex-end" };
 
   if (asButton) {
-    // The admin now stores a *semantic* button type (primary/secondary/tertiary)
-    // plus size (sm/md/lg) and position. The frontend owns the concrete visual
-    // mapping — adjust the variant/color here to match the design system.
-    const size = (data.buttonSize as string) || "md";
-    const buttonType = (data.buttonType as string) || "primary";
-    const variant =
-      buttonType === "secondary" ? "outline" : buttonType === "tertiary" ? "subtle" : "filled";
-    const color = "teal";
-    const position = (data.buttonPosition as string) || "left";
-
-    const inner = isInternal ? (
-      <Link to={href} style={{ textDecoration: "none" }} title={tooltip}>
-        <Button size={size as "sm" | "md" | "lg"} color={color} variant={variant as "filled" | "outline" | "subtle"}>
-          {label}
-        </Button>
-      </Link>
-    ) : (
-      <a href={href} target={target} rel={rel} style={{ textDecoration: "none" }} title={tooltip}>
-        <Button size={size as "sm" | "md" | "lg"} color={color} variant={variant as "filled" | "outline" | "subtle"}>
-          {label}
-        </Button>
-      </a>
-    );
+    // Semantic model: type (primary/secondary/tertiary) × size (sm/md/lg) ×
+    // position (left/center/right). Legacy values clamp to a sensible default.
+    const sz = data.buttonSize as string;
+    const size = sz === "sm" || sz === "lg" ? sz : "md";
+    const bt = data.buttonType as string;
+    const type = bt === "secondary" || bt === "tertiary" ? bt : "primary";
+    const ps = data.buttonPosition as string;
+    const pos = ps === "center" || ps === "right" ? ps : "left";
+    const cls = `mxbtn mxbtn--${type} mxbtn--${size}`;
     return (
-      <Box mb="sm" style={{ display: "flex", justifyContent: justifyMap[position] || "flex-start" }}>
-        {inner}
-      </Box>
+      <div className={`mx-btnwrap pos-${pos}`}>
+        {isInternal ? (
+          <Link to={href} className={cls} title={tooltip}>{label}</Link>
+        ) : (
+          <a href={href} className={cls} target={target} rel={rel} title={tooltip}>{label}</a>
+        )}
+      </div>
     );
   }
 
-  if (isInternal) {
-    return (
-      <Box mb="sm">
-        <Link to={href} style={{ color: "var(--mantine-color-teal-filled)" }} title={tooltip}>
-          {label}
-        </Link>
-      </Box>
-    );
-  }
   return (
-    <Box mb="sm">
-      <Anchor href={href} target={target} rel={rel} title={tooltip}>{label}</Anchor>
-    </Box>
+    <div>
+      {isInternal ? (
+        <Link to={href} className="mx-textlink" title={tooltip}>{label}</Link>
+      ) : (
+        <a href={href} className="mx-textlink" target={target} rel={rel} title={tooltip}>{label}</a>
+      )}
+    </div>
   );
 }
 
-// ─── Widget renderer (recursive — handles section nesting) ───────────────────
+// ─── Widgets ──────────────────────────────────────────────────────────────────
+
+function TextWidget({ data }: { data: Record<string, unknown> }) {
+  const html = data.json ? tiptapToHtml(data.json) : "";
+  if (html) return <div className="mx-richtext" dangerouslySetInnerHTML={{ __html: html }} />;
+  const content = (data.content as string) || "";
+  return content ? <div className="mx-richtext"><p>{content}</p></div> : null;
+}
+
+function VideoWidget({ data }: { data: Record<string, unknown> }) {
+  const embedUrl = getVideoEmbedUrl((data.url as string) || "");
+  if (!embedUrl) return null;
+  // 16:9 frame fills its box edge-to-edge; an author-set width caps how wide it grows.
+  const maxW = data.width ? Number(data.width) : undefined;
+  return (
+    <div className="mx-video" style={maxW ? { maxWidth: maxW } : undefined}>
+      <div className="mx-video__frame">
+        <iframe
+          src={embedUrl}
+          title="Video"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowFullScreen
+        />
+      </div>
+    </div>
+  );
+}
+
+function AccordionWidget({ data }: { data: Record<string, unknown> }) {
+  const items = (data.items as AccordionItem[]) ?? [];
+  const title = (data.title as string) || "";
+  const [open, setOpen] = useState<Set<string>>(new Set());
+  if (!items.length) return null;
+  const toggle = (id: string) =>
+    setOpen((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  return (
+    <div>
+      {title && <div className="mx-acc__title">{title}</div>}
+      <div className="mx-acc">
+        {items.map((item) => {
+          const isOpen = open.has(item.id);
+          return (
+            <div key={item.id} className={`mx-acc__item${isOpen ? " is-open" : ""}`}>
+              <button type="button" className="mx-acc__h" aria-expanded={isOpen} onClick={() => toggle(item.id)}>
+                {item.title}
+                <ChevronDown className="mx-acc__chev" aria-hidden="true" />
+              </button>
+              <div className="mx-acc__p">
+                <div className="mx-acc__pin">
+                  <div className="mx-acc__body">
+                    {item.content && (
+                      <div className="mx-richtext" dangerouslySetInnerHTML={{ __html: tiptapToHtml(item.content) }} />
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function GalleryWidget({ data }: { data: Record<string, unknown> }) {
+  const imgs = (data.images as GalleryImage[]) ?? [];
+  const [idx, setIdx] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (idx === null) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setIdx(null);
+      else if (e.key === "ArrowRight") setIdx((i) => (i === null ? i : (i + 1) % imgs.length));
+      else if (e.key === "ArrowLeft") setIdx((i) => (i === null ? i : (i - 1 + imgs.length) % imgs.length));
+    };
+    window.addEventListener("keydown", onKey);
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = "";
+    };
+  }, [idx, imgs.length]);
+
+  if (!imgs.length) return null;
+  const cur = idx !== null ? imgs[idx] : null;
+
+  return (
+    <div>
+      <div className="mx-gallery">
+        {imgs.map((img, i) => (
+          <button key={i} type="button" className="mx-gallery__item" onClick={() => setIdx(i)} aria-label={img.name || `Slika ${i + 1}`}>
+            <img src={img.cdnUrl} alt={img.name || ""} loading="lazy" />
+            <span className="mx-gallery__zoom"><ZoomIn aria-hidden="true" /></span>
+          </button>
+        ))}
+      </div>
+      {cur && idx !== null && (
+        <div className="mx-lb" role="dialog" aria-modal="true">
+          <div className="mx-lb__bg" onClick={() => setIdx(null)} />
+          <button className="mx-lb__x" type="button" aria-label="Zatvori" onClick={() => setIdx(null)}>
+            <X aria-hidden="true" />
+          </button>
+          {imgs.length > 1 && (
+            <button className="mx-lb__nav mx-lb__prev" type="button" aria-label="Prethodna" onClick={() => setIdx((idx - 1 + imgs.length) % imgs.length)}>
+              <ChevronLeft aria-hidden="true" />
+            </button>
+          )}
+          <div className="mx-lb__stage">
+            <img className="mx-lb__img" src={cur.cdnUrl} alt={cur.name || ""} />
+            {cur.name && <div className="mx-lb__cap">{cur.name}</div>}
+          </div>
+          {imgs.length > 1 && (
+            <button className="mx-lb__nav mx-lb__next" type="button" aria-label="Sljedeća" onClick={() => setIdx((idx + 1) % imgs.length)}>
+              <ChevronRight aria-hidden="true" />
+            </button>
+          )}
+          {imgs.length > 1 && <div className="mx-lb__count">{idx + 1} / {imgs.length}</div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Recursive — `section` embeds a nested 12-col row.
+function SectionWidget({ data }: { data: Record<string, unknown> }) {
+  const section = data as unknown as MixedContentData;
+  if (!section.columns?.length) return null;
+  return (
+    <div className="mx-row mx-row--nested">
+      {section.columns.map((col) => (
+        <div key={col.id} className="mx-col" style={{ "--w": col.width } as CSSProperties}>
+          {col.widgets.map((w) => renderWidget(w))}
+        </div>
+      ))}
+    </div>
+  );
+}
 
 function renderWidget(widget: MixedContentWidget) {
-  if (widget.type === "text") {
-    if (widget.data.json) {
-      const html = tiptapToHtml(widget.data.json);
-      return html ? (
-        <Box key={widget.id} mb="sm" dangerouslySetInnerHTML={{ __html: html }} />
-      ) : null;
-    }
-    return (
-      <Text key={widget.id} mb="sm">
-        {(widget.data.content as string) || ""}
-      </Text>
-    );
+  switch (widget.type) {
+    case "text": return <TextWidget key={widget.id} data={widget.data} />;
+    case "video": return <VideoWidget key={widget.id} data={widget.data} />;
+    case "link": return widget.data.linkType ? <LinkRenderer key={widget.id} data={widget.data} /> : null;
+    case "accordion": return <AccordionWidget key={widget.id} data={widget.data} />;
+    case "gallery": return <GalleryWidget key={widget.id} data={widget.data} />;
+    case "section": return <SectionWidget key={widget.id} data={widget.data} />;
+    default: return null;
   }
-  if (widget.type === "video") {
-    const embedUrl = getVideoEmbedUrl((widget.data.url as string) || "");
-    if (!embedUrl) return null;
-    // Always keep a 16:9 frame so the embed fills its box edge-to-edge (no
-    // black side bars). An author-set width caps how wide the frame grows.
-    const maxW = widget.data.width ? Number(widget.data.width) : undefined;
-    return (
-      <Box key={widget.id} mb="sm" style={{ maxWidth: maxW, width: "100%" }}>
-        <AspectRatio ratio={16 / 9}>
-          <iframe
-            src={embedUrl}
-            style={{ border: 0, display: "block", width: "100%", height: "100%" }}
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-            allowFullScreen
-          />
-        </AspectRatio>
-      </Box>
-    );
-  }
-  if (widget.type === "link") {
-    return widget.data.linkType ? (
-      <LinkRenderer key={widget.id} data={widget.data} />
-    ) : null;
-  }
-  if (widget.type === "accordion") {
-    const items = (widget.data.items as AccordionItem[]) ?? [];
-    if (!items.length) return null;
-    return (
-      <Accordion key={widget.id} mb="sm">
-        {items.map((item) => (
-          <Accordion.Item key={item.id} value={item.id}>
-            <Accordion.Control>{item.title}</Accordion.Control>
-            <Accordion.Panel>
-              {item.content ? (
-                <Box dangerouslySetInnerHTML={{ __html: tiptapToHtml(item.content) }} />
-              ) : null}
-            </Accordion.Panel>
-          </Accordion.Item>
-        ))}
-      </Accordion>
-    );
-  }
-  if (widget.type === "gallery") {
-    const imgs = (widget.data.images as GalleryImage[]) ?? [];
-    if (!imgs.length) return null;
-    return (
-      <SimpleGrid key={widget.id} cols={{ base: 2, sm: 3 }} spacing={6} mb="md">
-        {imgs.map((img, idx) => (
-          <Image key={idx} src={img.cdnUrl} radius="sm" fit="cover" style={{ aspectRatio: "1 / 1" }} />
-        ))}
-      </SimpleGrid>
-    );
-  }
-  if (widget.type === "section") {
-    const sectionData = widget.data as unknown as MixedContentData;
-    if (!sectionData.columns?.length) return null;
-    return (
-      <Box
-        key={widget.id}
-        mb="sm"
-        style={{ display: "flex", gap: 16, alignItems: "flex-start", width: "100%" }}
-      >
-        {sectionData.columns.map((col) => (
-          <Box key={col.id} style={{ flex: col.width, minWidth: 0 }}>
-            {col.widgets.map((w) => renderWidget(w))}
-          </Box>
-        ))}
-      </Box>
-    );
-  }
-  return null;
 }
 
 // ─── Block renderer ───────────────────────────────────────────────────────────
+// Mixed Content is the only built-in block type. Renders one 12-column row;
+// authored column widths map to `grid-column: span <w>` (stacks under 880px).
+// Used by DefaultView (each block wrapped in a `.mx-section` band) and the
+// article / eu-project detail views (inside their own container).
 
 function BlockRenderer({ block }: { block: Block }) {
-  // Mixed Content is the only built-in block type — its column widgets
-  // (text, video, link, accordion, gallery, section) cover the primitives
-  // an editor needs.
   if (block.type !== "mixed-content") return null;
   const d = block.data as unknown as MixedContentData;
   if (!d.columns?.length) return null;
   return (
-    <Box
-      mb="md"
-      style={{ display: "flex", gap: 24, flexWrap: "wrap", alignItems: "flex-start" }}
-    >
+    <div className="mx-row">
       {d.columns.map((col) => (
-        <Box key={col.id} style={{ flex: col.width, minWidth: "min(180px, 100%)" }}>
+        <div key={col.id} className="mx-col" style={{ "--w": col.width } as CSSProperties}>
           {col.widgets.map((widget) => renderWidget(widget))}
-        </Box>
+        </div>
       ))}
-    </Box>
+    </div>
   );
 }
 
@@ -340,162 +382,65 @@ interface ProductItemBlockData {
   };
 }
 
-/** Parse a free-text price string like "12,34" or "12.34" into a number.
- *  Empty / invalid / non-positive → 0. */
-function parsePrice(v: unknown): number {
-  if (typeof v !== "string") return 0;
-  const s = v.replace(",", ".").trim();
-  if (!s) return 0;
-  const n = parseFloat(s);
-  return Number.isFinite(n) && n > 0 ? n : 0;
-}
-
-const eurFmt = new Intl.NumberFormat("hr-HR", {
-  style: "currency",
-  currency: "EUR",
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-});
-
-function formatEur(n: number): string {
-  return eurFmt.format(n);
-}
-
-// ─── Industrial Clarity design tokens (scoped to product-item view) ──────────
-
-const D = {
-  primary: "#496800",
-  primaryHover: "#3a5300",
-  primaryContainer: "#9acb34",
-  onSurface: "#0b1c30",
-  onSurfaceVariant: "#434937",
-  outlineVariant: "#c3c9b1",
-  surface: "#f8f9ff",
-  surfaceLow: "#eff4ff",
-  surfaceMid: "#e5eeff",
-  surfaceHigh: "#dce9ff",
-  surfaceLowest: "#ffffff",
-  errorContainer: "#ffdad6",
-  onErrorContainer: "#93000a",
-} as const;
-
-// Lucide-style stroked SVG icons (avoid adding lucide-react to frontend deps)
-function Icon({ d, size = 20, fill }: { d: string; size?: number; fill?: boolean }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill={fill ? "currentColor" : "none"}
-      stroke="currentColor"
-      strokeWidth={1.75}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      style={{ display: "block" }}
-    >
-      <path d={d} />
-    </svg>
-  );
-}
-const IconChevronRight = ({ size = 16 }: { size?: number }) => <Icon size={size} d="M9 6l6 6-6 6" />;
-const IconChevronDown = ({ size = 20 }: { size?: number }) => <Icon size={size} d="M6 9l6 6 6-6" />;
-const IconShare = ({ size = 20 }: { size?: number }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ display: "block" }}>
-    <circle cx="18" cy="5" r="3" />
-    <circle cx="6" cy="12" r="3" />
-    <circle cx="18" cy="19" r="3" />
-    <path d="M8.59 13.51l6.83 3.98" />
-    <path d="M15.41 6.51L8.59 10.49" />
-  </svg>
-);
-const IconLink = ({ size = 20 }: { size?: number }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ display: "block" }}>
-    <path d="M10 13a5 5 0 0 0 7.07 0l3-3a5 5 0 1 0-7.07-7.07L11 5" />
-    <path d="M14 11a5 5 0 0 0-7.07 0l-3 3a5 5 0 1 0 7.07 7.07L13 19" />
-  </svg>
-);
-const IconMail = ({ size = 20 }: { size?: number }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ display: "block" }}>
-    <rect x="3" y="5" width="18" height="14" rx="2" />
-    <path d="M3 7l9 6 9-6" />
-  </svg>
-);
-const IconCheckCircle = ({ size = 16 }: { size?: number }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ display: "block" }}>
-    <circle cx="12" cy="12" r="9" />
-    <path d="M9 12l2 2 4-4" />
-  </svg>
-);
-const IconTruck = ({ size = 16 }: { size?: number }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ display: "block" }}>
-    <rect x="1" y="6" width="13" height="11" rx="1" />
-    <path d="M14 9h4l3 3v5h-7z" />
-    <circle cx="6" cy="18.5" r="1.5" />
-    <circle cx="17" cy="18.5" r="1.5" />
-  </svg>
-);
-const IconSend = ({ size = 20 }: { size?: number }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ display: "block" }}>
-    <path d="M22 2L11 13" />
-    <path d="M22 2l-7 20-4-9-9-4 20-7z" />
-  </svg>
-);
-
-function PriceValue({ amount, size = "xl" }: { amount: number; size?: "md" | "lg" | "xl" }) {
-  const { t } = useStrings();
-  const fontSize = size === "xl" ? 36 : size === "lg" ? 28 : 20;
-  const lineHeight = size === "xl" ? "44px" : size === "lg" ? "36px" : "28px";
-  return (
-    <Stack gap={2} align="flex-end" style={{ textAlign: "right" }}>
-      <Text fw={size === "md" ? 700 : 600} style={{ fontSize, lineHeight, color: D.primary, letterSpacing: "-0.02em" }}>
-        {formatEur(amount)}
-      </Text>
-      {size === "xl" && (
-        <Text style={{ fontSize: 12, lineHeight: "16px", fontWeight: 500, color: D.onSurfaceVariant }}>
-          {t("product.price_vat_suffix")}
-        </Text>
-      )}
-    </Stack>
-  );
-}
-
 interface ConfiguratorState {
   total: number;
   hasAnySelection: boolean;
   controls: React.ReactNode;
+  /** Stable signature of the current selection (for cart line de-duping). */
+  selectionKey: string;
+  /** Human-readable selected-options summary (for the cart line + inquiry). */
+  selectionLabel: string;
 }
-
-// Shared Mantine Select styles tuned to the Industrial Clarity spec:
-// 48px height, 4px radius, surface-low background, outline-variant border,
-// thickens to 2px primary on focus.
-const SELECT_STYLES = {
-  root: { width: "100%" },
-  label: {
-    fontSize: 14,
-    fontWeight: 600,
-    letterSpacing: "0.05em",
-    color: D.onSurfaceVariant,
-    marginBottom: 8,
-    textTransform: "uppercase" as const,
-  },
-  input: {
-    height: 48,
-    background: D.surface,
-    borderColor: D.outlineVariant,
-    borderRadius: 4,
-    fontSize: 16,
-    color: D.onSurface,
-    paddingLeft: 16,
-    paddingRight: 36,
-  },
-  section: { color: D.onSurfaceVariant },
-};
 
 interface GroupLabels {
   group1: string;
   group2: string;
   group3: string;
+}
+
+interface SelectOption {
+  value: string;
+  label: string;
+}
+
+// One native `<select class="pi-select">` field (Clean & Corporate spec). The
+// locked variant greys the label + select and shows the helper hint underneath.
+function ConfigField({
+  label,
+  options,
+  value,
+  onChange,
+  placeholder,
+  disabled,
+  helper,
+}: {
+  label: string;
+  options: SelectOption[];
+  value: string | null;
+  onChange: (v: string | null) => void;
+  placeholder: string;
+  disabled?: boolean;
+  helper?: string;
+}) {
+  return (
+    <div className={`pi-field${disabled ? " is-locked" : ""}`}>
+      <label className="pi-field__lab">{label}</label>
+      <select
+        className="pi-select"
+        value={value ?? ""}
+        disabled={disabled}
+        onChange={(e) => onChange(e.currentTarget.value || null)}
+      >
+        <option value="">{placeholder}</option>
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+      {disabled && helper && <p className="pi-field__help">{helper}</p>}
+    </div>
+  );
 }
 
 function useConfigurator(
@@ -529,80 +474,92 @@ function useConfigurator(
   const unnamed = t("product.option_unnamed");
   const placeholder = t("product.option_placeholder");
 
-  const kOptions = konstrukcija.map((r) => ({
-    value: r.id,
-    label: parsePrice(r.cijena) > 0
-      ? `${r.naziv || unnamed} — ${formatEur(parsePrice(r.cijena))}`
-      : r.naziv || unnamed,
-  }));
+  const priced = (naziv: string, price: number) =>
+    price > 0 ? `${naziv || unnamed} — ${eur(price)}` : naziv || unnamed;
 
-  const gOptions = grafika.map((r) => {
-    const priceForK = selectedK ? parsePrice(r.cijene[selectedK.id]) : 0;
-    return {
-      value: r.id,
-      label: priceForK > 0
-        ? `${r.naziv || unnamed} — ${formatEur(priceForK)}`
-        : r.naziv || unnamed,
-    };
-  });
-
-  const bOptions = baza.map((r) => ({
+  const kOptions = konstrukcija.map((r) => ({ value: r.id, label: priced(r.naziv, parsePrice(r.cijena)) }));
+  const gOptions = grafika.map((r) => ({
     value: r.id,
-    label: parsePrice(r.cijena) > 0
-      ? `${r.naziv || unnamed} — ${formatEur(parsePrice(r.cijena))}`
-      : r.naziv || unnamed,
+    label: priced(r.naziv, selectedK ? parsePrice(r.cijene[selectedK.id]) : 0),
   }));
+  const bOptions = baza.map((r) => ({ value: r.id, label: priced(r.naziv, parsePrice(r.cijena)) }));
+
+  const g1Label = labels.group1 || t("product.option_konstrukcija");
+  const g2Label = labels.group2 || t("product.option_grafika");
+  const g3Label = labels.group3 || t("product.option_baza");
 
   const controls = (
-    <Stack gap={24}>
+    <>
       {konstrukcija.length > 0 && (
-        <Select
-          label={labels.group1 || t("product.option_konstrukcija")}
-          placeholder={placeholder}
-          data={kOptions}
+        <ConfigField
+          label={g1Label}
+          options={kOptions}
           value={kId}
           onChange={handleK}
-          allowDeselect
-          clearable
-          styles={SELECT_STYLES}
+          placeholder={placeholder}
         />
       )}
       {grafika.length > 0 && (
-        <Select
-          label={labels.group2 || t("product.option_grafika")}
-          placeholder={group2Disabled ? t("product.option_locked") : placeholder}
-          data={gOptions}
+        <ConfigField
+          label={g2Label}
+          options={gOptions}
           value={gId}
           onChange={setGId}
+          placeholder={placeholder}
           disabled={group2Disabled}
-          allowDeselect
-          clearable
-          styles={SELECT_STYLES}
+          helper={t("product.option_locked")}
         />
       )}
       {baza.length > 0 && (
-        <Select
-          label={labels.group3 || t("product.option_baza")}
-          placeholder={placeholder}
-          data={bOptions}
+        <ConfigField
+          label={g3Label}
+          options={bOptions}
           value={bId}
           onChange={setBId}
-          allowDeselect
-          clearable
-          styles={SELECT_STYLES}
+          placeholder={placeholder}
         />
       )}
-    </Stack>
+    </>
   );
 
-  return { total, hasAnySelection: Boolean(kId || gId || bId), controls };
+  const selectionParts: string[] = [];
+  if (selectedK) selectionParts.push(`${g1Label}: ${selectedK.naziv || unnamed}`);
+  if (selectedG) selectionParts.push(`${g2Label}: ${selectedG.naziv || unnamed}`);
+  if (selectedB) selectionParts.push(`${g3Label}: ${selectedB.naziv || unnamed}`);
+
+  return {
+    total,
+    hasAnySelection: Boolean(kId || gId || bId),
+    controls,
+    selectionKey: [kId, gId, bId].filter(Boolean).join("|"),
+    selectionLabel: selectionParts.join(" · "),
+  };
+}
+
+// ─── Related product card (siblings under the same category) ─────────────────
+
+interface RelatedCard {
+  id: string;
+  title: string;
+  categoryTitle: string;
+  image: string | null;
+  url: string;
+  price: { amount: number; from: boolean } | null;
 }
 
 function ProductItemView({ page }: { page: Page }) {
   const { locale } = useRender();
   const { defaultLocale } = useLocaleConfig();
   const { t } = useStrings();
-  const block = page.blocks?.find((b) => b.type === "product-item");
+  // Editor-overridable label with a Croatian fallback, for keys that may not be
+  // seeded yet (t() returns the key itself when unset — we don't want that on
+  // chrome copy). Existing keys resolve normally.
+  const tx = (key: string, fallback: string) => {
+    const v = t(key);
+    return v === key ? fallback : v;
+  };
+
+  const block = page.blocks?.find((bl) => bl.type === "product-item");
   const d = (block?.data ?? {}) as ProductItemBlockData;
 
   const altTitle = d.altTitle?.trim() || "";
@@ -643,13 +600,12 @@ function ProductItemView({ page }: { page: Page }) {
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const activeImage = allImages[activeImageIndex] ?? null;
 
-  const tabs = (d.additionalInfo?.tabs ?? []).filter((t) => t && t.id);
+  const tabs = (d.additionalInfo?.tabs ?? []).filter((tb) => tb && tb.id);
   const [activeTabId, setActiveTabId] = useState<string | null>(tabs[0]?.id ?? null);
-  // Match the design's tabs→accordion swap at 768px. `getInitialValueInEffect:false`
-  // makes the first render reflect the real viewport, avoiding a tabs→accordion
-  // flicker on mobile when the page hydrates.
-  const isMobileInfo = useMediaQuery("(max-width: 767.99px)", false, { getInitialValueInEffect: false });
-  // Mobile accordion: independent multi-open, first tab open by default.
+  // Desktop = horizontal tabs; ≤760px = single-open accordion (spec §3).
+  // `getInitialValueInEffect:false` makes the first render reflect the real
+  // viewport, avoiding a tabs→accordion flicker on hydration.
+  const isMobileInfo = useMediaQuery("(max-width: 760px)", false, { getInitialValueInEffect: false });
   // Mobile accordion: single-open (opening one closes any other). All items
   // start collapsed on first render; `null` means none open.
   const [openInfoItem, setOpenInfoItem] = useState<string | null>(null);
@@ -690,584 +646,574 @@ function ProductItemView({ page }: { page: Page }) {
         ? configurator.total
         : 0;
 
-  const homeHref = `/${locale}/`;
-  const crumbStyle: React.CSSProperties = {
-    fontSize: 12,
-    lineHeight: "16px",
-    fontWeight: 500,
-    color: D.onSurfaceVariant,
+  // ── Breadcrumb / category — from the by-slug `ancestors` (root → parent).
+  // For a product-item that chain is [products-group, product-category]; the
+  // immediate parent (last entry) is the category shown as the buy-card eyebrow.
+  const ancestors = page.ancestors ?? [];
+  const categoryAnc = ancestors.length ? ancestors[ancestors.length - 1] : null;
+  const ancTitle = (a: AncestorEntry) =>
+    a.locales[locale]?.title || a.locales[defaultLocale]?.title || a.type;
+  const ancSlug = (a: AncestorEntry) =>
+    a.locales[locale]?.slug || a.locales[defaultLocale]?.slug || "";
+  const categoryTitle = categoryAnc ? ancTitle(categoryAnc) : "";
+  const groupSlug = ancestors[0] ? ancSlug(ancestors[0]) : "";
+  const categorySlug = categoryAnc ? ancSlug(categoryAnc) : "";
+
+  // ── Related rail — other product-items under the same category (siblings,
+  // auto-derived). Hidden when there are none. URLs reuse this page's group +
+  // category slug chain. "Svi proizvodi" resolves the live all-products slug.
+  const [related, setRelated] = useState<RelatedCard[]>([]);
+  const [allProductsSlug, setAllProductsSlug] = useState("svi-proizvodi");
+  useEffect(() => {
+    let alive = true;
+    if (!page.parentId || !groupSlug || !categorySlug) {
+      setRelated([]);
+      return;
+    }
+    Promise.all([
+      getAllPages("product-item", locale),
+      getSystemPageSlug("all-products", locale),
+    ])
+      .then(([items, allSlug]) => {
+        if (!alive) return;
+        setAllProductsSlug(allSlug);
+        setRelated(
+          items
+            .filter((it) => it.parentId === page.parentId && it.id !== page.id)
+            .map((it) => {
+              const bd = (it.blocks?.find((bl) => bl.type === "product-item")?.data ?? {}) as ProductItemBlockData;
+              return {
+                id: it.id,
+                title: it.title,
+                categoryTitle,
+                image: bd.mainPhoto?.cdnUrl ?? null,
+                url: `/${locale}/${groupSlug}/${categorySlug}/${it.slug}`,
+                price: computeCardPrice(bd),
+              };
+            }),
+        );
+      })
+      .catch(() => {
+        if (alive) setRelated([]);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [page.id, page.parentId, locale, groupSlug, categorySlug, categoryTitle]);
+
+  const allProductsUrl = `/${locale}/${allProductsSlug}`;
+
+  // ── Share row (optional chrome): native share / copy-link (+"Kopirano" tip)
+  // / mailto.
+  const [copied, setCopied] = useState(false);
+  const pageUrl = () => (typeof window !== "undefined" ? window.location.href : "");
+  const onShareNative = () => {
+    const nav = navigator as Navigator & { share?: (data: ShareData) => Promise<void> };
+    if (typeof navigator !== "undefined" && nav.share) {
+      void nav.share({ title: page.title, url: pageUrl() }).catch(() => {});
+    }
   };
-  const crumbActiveStyle: React.CSSProperties = {
-    ...crumbStyle,
-    color: D.primary,
-    fontWeight: 600,
+  const onCopyLink = () => {
+    if (typeof navigator !== "undefined" && navigator.clipboard) {
+      void navigator.clipboard.writeText(pageUrl()).then(() => {
+        setCopied(true);
+        window.setTimeout(() => setCopied(false), 1600);
+      }).catch(() => {});
+    }
   };
+  const onEmailShare = () => {
+    window.location.href = `mailto:?subject=${encodeURIComponent(page.title)}&body=${encodeURIComponent(pageUrl())}`;
+  };
+
+  // ── Cart CTA ── Every product gets "Dodaj u košaricu" now, regardless of
+  // price. No-price products (`priceMode === "inquiry"`) go in as an
+  // on-request line (`unitPrice: null`). The one gate is a configurator with
+  // nothing selected yet — the button is disabled until the customer picks an
+  // option, so we never add an unconfigured build.
+  const { addItem } = useCart();
+  const [justAdded, setJustAdded] = useState(false);
+  const addAsInquiry = priceMode === "inquiry";
+  const needsSelection = priceMode === "configurator" && !configurator.hasAnySelection;
+
+  const productUrl =
+    groupSlug && categorySlug
+      ? `/${locale}/${groupSlug}/${categorySlug}/${page.slug}`
+      : typeof window !== "undefined"
+        ? window.location.pathname
+        : `/${locale}/`;
+
+  const addLabel = tx("product.add_to_cart", "Dodaj u košaricu");
+  const addedLabel = tx("product.added_to_cart", "Dodano u košaricu");
+
+  const handleAddToCart = () => {
+    if (needsSelection) return;
+    const configKey = configurator.selectionKey;
+    addItem({
+      key: configKey ? `${page.id}#${configKey}` : page.id,
+      productId: page.id,
+      title: page.title,
+      image: mainPhoto?.cdnUrl ?? activeImage?.cdnUrl ?? null,
+      url: productUrl,
+      unitPrice: addAsInquiry ? null : displayPrice,
+      configLabel: configurator.selectionLabel || undefined,
+    });
+    setJustAdded(true);
+    window.setTimeout(() => setJustAdded(false), 1600);
+    notifications.show({ color: "teal", title: addedLabel, message: page.title });
+  };
+
+  const activeTab = tabs.find((tb) => tb.id === activeTabId) ?? tabs[0] ?? null;
 
   return (
-    <article style={{ color: D.onSurface }}>
-      {/* Breadcrumbs — Home → all ancestors (root first) → current page.
-          Ancestors come from the by-slug payload's `ancestors` array, already
-          ordered root → immediate parent. We resolve the requested-locale slot,
-          falling back to defaultLocale's title (italic, unlinked) when the
-          requested locale's translation is inactive or missing. */}
-      <Group gap={8} mb={{ base: 16, md: 32 }} wrap="wrap" style={{ overflow: "hidden" }}>
-        <Anchor component={Link} to={homeHref} underline="never" style={crumbStyle}>
-          {t("product.breadcrumb_home")}
-        </Anchor>
-        {(page.ancestors ?? []).map((a, idx) => {
-          const ancestors = page.ancestors ?? [];
-          const inLoc = a.locales[locale];
-          const fallback = a.locales[defaultLocale];
-          // Hierarchical breadcrumb: each ancestor's URL is the cumulative slug
-          // path from the root down to it. Linkable only when EVERY segment on
-          // that chain has an active translation in this locale — otherwise the
-          // nested URL would 404.
-          const chain = ancestors.slice(0, idx + 1).map((x) => x.locales[locale]);
-          const fullyActive = chain.every((c) => !!(c?.active && c.slug));
-          const linkable = fullyActive;
-          const href = `/${locale}/${chain.map((c) => c!.slug).join("/")}`;
-          const title = inLoc?.title || fallback?.title || a.type;
-          return (
-            <Group key={a.id} gap={8} wrap="nowrap">
-              <Box c={D.onSurfaceVariant} style={{ display: "flex" }}><IconChevronRight /></Box>
-              {linkable ? (
-                <Anchor
-                  component={Link}
-                  to={href}
-                  underline="never"
-                  style={crumbStyle}
-                >
-                  {title}
-                </Anchor>
-              ) : (
-                <Text
-                  component="span"
-                  style={{ ...crumbStyle, fontStyle: inLoc?.active ? undefined : "italic" }}
-                >
-                  {title}
-                </Text>
+    <div className="pi-page">
+      {/* ── BREADCRUMB ── Home → ancestors (root → parent) → current page.
+          Each ancestor links to its cumulative slug chain, but only when every
+          segment up to it has an active translation in this locale (else the
+          nested URL would 404 — render it as plain text instead). */}
+      <nav className="pi-crumb" aria-label="Staza">
+        <div className="ln-container pi-crumb__in">
+          <Link to={`/${locale}/`}>{t("product.breadcrumb_home")}</Link>
+          {ancestors.map((a, idx) => {
+            const chain = ancestors.slice(0, idx + 1).map((x) => x.locales[locale]);
+            const fullyActive = chain.every((c) => !!(c?.active && c.slug));
+            const href = `/${locale}/${chain.map((c) => c!.slug).join("/")}`;
+            return (
+              <Fragment key={a.id}>
+                <span className="sep">/</span>
+                {fullyActive ? <Link to={href}>{ancTitle(a)}</Link> : <span>{ancTitle(a)}</span>}
+              </Fragment>
+            );
+          })}
+          <span className="sep">/</span>
+          <span className="cur">{page.title}</span>
+        </div>
+      </nav>
+
+      {/* ── HERO ── gallery + description (left) · buy/configure card (right) */}
+      <section className="pi-hero">
+        <div className="ln-container">
+          <div className="pi-grid">
+
+            {/* LEFT */}
+            <div className="pi-main">
+              <div className="pi-gallery">
+                <div className="pi-gallery__main">
+                  {activeImage && (
+                    <img className="ln-img" src={activeImage.cdnUrl} alt={page.title} />
+                  )}
+                </div>
+                {allImages.length > 1 && (
+                  <div className="pi-thumbs">
+                    {allImages.slice(0, 10).map((img, i) => (
+                      <button
+                        type="button"
+                        key={img.mediaId}
+                        className={`pi-thumb${i === activeImageIndex ? " is-active" : ""}`}
+                        onClick={() => setActiveImageIndex(i)}
+                        aria-label={`${t("product.aria_view_image")} ${i + 1}`}
+                        aria-current={i === activeImageIndex}
+                      >
+                        <img className="ln-img" src={img.cdnUrl} alt="" loading="lazy" />
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {description && (
+                <section className="pi-about">
+                  <h2>{t("product.about_heading")}</h2>
+                  <p>{description}</p>
+                </section>
               )}
-            </Group>
-          );
-        })}
-        <Box c={D.onSurfaceVariant} style={{ display: "flex" }}><IconChevronRight /></Box>
-        <Text component="span" style={crumbActiveStyle}>{page.title}</Text>
-      </Group>
+            </div>
 
-      {/* Product title — headline-xl (48/700) desktop, headline-xl-mobile (32/700) */}
-      <Box mb={{ base: 32, md: 48 }}>
-        <Text
-          component="h1"
-          style={{
-            margin: 0,
-            color: D.onSurface,
-            fontSize: "clamp(32px, 5vw, 48px)",
-            lineHeight: 1.16,
-            letterSpacing: "-0.02em",
-            fontWeight: 700,
-          }}
-        >
-          {page.title}
-        </Text>
-        {altTitle && (
-          <Text mt={8} style={{ fontSize: 18, lineHeight: "28px", color: D.onSurfaceVariant }}>
-            {altTitle}
-          </Text>
-        )}
-      </Box>
+            {/* RIGHT — sticky buy / configure */}
+            <aside className="pi-buy">
+              {categoryTitle && <span className="pi-eyebrow pi-buy__cat">{categoryTitle}</span>}
+              <h1>{page.title}</h1>
+              {altTitle && <p className="pi-buy__sub">{altTitle}</p>}
 
-      {/* Main grid — single column under lg, 7/5 split at lg+ */}
-      <Grid gutter={{ base: 32, lg: 48 }}>
-        {/* Left column: image + thumbnails + description + social share */}
-        <Grid.Col span={{ base: 12, lg: 7 }} order={{ base: 2, lg: 1 }}>
-          {activeImage && (
-            <Box
-              mb={16}
-              style={{
-                background: D.surfaceLow,
-                border: `1px solid ${D.outlineVariant}`,
-                borderRadius: 4,
-                overflow: "hidden",
-              }}
-            >
-              <AspectRatio ratio={1}>
-                <Image
-                  key={activeImage.mediaId}
-                  src={activeImage.cdnUrl}
-                  alt={page.title}
-                  fit="cover"
-                  style={{ transition: "opacity 200ms" }}
-                />
-              </AspectRatio>
-            </Box>
-          )}
-
-          {allImages.length > 1 && (
-            <Box
-              mb={32}
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(5, 1fr)",
-                gap: 12,
-              }}
-            >
-              {allImages.slice(0, 10).map((img, i) => {
-                const isActive = i === activeImageIndex;
-                return (
-                  <UnstyledButton
-                    key={img.mediaId}
-                    onClick={() => setActiveImageIndex(i)}
-                    aria-label={`${t("product.aria_view_image")} ${i + 1}`}
-                    aria-current={isActive}
-                    style={{
-                      aspectRatio: "1 / 1",
-                      borderRadius: 4,
-                      overflow: "hidden",
-                      background: D.surfaceLow,
-                      border: isActive
-                        ? `2px solid ${D.primary}`
-                        : `1px solid ${D.outlineVariant}`,
-                      transition: "border-color 150ms",
-                    }}
-                  >
-                    <Image src={img.cdnUrl} fit="cover" h="100%" w="100%" loading="lazy" />
-                  </UnstyledButton>
-                );
-              })}
-            </Box>
-          )}
-
-          {description && (
-            <Stack gap={24}>
-              {/* Sub-heading sits above the long-form copy. Static copy because
-                  the block model exposes only a plain-text description today. */}
-              <Text
-                component="h2"
-                style={{
-                  margin: 0,
-                  fontSize: 20,
-                  lineHeight: "28px",
-                  fontWeight: 600,
-                  color: D.onSurface,
-                }}
-              >
-                {t("product.about_heading")}
-              </Text>
-              <Text
-                style={{
-                  whiteSpace: "pre-wrap",
-                  fontSize: 16,
-                  lineHeight: "24px",
-                  color: D.onSurfaceVariant,
-                }}
-              >
-                {description}
-              </Text>
-            </Stack>
-          )}
-
-          {/* Social share */}
-          <Group gap={16} mt={32} align="center">
-            <Text
-              style={{
-                fontSize: 14,
-                lineHeight: "16px",
-                fontWeight: 600,
-                letterSpacing: "0.05em",
-                color: D.onSurface,
-              }}
-            >
-              {t("product.share_label")}
-            </Text>
-            <Group gap={8}>
-              {[
-                { label: t("product.share_native"), icon: <IconShare />, onClick: () => {
-                  if (typeof navigator !== "undefined" && (navigator as Navigator & { share?: (data: ShareData) => Promise<void> }).share) {
-                    void (navigator as Navigator & { share: (data: ShareData) => Promise<void> }).share({ title: page.title, url: window.location.href }).catch(() => {});
-                  }
-                } },
-                { label: t("product.share_copy_link"), icon: <IconLink />, onClick: () => {
-                  if (typeof navigator !== "undefined" && navigator.clipboard) {
-                    void navigator.clipboard.writeText(window.location.href).catch(() => {});
-                  }
-                } },
-                { label: t("product.share_email"), icon: <IconMail />, onClick: () => {
-                  window.location.href = `mailto:?subject=${encodeURIComponent(page.title)}&body=${encodeURIComponent(window.location.href)}`;
-                } },
-              ].map((b) => (
-                <UnstyledButton
-                  key={b.label}
-                  aria-label={b.label}
-                  onClick={b.onClick}
-                  style={{
-                    width: 40,
-                    height: 40,
-                    borderRadius: 4,
-                    border: `1px solid ${D.outlineVariant}`,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    color: D.onSurfaceVariant,
-                    transition: "background 150ms",
-                  }}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = D.surfaceHigh; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
-                >
-                  {b.icon}
-                </UnstyledButton>
-              ))}
-            </Group>
-          </Group>
-        </Grid.Col>
-
-        {/* Right column: configurator card (sticky at lg+) */}
-        <Grid.Col span={{ base: 12, lg: 5 }} order={{ base: 1, lg: 2 }}>
-          <Box
-            p={{ base: 24, md: 32 }}
-            style={{
-              background: D.surfaceLowest,
-              border: `1px solid ${D.outlineVariant}`,
-              borderRadius: 4,
-              position: "sticky",
-              top: 96,
-            }}
-          >
-            <Text
-              component="h3"
-              mb={24}
-              style={{
-                margin: 0,
-                fontSize: 20,
-                lineHeight: "28px",
-                fontWeight: 600,
-                color: D.onSurface,
-              }}
-            >
-              {t("product.configurator_heading")}
-            </Text>
-
-            {priceMode === "configurator" && (
-              <Box mb={32}>{configurator.controls}</Box>
-            )}
-
-            {/* Price row */}
-            <Box
-              mb={32}
-              pt={24}
-              style={{
-                borderTop: `1px solid ${D.outlineVariant}`,
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "baseline",
-                gap: 16,
-              }}
-            >
-              <Text style={{ fontSize: 16, lineHeight: "24px", color: D.onSurfaceVariant }}>
-                {effectiveInquiry ? t("product.price_inquiry_label") : t("product.price_estimated_label")}
-              </Text>
-              {!effectiveInquiry && displayPrice > 0 ? (
-                <PriceValue amount={displayPrice} />
-              ) : (
-                <Text style={{ fontSize: 14, color: D.onSurfaceVariant, fontStyle: "italic" }}>
-                  —
-                </Text>
-              )}
-            </Box>
-
-            {/* CTA — visible on all viewports (mobile sticky bar mirrors it).
-                Inquiry-style project, so the label stays "Pošaljite upit". */}
-            <UnstyledButton
-              onClick={() => { /* Pošaljite upit — wiring TBD */ }}
-              style={{
-                width: "100%",
-                background: D.primary,
-                color: "#fff",
-                padding: "16px 32px",
-                borderRadius: 4,
-                fontSize: 14,
-                fontWeight: 600,
-                letterSpacing: "0.05em",
-                textTransform: "uppercase",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 12,
-                transition: "background 150ms, transform 100ms",
-              }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = D.primaryHover; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = D.primary; }}
-            >
-              <IconSend />
-              {t("product.cta_send_inquiry")}
-            </UnstyledButton>
-
-            {/* Trust row */}
-            <Group justify="center" gap={16} mt={16}>
-              <Group gap={4} align="center">
-                <Box c={D.primary} style={{ display: "flex" }}><IconCheckCircle /></Box>
-                <Text style={{ fontSize: 12, lineHeight: "16px", fontWeight: 500, color: D.onSurfaceVariant }}>
+              <div className="pi-badges">
+                <span className="pi-badge">
+                  <Check aria-hidden="true" />
                   {t("product.trust_available")}
-                </Text>
-              </Group>
-              <Group gap={4} align="center">
-                <Box c={D.primary} style={{ display: "flex" }}><IconTruck /></Box>
-                <Text style={{ fontSize: 12, lineHeight: "16px", fontWeight: 500, color: D.onSurfaceVariant }}>
+                </span>
+                <span className="pi-badge">
+                  <Truck aria-hidden="true" />
                   {t("product.trust_fast_delivery")}
-                </Text>
-              </Group>
-            </Group>
-          </Box>
-        </Grid.Col>
-      </Grid>
+                </span>
+              </div>
 
-      {/* Info section — horizontal tabs at ≥768px, vertical multi-open accordion below.
-          Both branches read from the same `tabs` array. */}
+              <div className="pi-price">
+                {!effectiveInquiry && (
+                  <p className="pi-price__lbl">
+                    {priceMode === "fixed"
+                      ? tx("product.price_fixed_label", "Cijena")
+                      : t("product.price_estimated_label")}
+                  </p>
+                )}
+                <div className="pi-price__row">
+                  {effectiveInquiry ? (
+                    <span className="pi-price__big is-inquiry">{t("product.price_inquiry_label")}</span>
+                  ) : (
+                    <>
+                      <span className="pi-price__big">{eur(displayPrice)}</span>
+                      <span className="pi-price__vat">{t("product.price_vat_suffix")}</span>
+                    </>
+                  )}
+                </div>
+
+                {priceMode === "configurator" && (
+                  <div className="pi-config">
+                    <h3 className="pi-config__h">{t("product.configurator_heading")}</h3>
+                    {configurator.controls}
+                  </div>
+                )}
+
+                {/* CTA — every product adds to cart; a configurator with no
+                    selection yet is disabled until the customer picks an option. */}
+                <button
+                  type="button"
+                  className="ln-btn ln-btn--primary ln-btn--lg pi-cta"
+                  onClick={handleAddToCart}
+                  disabled={needsSelection}
+                >
+                  {justAdded ? (
+                    <>
+                      <Check size={18} aria-hidden="true" />
+                      {addedLabel}
+                    </>
+                  ) : (
+                    <>
+                      <ShoppingCart size={18} aria-hidden="true" />
+                      {addLabel}
+                    </>
+                  )}
+                </button>
+                {needsSelection && (
+                  <p className="pi-cta-hint">
+                    {tx("product.select_option_hint", "Odaberite opciju za nastavak.")}
+                  </p>
+                )}
+
+                <div className="pi-share">
+                  <span className="pi-share__lbl">{t("product.share_label")}</span>
+                  <button
+                    type="button"
+                    className="pi-share__btn"
+                    aria-label={t("product.share_native")}
+                    onClick={onShareNative}
+                  >
+                    <Share2 aria-hidden="true" />
+                  </button>
+                  <button
+                    type="button"
+                    className="pi-share__btn"
+                    aria-label={t("product.share_copy_link")}
+                    onClick={onCopyLink}
+                  >
+                    <Link2 aria-hidden="true" />
+                    <span className={`pi-share__tip${copied ? " show" : ""}`}>
+                      {tx("product.share_copied", "Kopirano")}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    className="pi-share__btn"
+                    aria-label={t("product.share_email")}
+                    onClick={onEmailShare}
+                  >
+                    <Mail aria-hidden="true" />
+                  </button>
+                </div>
+              </div>
+            </aside>
+
+          </div>
+        </div>
+      </section>
+
+      {/* ── INFO TABS ── desktop tabs / ≤760px accordion (single-open). Hidden
+          when there are zero tabs; empty tab body → "Nema sadržaja." */}
       {tabs.length > 0 && (
-        <Box
-          mt={{ base: 64, md: 80 }}
-          pt={48}
-          style={{ borderTop: `1px solid ${D.outlineVariant}` }}
-        >
-          {isMobileInfo ? (
-            <Accordion
-              value={openInfoItem}
-              onChange={setOpenInfoItem}
-              chevron={<IconChevronDown />}
-              styles={{
-                root: { background: "transparent" },
-                item: {
-                  background: "transparent",
-                  border: "none",
-                  borderBottom: `1px solid ${D.outlineVariant}`,
-                  borderRadius: 0,
-                },
-                control: { padding: "16px 0", background: "transparent" },
-                label: {
-                  padding: 0,
-                  fontSize: 14,
-                  fontWeight: 600,
-                  letterSpacing: "0.05em",
-                  textTransform: "uppercase",
-                },
-                chevron: { color: D.onSurfaceVariant, transition: "transform 250ms" },
-                content: { padding: "4px 0 24px" },
-                panel: { background: "transparent" },
-              }}
-            >
-              {tabs.map((tab) => {
-                const isOpen = openInfoItem === tab.id;
-                return (
-                  <Accordion.Item key={tab.id} value={tab.id}>
-                    <Accordion.Control style={{ color: isOpen ? D.primary : D.onSurface }}>
-                      {tab.title || t("product.option_unnamed")}
-                    </Accordion.Control>
-                    <Accordion.Panel>
-                      {tab.content ? (
-                        <Box
-                          style={{ fontSize: 16, lineHeight: "24px", color: D.onSurfaceVariant }}
-                          dangerouslySetInnerHTML={{ __html: tiptapToHtml(tab.content) }}
-                        />
-                      ) : (
-                        <Text style={{ fontSize: 14, color: D.onSurfaceVariant }}>
-                          {t("product.tab_empty")}
-                        </Text>
-                      )}
-                    </Accordion.Panel>
-                  </Accordion.Item>
-                );
-              })}
-            </Accordion>
-          ) : (
-            <Tabs
-              value={activeTabId}
-              onChange={setActiveTabId}
-              variant="default"
-              keepMounted={false}
-              styles={{
-                list: {
-                  gap: 32,
-                  borderBottom: `1px solid ${D.outlineVariant}`,
-                  marginBottom: 32,
-                  flexWrap: "nowrap",
-                  overflowX: "auto",
-                  scrollbarWidth: "none",
-                  whiteSpace: "nowrap",
-                },
-                tab: {
-                  fontSize: 14,
-                  fontWeight: 600,
-                  letterSpacing: "0.05em",
-                  textTransform: "uppercase",
-                  color: D.onSurfaceVariant,
-                  paddingBottom: 16,
-                  paddingTop: 0,
-                  paddingLeft: 0,
-                  paddingRight: 0,
-                  borderBottom: "2px solid transparent",
-                  borderRadius: 0,
-                  background: "transparent",
-                },
-                tabLabel: { whiteSpace: "nowrap" },
-              }}
-            >
-              <Tabs.List>
+        <section className="pi-tabs-sec">
+          <div className="ln-container">
+            <h2>{tx("product.details_heading", "Detalji proizvoda")}</h2>
+            {isMobileInfo ? (
+              <div className="pi-tabs">
                 {tabs.map((tab) => {
-                  const isActive = tab.id === activeTabId;
+                  const isOpen = openInfoItem === tab.id;
                   return (
-                    <Tabs.Tab
-                      key={tab.id}
-                      value={tab.id}
-                      style={{
-                        color: isActive ? D.primary : D.onSurfaceVariant,
-                        borderBottomColor: isActive ? D.primaryContainer : "transparent",
-                      }}
-                    >
-                      {tab.title || t("product.option_unnamed")}
-                    </Tabs.Tab>
+                    <div className={`pi-acc${isOpen ? " is-open" : ""}`} key={tab.id}>
+                      <button
+                        type="button"
+                        className="pi-acc__h"
+                        aria-expanded={isOpen}
+                        onClick={() => setOpenInfoItem(isOpen ? null : tab.id)}
+                      >
+                        {tab.title || t("product.option_unnamed")}
+                        <ChevronDown aria-hidden="true" />
+                      </button>
+                      <div className="pi-acc__p">
+                        {tab.content ? (
+                          <div
+                            className="pi-rich"
+                            dangerouslySetInnerHTML={{ __html: tiptapToHtml(tab.content) }}
+                          />
+                        ) : (
+                          <p className="pi-empty">{t("product.tab_empty")}</p>
+                        )}
+                      </div>
+                    </div>
                   );
                 })}
-              </Tabs.List>
-              {tabs.map((tab) => (
-                <Tabs.Panel key={tab.id} value={tab.id} pt={0} style={{ minHeight: 300 }}>
-                  {tab.content ? (
-                    <Box
-                      style={{ fontSize: 16, lineHeight: "24px", color: D.onSurfaceVariant }}
-                      dangerouslySetInnerHTML={{ __html: tiptapToHtml(tab.content) }}
+              </div>
+            ) : (
+              <div className="pi-tabs">
+                <div className="pi-tabs__head" role="tablist">
+                  {tabs.map((tab) => (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      role="tab"
+                      aria-selected={tab.id === activeTabId}
+                      className={`pi-tab${tab.id === activeTabId ? " is-active" : ""}`}
+                      onClick={() => setActiveTabId(tab.id)}
+                    >
+                      {tab.title || t("product.option_unnamed")}
+                    </button>
+                  ))}
+                </div>
+                <div className="pi-tabs__body">
+                  {activeTab && activeTab.content ? (
+                    <div
+                      className="pi-rich"
+                      dangerouslySetInnerHTML={{ __html: tiptapToHtml(activeTab.content) }}
                     />
                   ) : (
-                    <Text style={{ fontSize: 14, color: D.onSurfaceVariant }}>{t("product.tab_empty")}</Text>
+                    <p className="pi-empty">{t("product.tab_empty")}</p>
                   )}
-                </Tabs.Panel>
-              ))}
-            </Tabs>
-          )}
-        </Box>
+                </div>
+              </div>
+            )}
+          </div>
+        </section>
       )}
 
-      {/* Sticky mobile bottom bar */}
-      <Box
-        hiddenFrom="lg"
-        style={{
-          position: "fixed",
-          bottom: 0,
-          left: 0,
-          right: 0,
-          background: D.surface,
-          borderTop: `1px solid ${D.outlineVariant}`,
-          padding: 16,
-          zIndex: 100,
-          boxShadow: "0 -4px 10px rgba(0,0,0,0.05)",
-        }}
-      >
-        <Group justify="space-between" wrap="nowrap" gap={16}>
-          <Stack gap={2} style={{ flexShrink: 0 }}>
-            <Text style={{ fontSize: 12, lineHeight: "16px", fontWeight: 500, color: D.onSurfaceVariant }}>
-              {effectiveInquiry ? t("product.mobile_price_label") : t("product.mobile_total_label")}
-            </Text>
-            {!effectiveInquiry && displayPrice > 0 ? (
-              <PriceValue amount={displayPrice} size="md" />
-            ) : (
-              <Text style={{ fontSize: 20, lineHeight: "28px", fontWeight: 700, color: D.primary }}>
-                {t("product.mobile_on_inquiry")}
-              </Text>
-            )}
-          </Stack>
-          <UnstyledButton
-            onClick={() => { /* Pošaljite upit — wiring TBD */ }}
-            style={{
-              flex: 1,
-              background: D.primary,
-              color: "#fff",
-              padding: "12px 24px",
-              borderRadius: 4,
-              fontSize: 14,
-              fontWeight: 600,
-              letterSpacing: "0.05em",
-              textTransform: "uppercase",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 8,
-            }}
-          >
-            <IconSend />
-            POŠALJITE UPIT
-          </UnstyledButton>
-        </Group>
-      </Box>
-      {/* Spacer so content isn't covered by the sticky mobile bar */}
-      <Box hiddenFrom="lg" h={88} />
-    </article>
+      {/* ── RELATED ── same-category siblings (auto-derived). Hidden when none. */}
+      {related.length > 0 && (
+        <section className="pi-rel">
+          <div className="ln-container">
+            <div className="pi-rel__head">
+              <div>
+                <span className="pi-eyebrow">{tx("product.related_eyebrow", "Iz iste kategorije")}</span>
+                <h2>{tx("product.related_heading", "Srodni proizvodi")}</h2>
+              </div>
+              <Link to={allProductsUrl} className="ln-btn ln-btn--ghost">
+                {tx("product.related_all_products", "Svi proizvodi")}
+              </Link>
+            </div>
+            <div className="a-products">
+              {related.map((p) => (
+                <Link key={p.id} to={p.url} className="a-prod">
+                  <div className="a-thumb">
+                    {p.image && <img className="ln-img" src={p.image} alt={p.title} loading="lazy" />}
+                  </div>
+                  <div className="a-prod__b">
+                    {p.categoryTitle && <div className="a-prod__cat">{p.categoryTitle}</div>}
+                    <h3>{p.title}</h3>
+                    {p.price ? (
+                      <div className="a-prod__price">
+                        {p.price.from ? `${t("allproducts.price_from")} ` : ""}
+                        {eur(p.price.amount)} <small>{t("product.price_vat_suffix")}</small>
+                      </div>
+                    ) : (
+                      <div className="a-prod__price a-prod__price--upit">{t("allproducts.price_inquiry")}</div>
+                    )}
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* ── MOBILE STICKY BAR ── (CSS shows it ≤760px) */}
+      <div className="pi-bar">
+        <div className="pi-bar__price">
+          <span className="pi-bar__lbl">
+            {effectiveInquiry ? t("product.mobile_price_label") : t("product.mobile_total_label")}
+          </span>
+          <span className={`pi-bar__val${effectiveInquiry ? " is-inquiry" : ""}`}>
+            {effectiveInquiry ? t("product.mobile_on_inquiry") : eur(displayPrice)}
+          </span>
+        </div>
+        <button type="button" className="ln-btn ln-btn--primary" onClick={handleAddToCart} disabled={needsSelection}>
+          {justAdded ? addedLabel : addLabel}
+        </button>
+      </div>
+      {/* Spacer so the footer clears the fixed mobile bar (≤760px). */}
+      <div className="pi-bar-spacer" />
+    </div>
   );
 }
 
 // ─── Default view ─────────────────────────────────────────────────────────────
 
 function DefaultView({ page }: { page: Page }) {
+  // The route prints the page title above the blocks; each Mixed Content block
+  // is its own full-width section band (border between), inner `.ln-container`.
+  const blocks = (page.blocks ?? []).filter((b) => b.type === "mixed-content");
   return (
-    <article>
-      <Title order={1} mb="lg">{page.title}</Title>
-      {page.blocks?.map((block) => (
-        <BlockRenderer key={block.id} block={block} />
+    <div className="mx-view">
+      <section className="mx-pagehead">
+        <div className="ln-container">
+          <h1>{page.title}</h1>
+        </div>
+      </section>
+      {blocks.map((block) => (
+        <section className="mx-section" key={block.id}>
+          <div className="ln-container">
+            <BlockRenderer block={block} />
+          </div>
+        </section>
       ))}
-    </article>
+    </div>
   );
+}
+
+// ─── Detail-page helpers (article + eu-project) ───────────────────────────────
+
+// Croatian short date "28. svi. 2026" (matches the news listing / mock).
+const HR_MONTHS_SHORT = ["sij", "velj", "ožu", "tra", "svi", "lip", "srp", "kol", "ruj", "lis", "stu", "pro"];
+function formatDetailDate(iso: string, locale: string): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  if (locale === "hr") return `${d.getDate()}. ${HR_MONTHS_SHORT[d.getMonth()]}. ${d.getFullYear()}`;
+  return d.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+}
+
+// Back-link to the immediate parent listing, built from the ancestor chain so
+// it carries the full hierarchical path. Returns null when no ancestor resolves
+// in the active locale (caller falls back to a plain label).
+function parentListingLink(
+  page: Page,
+  locale: string,
+): { href: string; title: string } | null {
+  const anc = page.ancestors ?? [];
+  if (!anc.length) return null;
+  const segs = anc.map((a) => a.locales[locale]?.slug).filter((s): s is string => !!s);
+  if (segs.length !== anc.length) return null; // an ancestor is inactive in this locale
+  const parent = anc[anc.length - 1];
+  return { href: `/${locale}/${segs.join("/")}`, title: parent.locales[locale]?.title ?? "" };
 }
 
 // ─── Article view ───────────────────────────────────────────────────────────
 //
-// Article detail page: the type badge (`articleType`) + the large article photo
-// ("fotografija članka", `articlePhoto`) above the title, then the Mixed Content
-// body. The smaller `cardPhoto` is only used by the news listing cards.
+// News article detail: centered back-link + type badge + date + title, then
+// the Mixed Content body inside a narrow reading column (all in-article imagery
+// lives in the body widgets). The `cardPhoto` is only used by the news listing.
 
-function ArticleView({ page }: { page: Page }) {
+function ArticleView({ page, locale }: { page: Page; locale: string }) {
+  const { t } = useStrings();
+  const tx = (key: string, fb: string) => { const v = t(key); return v === key ? fb : v; };
+
   const td = page.typeData ?? {};
   const articleType = typeof td.articleType === "string" ? td.articleType : "";
-  const photo =
-    td.articlePhoto && typeof td.articlePhoto === "object" &&
-    typeof (td.articlePhoto as { cdnUrl?: unknown }).cdnUrl === "string"
-      ? (td.articlePhoto as { cdnUrl: string }).cdnUrl
-      : null;
+  const date = formatDetailDate(page.updatedAt || page.createdAt, locale);
+  const back = parentListingLink(page, locale);
+  const backLabel = back?.title || tx("article.back", "Novosti");
 
   return (
-    <article>
-      {articleType && (
-        <Badge variant="light" mb="sm" size="lg">{articleType}</Badge>
-      )}
-      <Title order={1} mb="lg">{page.title}</Title>
-      {photo && (
-        <Image src={photo} alt={page.title} radius="md" mb="xl" />
-      )}
-      {page.blocks?.map((block) => (
-        <BlockRenderer key={block.id} block={block} />
-      ))}
-    </article>
+    <div className="na-view">
+      <section className="na-top">
+        <div className="ln-container">
+          {back && (
+            <Link to={back.href} className="na-back">
+              <ArrowLeft aria-hidden="true" /> {backLabel}
+            </Link>
+          )}
+          <div className="na-head">
+            {(articleType || date) && (
+              <div className="na-meta">
+                {articleType && <span className="na-badge">{articleType}</span>}
+                {date && <span className="na-date">{date}</span>}
+              </div>
+            )}
+            <h1>{page.title}</h1>
+          </div>
+        </div>
+      </section>
+
+      <section className="na-body">
+        <div className="ln-container">
+          <article className="na-prose">
+            {page.blocks?.map((block) => (
+              <BlockRenderer key={block.id} block={block} />
+            ))}
+            <hr className="na-divider" />
+            <div className="na-foot">
+              {back && (
+                <Link to={back.href} className="ln-btn ln-btn--ghost">
+                  <ArrowLeft aria-hidden="true" /> {tx("article.all", "Sve novosti")}
+                </Link>
+              )}
+            </div>
+          </article>
+        </div>
+      </section>
+    </div>
   );
 }
 
 // ─── EU project view ──────────────────────────────────────────────────────────
 //
-// EU-project detail page: the main photo ("glavna fotografija", `mainPhoto`)
-// above the title, then the Mixed Content body. No badges or other chrome.
+// EU-project detail: back-link + "EU Projekt" eyebrow + title, then the Mixed
+// Content body inside a narrow reading column (all imagery lives in the body).
 
-function EuProjectItemView({ page }: { page: Page }) {
-  const td = page.typeData ?? {};
-  const photo =
-    td.mainPhoto && typeof td.mainPhoto === "object" &&
-    typeof (td.mainPhoto as { cdnUrl?: unknown }).cdnUrl === "string"
-      ? (td.mainPhoto as { cdnUrl: string }).cdnUrl
-      : null;
+function EuProjectItemView({ page, locale }: { page: Page; locale: string }) {
+  const { t } = useStrings();
+  const tx = (key: string, fb: string) => { const v = t(key); return v === key ? fb : v; };
+
+  const back = parentListingLink(page, locale);
+  const backLabel = back?.title || tx("euproject.back", "EU Projekti");
 
   return (
-    <article>
-      <Title order={1} mb="lg">{page.title}</Title>
-      {photo && (
-        <Image src={photo} alt={page.title} radius="md" mb="xl" />
-      )}
-      {page.blocks?.map((block) => (
-        <BlockRenderer key={block.id} block={block} />
-      ))}
-    </article>
+    <div className="ep-view">
+      <section className="ep-top">
+        <div className="ln-container">
+          {back && (
+            <Link to={back.href} className="ep-back">
+              <ArrowLeft aria-hidden="true" /> {backLabel}
+            </Link>
+          )}
+          <div className="ep-title">
+            <span className="ep-eyebrow">{tx("euproject.eyebrow", "EU Projekt")}</span>
+            <h1>{page.title}</h1>
+          </div>
+        </div>
+      </section>
+
+      <section className="ep-body">
+        <div className="ln-container">
+          <article className="ep-prose">
+            {page.blocks?.map((block) => (
+              <BlockRenderer key={block.id} block={block} />
+            ))}
+            <hr className="ep-divider" />
+            <div className="ep-foot">
+              {back && (
+                <Link to={back.href} className="ln-btn ln-btn--ghost">
+                  <ArrowLeft aria-hidden="true" /> {tx("euproject.all", "Svi EU projekti")}
+                </Link>
+              )}
+            </div>
+          </article>
+        </div>
+      </section>
+    </div>
   );
 }
 
@@ -1287,6 +1233,19 @@ export function PageView() {
   // visitor typed and shows a proper "not found" page.
   const [notFound, setNotFound] = useState(false);
   const { setAlternates } = usePageAlternates();
+  const { setFullBleed } = usePageLayout();
+
+  // Some page types own full-bleed bands (e.g. the product page's flush
+  // breadcrumb bar + tinted tabs band, the cart's head/body sections), so they
+  // drop RootLayout's centered container. Reset on unmount / type change.
+  useEffect(() => {
+    const FULL_BLEED = new Set([
+      "product-item", "cart", "all-products", "catalogues", "about-us", "news", "article",
+      "eu-projects", "eu-project-item", "default",
+    ]);
+    setFullBleed(FULL_BLEED.has(page?.type ?? ""));
+    return () => setFullBleed(false);
+  }, [page?.type, setFullBleed]);
 
   useEffect(() => {
     if (!path || !locale) return;
@@ -1349,11 +1308,11 @@ export function PageView() {
       ) : page.type === "news" ? (
         <NewsView page={page} locale={activeLocale} />
       ) : page.type === "article" ? (
-        <ArticleView page={page} />
+        <ArticleView page={page} locale={activeLocale} />
       ) : page.type === "eu-projects" ? (
         <EuProjectsView page={page} locale={activeLocale} />
       ) : page.type === "eu-project-item" ? (
-        <EuProjectItemView page={page} />
+        <EuProjectItemView page={page} locale={activeLocale} />
       ) : page.type === "search" ? (
         <SearchView page={page} />
       ) : page.type === "cart" ? (

@@ -37,13 +37,13 @@ function applyMarks(text: string, marks: TiptapMark[]): string {
         // PDF links render as a download button with a file icon (the old CMS
         // exposed these as "Preuzmite katalog" buttons).
         if (/\.pdf(\?|#|$)/i.test(href)) {
+          // Rendered as a lime download button by the `.mx-pdf` rule (Clean &
+          // Corporate). Old CMS exposed these as "Preuzmite katalog" buttons.
           const icon =
-            '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 18v-6"/><path d="M9 15l3 3 3-3"/></svg>';
+            '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 18v-6"/><path d="M9 15l3 3 3-3"/></svg>';
           return (
-            `<a href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer" ` +
-            'style="display:inline-flex;align-items:center;gap:8px;background:#496800;color:#fff;' +
-            'padding:10px 20px;border-radius:4px;font-size:14px;font-weight:600;letter-spacing:0.03em;' +
-            `text-decoration:none;margin:4px 0">${icon}<span>${acc}</span></a>`
+            `<a class="mx-pdf" href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer">` +
+            `${icon}<span>${acc}</span></a>`
           );
         }
         return `<a href="${escapeHtml(href)}"${rel}>${acc}</a>`;
@@ -115,8 +115,22 @@ function renderNode(node: TiptapNode): string {
       const cls = lang ? ` class="language-${lang}"` : "";
       return `<pre><code${cls}>${inner}</code></pre>`;
     }
+    // Tables — wrapped so wide tables scroll horizontally instead of overflowing.
+    case "table":       return `<div class="mx-tablewrap"><table><tbody>${inner}</tbody></table></div>`;
+    case "tableRow":    return `<tr>${inner}</tr>`;
+    case "tableHeader": return `<th${cellAttrs(node)}>${inner}</th>`;
+    case "tableCell":   return `<td${cellAttrs(node)}>${inner}</td>`;
     default: return inner;
   }
+}
+
+// colspan / rowspan for table cells (Tiptap stores 1 when unspanned).
+function cellAttrs(node: TiptapNode): string {
+  const a = node.attrs ?? {};
+  const parts: string[] = [];
+  if (typeof a.colspan === "number" && a.colspan > 1) parts.push(`colspan="${a.colspan}"`);
+  if (typeof a.rowspan === "number" && a.rowspan > 1) parts.push(`rowspan="${a.rowspan}"`);
+  return parts.length ? ` ${parts.join(" ")}` : "";
 }
 
 export function tiptapToHtml(doc: unknown): string {

@@ -150,13 +150,15 @@ export function HomePage() {
       return {
         id: g.id,
         title: g.title,
-        url: `/${activeLocale}/${g.slug}`,
+        // Open the full catalog with this group's category filter pre-applied
+        // (instead of the standalone group page).
+        url: `/${activeLocale}/${allProductsSlug}?kategorija=${encodeURIComponent(g.slug)}`,
         catNames: childCats.map((c) => c.title).join(" · "),
         catCount: childCats.length,
         image,
       };
     });
-  }, [groups, categories, items, activeLocale]);
+  }, [groups, categories, items, activeLocale, allProductsSlug]);
 
   // Newest 4 product-items by createdAt desc, joined to category + group for a
   // reachable hierarchical URL.

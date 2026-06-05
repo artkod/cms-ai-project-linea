@@ -1,8 +1,11 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { MantineProvider, createTheme } from "@mantine/core";
+import { Notifications } from "@mantine/notifications";
 import "@mantine/core/styles.css";
+import "@mantine/notifications/styles.css";
 import "./styles/linea-home.css";
+import { CartProvider } from "./lib/cart";
 import App from "./App";
 
 const theme = createTheme({
@@ -16,7 +19,10 @@ const theme = createTheme({
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <MantineProvider theme={theme}>
-      <App />
+      <Notifications position="bottom-right" />
+      <CartProvider>
+        <App />
+      </CartProvider>
     </MantineProvider>
   </StrictMode>
 );

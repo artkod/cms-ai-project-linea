@@ -1,193 +1,200 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router";
-import {
-  ActionIcon,
-  Box,
-  Button,
-  Card,
-  Divider,
-  Grid,
-  Group,
-  Image,
-  NumberInput,
-  Stack,
-  Text,
-  Title,
-} from "@mantine/core";
-import { Minus, Plus, ShoppingCart, Trash2 } from "lucide-react";
-import { type Page } from "@/lib/api";
+import { Minus, Plus, ShoppingCart, Trash2, ArrowLeft } from "lucide-react";
+import { getSystemPageSlug, type Page } from "@/lib/api";
 import { useStrings, useLocaleConfig } from "@/lib/locale";
+import { useCart } from "@/lib/cart";
+import { eur } from "@/lib/pricing";
+import { InquiryModal, type InquiryItem } from "@/components/InquiryModal";
+import "@/styles/linea-cart.css";
 
-// Simple Mantine cart. There is no cart state / "add to cart" control wired
-// yet (that lands with the navigation work later), so this view seeds a few
-// placeholder line items purely so the layout is reviewable. Swap `INITIAL`
-// for the real cart store once it exists; the empty-cart branch already
-// renders when the list is cleared.
-// NOTE: placeholder design — refine to match the example screen.
-
-interface CartLine {
-  id: string;
-  title: string;
-  image: string | null;
-  unitPrice: number;
-  qty: number;
+// Croatian item-count word: 1 artikl · 2–4 artikla · else artikala.
+function artiklWord(n: number): string {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return "artikl";
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return "artikla";
+  return "artikala";
 }
-
-const INITIAL: CartLine[] = [
-  { id: "1", title: "Roll-up baner 85×200", image: null, unitPrice: 49.0, qty: 2 },
-  { id: "2", title: "Reklamni stalak A1", image: null, unitPrice: 129.9, qty: 1 },
-  { id: "3", title: "Promotivni pult", image: null, unitPrice: 219.0, qty: 1 },
-];
-
-const eurFmt = new Intl.NumberFormat("hr-HR", {
-  style: "currency",
-  currency: "EUR",
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-});
 
 export function CartView({ page }: { page: Page }) {
   const { locale: localeParam } = useParams<{ locale: string }>();
   const { defaultLocale } = useLocaleConfig();
   const locale = localeParam ?? defaultLocale;
   const { t } = useStrings();
-
-  const [lines, setLines] = useState<CartLine[]>(INITIAL);
+  const tx = (key: string, fb: string) => {
+    const v = t(key);
+    return v === key ? fb : v;
+  };
+  const { items, count, subtotal, removeItem, setQty, clear } = useCart();
+  // A cart is "mixed" once any line has no price — the money total then becomes
+  // a stated minimum and carries the extra caveat below.
+  const anyUnpriced = items.some((it) => it.unitPrice == null);
+  const onRequest = tx("order.on_request", "Na upit");
 
   const home = `/${locale}/`;
+  const [allProductsSlug, setAllProductsSlug] = useState("svi-proizvodi");
+  useEffect(() => {
+    getSystemPageSlug("all-products", locale).then(setAllProductsSlug).catch(() => {});
+  }, [locale]);
+  const productsUrl = `/${locale}/${allProductsSlug}`;
 
-  function setQty(id: string, qty: number) {
-    setLines((prev) => prev.map((l) => (l.id === id ? { ...l, qty: Math.max(1, qty) } : l)));
-  }
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const inquiryItems: InquiryItem[] = items.map((it) => ({
+    title: it.title,
+    qty: it.qty,
+    unitPrice: it.unitPrice,
+    configLabel: it.configLabel,
+    image: it.image,
+  }));
+  const openCheckout = () => {
+    if (count > 0) setCheckoutOpen(true);
+  };
 
-  function remove(id: string) {
-    setLines((prev) => prev.filter((l) => l.id !== id));
-  }
-
-  const subtotal = lines.reduce((sum, l) => sum + l.unitPrice * l.qty, 0);
-
-  // ── Empty cart ──
-  if (lines.length === 0) {
-    return (
-      <Box>
-        <Title order={1} mb="lg">{page.title}</Title>
-        <Stack align="center" gap="sm" py={64} style={{ textAlign: "center" }}>
-          <Box c="dimmed"><ShoppingCart size={56} strokeWidth={1.25} /></Box>
-          <Title order={3}>{t("cart.empty_title")}</Title>
-          <Text c="dimmed" maw={420}>{t("cart.empty_text")}</Text>
-          <Button component={Link as any} to={home} variant="light" color="teal" mt="sm">
-            {t("cart.continue_shopping")}
-          </Button>
-        </Stack>
-      </Box>
-    );
-  }
-
-  // ── Filled cart ──
   return (
-    <Box>
-      <Title order={1} mb="lg">{page.title}</Title>
+    <div className="cr-page">
+      <section className="cr-head">
+        <div className="ln-container">
+          <div className="cr-head__row">
+            <h1>{page.title}</h1>
+            {count > 0 && (
+              <span className="cr-count">
+                {count} {artiklWord(count)}
+              </span>
+            )}
+          </div>
+        </div>
+      </section>
 
-      <Grid gutter="xl" align="flex-start">
-        {/* Line items */}
-        <Grid.Col span={{ base: 12, md: 8 }}>
-          <Stack gap="md">
-            {lines.map((l) => (
-              <Card key={l.id} withBorder padding="md" radius="md">
-                <Group wrap="nowrap" align="flex-start" gap="md">
-                  <Image
-                    src={l.image ?? undefined}
-                    w={88}
-                    h={88}
-                    radius="sm"
-                    fit="cover"
-                    fallbackSrc="https://placehold.co/200x200?text=%20"
-                  />
-                  <Box style={{ flex: 1, minWidth: 0 }}>
-                    <Group justify="space-between" align="flex-start" wrap="nowrap">
-                      <Stack gap={2} style={{ minWidth: 0 }}>
-                        <Text fw={600} lineClamp={2}>{l.title}</Text>
-                        <Text size="sm" c="dimmed">
-                          {t("cart.unit_price")}: {eurFmt.format(l.unitPrice)}
-                        </Text>
-                      </Stack>
-                      <ActionIcon
-                        variant="subtle"
-                        color="red"
-                        aria-label={t("cart.remove")}
-                        onClick={() => remove(l.id)}
-                      >
-                        <Trash2 size={18} />
-                      </ActionIcon>
-                    </Group>
-
-                    <Group justify="space-between" align="center" mt="sm" wrap="nowrap">
-                      <Group gap={4} align="center" wrap="nowrap">
-                        <ActionIcon
-                          variant="default"
-                          aria-label="-"
-                          onClick={() => setQty(l.id, l.qty - 1)}
+      <section className="cr-body">
+        <div className="ln-container">
+          {count > 0 ? (
+            <div className="cr-grid">
+              {/* Line items */}
+              <div className="cr-list">
+                {items.map((l) => (
+                  <div className="cr-item" key={l.key}>
+                    <div className="cr-item__media">
+                      {l.image && <img className="ln-img" src={l.image} alt={l.title} loading="lazy" />}
+                    </div>
+                    <div className="cr-item__main">
+                      <div className="cr-item__top">
+                        <h3 className="cr-item__name">
+                          {l.url ? <Link to={l.url}>{l.title}</Link> : l.title}
+                        </h3>
+                        <button
+                          type="button"
+                          className="cr-item__rm"
+                          aria-label={t("cart.remove")}
+                          onClick={() => removeItem(l.key)}
                         >
-                          <Minus size={14} />
-                        </ActionIcon>
-                        <NumberInput
-                          value={l.qty}
-                          onChange={(v) => setQty(l.id, Number(v) || 1)}
-                          min={1}
-                          hideControls
-                          w={56}
-                          styles={{ input: { textAlign: "center" } }}
-                          aria-label={t("cart.quantity")}
-                        />
-                        <ActionIcon
-                          variant="default"
-                          aria-label="+"
-                          onClick={() => setQty(l.id, l.qty + 1)}
-                        >
-                          <Plus size={14} />
-                        </ActionIcon>
-                      </Group>
-                      <Text fw={700}>{eurFmt.format(l.unitPrice * l.qty)}</Text>
-                    </Group>
-                  </Box>
-                </Group>
-              </Card>
-            ))}
-          </Stack>
-        </Grid.Col>
+                          <Trash2 aria-hidden="true" />
+                          <span className="cr-tip">{t("cart.remove")}</span>
+                        </button>
+                      </div>
 
-        {/* Order summary */}
-        <Grid.Col span={{ base: 12, md: 4 }}>
-          <Card withBorder padding="lg" radius="md">
-            <Title order={4} mb="md">{t("cart.summary_title")}</Title>
-            <Group justify="space-between" mb="xs">
-              <Text c="dimmed">{t("cart.subtotal")}</Text>
-              <Text fw={500}>{eurFmt.format(subtotal)}</Text>
-            </Group>
-            <Group justify="space-between" mb="xs">
-              <Text c="dimmed">{t("cart.shipping")}</Text>
-              <Text c="dimmed" fz="sm">{t("cart.shipping_note")}</Text>
-            </Group>
-            <Divider my="sm" />
-            <Group justify="space-between" mb="lg">
-              <Text fw={700}>{t("cart.total")}</Text>
-              <Text fw={700} fz="lg">{eurFmt.format(subtotal)}</Text>
-            </Group>
-            <Button fullWidth color="teal" size="md">{t("cart.checkout")}</Button>
-            <Button
-              component={Link as any}
-              to={home}
-              fullWidth
-              variant="subtle"
-              color="gray"
-              mt="xs"
-            >
-              {t("cart.continue_shopping")}
-            </Button>
-            <Text size="xs" c="dimmed" ta="center" mt="sm">{t("cart.vat_note")}</Text>
-          </Card>
-        </Grid.Col>
-      </Grid>
-    </Box>
+                      <div className="cr-item__price">
+                        <span className="cr-k">{t("cart.unit_price")}: </span>
+                        {l.unitPrice != null ? eur(l.unitPrice) : onRequest}
+                      </div>
+                      {l.configLabel && <div className="cr-item__config">{l.configLabel}</div>}
+
+                      <div className="cr-item__bottom">
+                        <div className="cr-qty">
+                          <span className="cr-qty__lbl">{t("cart.quantity")}</span>
+                          <div className="cr-stepper">
+                            <button
+                              type="button"
+                              className="cr-step"
+                              aria-label="-"
+                              disabled={l.qty <= 1}
+                              onClick={() => setQty(l.key, l.qty - 1)}
+                            >
+                              <Minus aria-hidden="true" />
+                            </button>
+                            <input
+                              className="cr-num"
+                              type="number"
+                              min={1}
+                              value={l.qty}
+                              aria-label={t("cart.quantity")}
+                              onChange={(e) => setQty(l.key, Number(e.currentTarget.value) || 1)}
+                            />
+                            <button
+                              type="button"
+                              className="cr-step"
+                              aria-label="+"
+                              onClick={() => setQty(l.key, l.qty + 1)}
+                            >
+                              <Plus aria-hidden="true" />
+                            </button>
+                          </div>
+                        </div>
+                        <div className="cr-item__total">{l.unitPrice != null ? eur(l.unitPrice * l.qty) : onRequest}</div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Order summary */}
+              <aside className="cr-summary">
+                <h2>{t("cart.summary_title")}</h2>
+                <div className="cr-sumrow">
+                  <span className="k">{t("cart.subtotal")}</span>
+                  <span className="v">{eur(subtotal)}</span>
+                </div>
+                <div className="cr-sumrow">
+                  <span className="k">{t("cart.shipping")}</span>
+                  <span className="note">{t("cart.shipping_note")}</span>
+                </div>
+                <hr className="cr-sumdiv" />
+                <div className="cr-sumtotal">
+                  <span className="k">
+                    {anyUnpriced ? tx("order.total_min", "Ukupna minimalna cijena") : t("cart.total")}
+                  </span>
+                  <span className="v">{eur(subtotal)}</span>
+                </div>
+                <button
+                  type="button"
+                  className="ln-btn ln-btn--primary ln-btn--lg cr-checkout"
+                  onClick={openCheckout}
+                >
+                  {tx("cart.finish_order", "Dovrši narudžbu")}
+                </button>
+                <Link to={home} className="cr-continue">
+                  <ArrowLeft aria-hidden="true" />
+                  {t("cart.continue_shopping")}
+                </Link>
+                <p className="cr-vat">
+                  {anyUnpriced
+                    ? tx("order.vat_note_mixed", "Cijene uključuju PDV. Dostava se obračunava naknadno. Proizvodi koji nemaju istaknutu cijenu nisu uključeni u ukupni zbroj te konačna cijena može biti veća od navedene.")
+                    : t("cart.vat_note")}
+                </p>
+              </aside>
+            </div>
+          ) : (
+            <div className="cr-empty">
+              <div className="cr-empty__ico">
+                <ShoppingCart aria-hidden="true" strokeWidth={1.6} />
+              </div>
+              <h2>{t("cart.empty_title")}</h2>
+              <p>{t("cart.empty_text")}</p>
+              <Link to={productsUrl} className="ln-btn ln-btn--primary ln-btn--lg">
+                {t("cart.continue_shopping")}
+              </Link>
+            </div>
+          )}
+        </div>
+      </section>
+
+      <InquiryModal
+        opened={checkoutOpen}
+        onClose={() => setCheckoutOpen(false)}
+        mode="cart"
+        items={inquiryItems}
+        onSuccess={clear}
+      />
+    </div>
   );
 }

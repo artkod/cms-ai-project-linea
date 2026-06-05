@@ -9,12 +9,13 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
-    "react-router": "^7.0.0",
     "@mantine/core": "^7.0.0",
     "@mantine/hooks": "^7.0.0",
-    "lucide-react": "^1.14.0"
+    "@mantine/notifications": "^7.17.8",
+    "lucide-react": "^1.14.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-router": "^7.0.0"
   },
   "devDependencies": {
     "@types/react": "^19.0.0",

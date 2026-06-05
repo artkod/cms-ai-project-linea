@@ -176,6 +176,9 @@ const SYSTEM_PAGE_FALLBACK_SLUG: Record<string, string> = {
   cart: "kosarica",
   "all-products": "svi-proizvodi",
   "about-us": "o-nama",
+  catalogues: "katalozi",
+  news: "novosti",
+  "eu-projects": "eu-projekti",
 };
 
 export async function getSystemPageSlug(type: string, locale: string): Promise<string> {

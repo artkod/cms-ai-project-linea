@@ -1,23 +1,9 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router";
-import {
-  Container,
-  Title,
-  Text,
-  Box,
-  Group,
-  Stack,
-  Button,
-  Grid,
-  SimpleGrid,
-  Card,
-  Image,
-  AspectRatio,
-  Divider,
-} from "@mantine/core";
-import { Download } from "lucide-react";
-import { type Page, type Block, type LinkPagesMap } from "@/lib/api";
+import { FileText, Download, Star } from "lucide-react";
+import { getSystemPageSlug, type Page, type Block, type LinkPagesMap } from "@/lib/api";
 import { useStrings } from "@/lib/locale";
+import "@/styles/linea-catalogues.css";
 
 // ─── catalogues block data ──────────────────────────────────────────────────
 
@@ -92,7 +78,7 @@ function formatSize(bytes: number | undefined): string {
 
 // Short uppercase type label from the MIME type (or filename extension).
 function typeLabel(file: MediaRef | null): string {
-  if (!file) return "";
+  if (!file) return "FILE";
   if (file.mimeType === "application/pdf") return "PDF";
   const fromName = file.name?.match(/\.([a-z0-9]+)$/i)?.[1];
   if (fromName) return fromName.toUpperCase();
@@ -100,137 +86,29 @@ function typeLabel(file: MediaRef | null): string {
   return sub ? sub.toUpperCase() : "FILE";
 }
 
-function metaLine(file: MediaRef | null): string {
-  const t = typeLabel(file);
-  const s = formatSize(file?.size);
-  return [t, s].filter(Boolean).join(" • ");
+// ─── small pieces ──────────────────────────────────────────────────────────
+
+function TypeChip({ file }: { file: MediaRef | null }) {
+  return (
+    <span className="ct-type">
+      <FileText aria-hidden="true" />
+      {typeLabel(file)}
+    </span>
+  );
 }
 
-// ─── Contact CTA button ────────────────────────────────────────────────────
-
-function ContactButton({
-  link,
-  label,
-  locale,
-  linkPages,
-}: {
-  link: Record<string, unknown> | null;
-  label: string;
-  locale: string;
-  linkPages: LinkPagesMap;
-}) {
-  const resolved = resolveHref(link, locale, linkPages);
-  const btn = (
-    <Button color="dark" size="md">
-      {label}
-    </Button>
-  );
-  if (!resolved) {
-    return <Button color="dark" size="md" disabled>{label}</Button>;
-  }
-  if (resolved.internal && !resolved.newTab) {
-    return (
-      <Link to={resolved.href} style={{ textDecoration: "none" }}>
-        {btn}
-      </Link>
-    );
-  }
+function DownloadBtn({ file, label, large }: { file: MediaRef | null; label: string; large?: boolean }) {
+  if (!file?.cdnUrl) return null;
   return (
     <a
-      href={resolved.href}
-      target={resolved.newTab ? "_blank" : undefined}
-      rel={resolved.newTab ? "noopener noreferrer" : undefined}
-      style={{ textDecoration: "none" }}
-    >
-      {btn}
-    </a>
-  );
-}
-
-// ─── Document card ────────────────────────────────────────────────────────────
-
-function DownloadLink({ href, label }: { href: string | undefined; label: string }) {
-  if (!href) return null;
-  return (
-    <Button
-      component="a"
-      href={href}
+      href={file.cdnUrl}
       target="_blank"
       rel="noopener noreferrer"
-      color="teal"
-      variant="light"
-      size="sm"
-      leftSection={<Download size={16} />}
+      className={`ln-btn ln-btn--primary${large ? " ln-btn--lg" : ""}`}
     >
+      <Download className="dlico" aria-hidden="true" />
       {label}
-    </Button>
-  );
-}
-
-function FeaturedCard({
-  doc,
-  cover,
-  downloadLabel,
-}: {
-  doc: CatalogueDoc;
-  cover: string | undefined;
-  downloadLabel: string;
-}) {
-  return (
-    <Card withBorder radius="md" padding="lg">
-      <Grid gutter="lg" align="center">
-        <Grid.Col span={{ base: 12, sm: 5 }}>
-          <AspectRatio ratio={4 / 3}>
-            {cover ? (
-              <Image src={cover} alt={doc.title} radius="sm" fit="cover" />
-            ) : (
-              <Box bg="gray.2" style={{ borderRadius: 8 }} />
-            )}
-          </AspectRatio>
-        </Grid.Col>
-        <Grid.Col span={{ base: 12, sm: 7 }}>
-          <Stack gap="md">
-            <Title order={2}>{doc.title || doc.file?.name}</Title>
-            <Group justify="space-between" align="center">
-              <Text c="dimmed" fz="sm">{metaLine(doc.file)}</Text>
-              <DownloadLink href={doc.file?.cdnUrl} label={downloadLabel} />
-            </Group>
-          </Stack>
-        </Grid.Col>
-      </Grid>
-    </Card>
-  );
-}
-
-function DocumentCard({
-  doc,
-  cover,
-  downloadLabel,
-}: {
-  doc: CatalogueDoc;
-  cover: string | undefined;
-  downloadLabel: string;
-}) {
-  return (
-    <Card withBorder radius="md" padding="lg">
-      <Card.Section>
-        <AspectRatio ratio={4 / 3}>
-          {cover ? (
-            <Image src={cover} alt={doc.title} fit="cover" />
-          ) : (
-            <Box bg="gray.2" />
-          )}
-        </AspectRatio>
-      </Card.Section>
-      <Stack gap="sm" mt="md">
-        <Title order={4}>{doc.title || doc.file?.name}</Title>
-        <Divider />
-        <Group justify="space-between" align="center">
-          <Text c="dimmed" fz="sm">{metaLine(doc.file)}</Text>
-          <DownloadLink href={doc.file?.cdnUrl} label={downloadLabel} />
-        </Group>
-      </Stack>
-    </Card>
+    </a>
   );
 }
 
@@ -239,7 +117,20 @@ function DocumentCard({
 export function CataloguesView({ page, locale }: { page: Page; locale: string }) {
   const d = useMemo(() => readBlock(page), [page]);
   const { t } = useStrings();
+  const tx = (key: string, fb: string) => {
+    const v = t(key);
+    return v === key ? fb : v;
+  };
   const linkPages = page.linkPages ?? {};
+
+  // CTA: the editor's contact link if set, else fall back to About → #kontakt.
+  const [aboutSlug, setAboutSlug] = useState("o-nama");
+  useEffect(() => {
+    getSystemPageSlug("about-us", locale).then(setAboutSlug).catch(() => {});
+  }, [locale]);
+  const resolvedCta = resolveHref(d.contactLink, locale, linkPages);
+  const cta = resolvedCta ?? { href: `/${locale}/${aboutSlug}#kontakt`, internal: true, newTab: false };
+  const ctaLabel = t("catalogues.cta_button");
 
   // Cover photo for document i — rotate through the seeded placeholder pool.
   const coverFor = (i: number): string | undefined => {
@@ -248,57 +139,108 @@ export function CataloguesView({ page, locale }: { page: Page; locale: string })
   };
 
   const [featured, ...rest] = d.documents;
+  const downloadLabel = t("catalogues.download");
 
   return (
-    <Container size="lg" py={48}>
-      <Stack gap={40}>
-        {/* ── Header ─────────────────────────────────────────────────────── */}
-        <Stack gap="md">
-          <Title order={1} fz={{ base: 32, md: 44 }} lh={1.1}>{page.title}</Title>
-          {d.subtitle && (
-            <Text c="dimmed" fz="lg" maw={620}>{d.subtitle}</Text>
+    <div className="ct-view">
+      {/* PAGE HEAD */}
+      <section className="ct-head">
+        <div className="ln-container">
+          <span className="ct-eyebrow">{tx("catalogues.eyebrow", "Dokumenti za preuzimanje")}</span>
+          <h1>{page.title}</h1>
+          <p>{d.subtitle || tx("catalogues.intro", "Preuzmite kataloge proizvoda, cjenike i tehničke specifikacije. Sve datoteke otvaraju se u novoj kartici.")}</p>
+        </div>
+      </section>
+
+      {/* DOCUMENTS */}
+      <section className="ct-body">
+        <div className="ln-container">
+          {d.documents.length === 0 ? (
+            <div className="ct-empty">
+              <div className="ct-empty__ico"><FileText aria-hidden="true" /></div>
+              <p>{t("catalogues.empty")}</p>
+            </div>
+          ) : (
+            <>
+              {featured && (
+                <article className="ct-featured">
+                  <div className="ct-featured__media">
+                    {coverFor(0) && <img className="ln-img" src={coverFor(0)} alt="" loading="lazy" />}
+                    <span className="ct-featured__badge">
+                      <Star aria-hidden="true" />
+                      {tx("catalogues.featured_badge", "Izdvojeno")}
+                    </span>
+                  </div>
+                  <div className="ct-featured__b">
+                    <TypeChip file={featured.file} />
+                    <h2>{featured.title || featured.file?.name}</h2>
+                    <div className="ct-meta">
+                      {typeLabel(featured.file)}
+                      {formatSize(featured.file?.size) && (
+                        <>
+                          <span className="dot" />
+                          {formatSize(featured.file?.size)}
+                        </>
+                      )}
+                    </div>
+                    <DownloadBtn file={featured.file} label={downloadLabel} large />
+                  </div>
+                </article>
+              )}
+
+              {rest.length > 0 && (
+                <div className="ct-grid">
+                  {rest.map((doc, i) => (
+                    <article className="ct-card" key={doc.id}>
+                      <div className="ct-card__media">
+                        {coverFor(i + 1) && <img className="ln-img" src={coverFor(i + 1)} alt="" loading="lazy" />}
+                        <span className="ct-card__fileicon"><FileText aria-hidden="true" /></span>
+                      </div>
+                      <div className="ct-card__b">
+                        <h3>{doc.title || doc.file?.name}</h3>
+                        <div className="ct-meta">
+                          <TypeChip file={doc.file} />
+                          {formatSize(doc.file?.size) && (
+                            <>
+                              <span className="dot" />
+                              {formatSize(doc.file?.size)}
+                            </>
+                          )}
+                        </div>
+                        <div className="ct-card__dl">
+                          <DownloadBtn file={doc.file} label={downloadLabel} />
+                        </div>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </>
           )}
-        </Stack>
+        </div>
+      </section>
 
-        {/* ── Documents ──────────────────────────────────────────────────── */}
-        {d.documents.length === 0 ? (
-          <Text c="dimmed">{t("catalogues.empty")}</Text>
-        ) : (
-          <Stack gap="lg">
-            {featured && (
-              <FeaturedCard doc={featured} cover={coverFor(0)} downloadLabel={t("catalogues.download")} />
+      {/* CONTACT CTA */}
+      <section className="ct-cta-sec">
+        <div className="ln-container">
+          <div className="ct-cta">
+            <h2>{t("catalogues.cta_heading")}</h2>
+            <p>{t("catalogues.cta_text")}</p>
+            {cta.internal && !cta.newTab ? (
+              <Link to={cta.href} className="ln-btn ln-btn--primary ln-btn--lg">{ctaLabel}</Link>
+            ) : (
+              <a
+                href={cta.href}
+                target={cta.newTab ? "_blank" : undefined}
+                rel={cta.newTab ? "noopener noreferrer" : undefined}
+                className="ln-btn ln-btn--primary ln-btn--lg"
+              >
+                {ctaLabel}
+              </a>
             )}
-            {rest.length > 0 && (
-              <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }} spacing="lg">
-                {rest.map((doc, i) => (
-                  <DocumentCard
-                    key={doc.id}
-                    doc={doc}
-                    cover={coverFor(i + 1)}
-                    downloadLabel={t("catalogues.download")}
-                  />
-                ))}
-              </SimpleGrid>
-            )}
-          </Stack>
-        )}
-
-        {/* ── Contact CTA ────────────────────────────────────────────────── */}
-        <Card radius="md" padding="xl" bg="gray.1">
-          <Group justify="space-between" align="center" wrap="wrap" gap="lg">
-            <Stack gap={6} style={{ flex: 1, minWidth: 260 }}>
-              <Title order={3}>{t("catalogues.cta_heading")}</Title>
-              <Text c="dimmed">{t("catalogues.cta_text")}</Text>
-            </Stack>
-            <ContactButton
-              link={d.contactLink}
-              label={t("catalogues.cta_button")}
-              locale={locale}
-              linkPages={linkPages}
-            />
-          </Group>
-        </Card>
-      </Stack>
-    </Container>
+          </div>
+        </div>
+      </section>
+    </div>
   );
 }
