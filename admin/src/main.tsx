@@ -170,9 +170,9 @@ const newsPageType: PageTypeDefinition = {
 };
 
 // article is a child of `news` only — never at root. Deletable, no cap. Beyond
-// the page title it carries two structured images (the main article photo and a
-// smaller card photo used in listings) plus an unlimited number of Mixed Content
-// sections. `multiBlock: true` keeps the editor restricted to mixed-content
+// the page title it carries a card photo (used by the news listing) plus an
+// unlimited number of Mixed Content sections (all in-article imagery lives in
+// the body). `multiBlock: true` keeps the editor restricted to mixed-content
 // while still allowing several sections (without it, a single allowed block type
 // would make the page a singleton-block page — see PageTypeDefinition.multiBlock).
 const articlePageType: PageTypeDefinition = {
@@ -186,7 +186,6 @@ const articlePageType: PageTypeDefinition = {
     // Options come from Settings → Article ("article" project-settings key) — an
     // admin-managed list, so editors can add types without a redeploy.
     { name: "articleType", label: "Vrsta članka", type: "select", optionsSource: "article" },
-    { name: "articlePhoto", label: "Fotografija članka", type: "image-url" },
     { name: "cardPhoto", label: "Fotografija kartice", type: "image-url" },
   ],
   allowBlocks: true,
@@ -214,8 +213,9 @@ const euProjectsPageType: PageTypeDefinition = {
 };
 
 // eu-project-item is a child of `eu-projects` only — never at root. Deletable,
-// no cap. Beyond the page title it carries one main photo plus an unlimited
-// number of Mixed Content sections. `multiBlock: true` keeps the editor
+// no cap. Beyond the page title it carries a card photo (used by the EU-projects
+// listing thumbnail) plus an unlimited number of Mixed Content sections (all
+// in-project imagery lives in the body). `multiBlock: true` keeps the editor
 // restricted to mixed-content while still allowing several sections (without
 // it, a single allowed block type would make the page a singleton-block page).
 const euProjectItemPageType: PageTypeDefinition = {
@@ -226,7 +226,7 @@ const euProjectItemPageType: PageTypeDefinition = {
   allowedParentTypes: ["eu-projects"],
   allowedChildTypes: [],
   fields: [
-    { name: "mainPhoto", label: "Glavna fotografija", type: "image-url" },
+    { name: "cardPhoto", label: "Fotografija kartice", type: "image-url" },
   ],
   allowBlocks: true,
   allowedBlockTypes: ["mixed-content"],

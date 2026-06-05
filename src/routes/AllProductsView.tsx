@@ -1,27 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
-import { Link, useParams } from "react-router";
-import {
-  Box,
-  Button,
-  Card,
-  Checkbox,
-  Chip,
-  Divider,
-  Grid,
-  Group,
-  Image,
-  Loader,
-  NumberInput,
-  Pagination,
-  Select,
-  SimpleGrid,
-  Stack,
-  Text,
-  TextInput,
-  Title,
-} from "@mantine/core";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Link, useParams, useSearchParams } from "react-router";
+import { Loader } from "@mantine/core";
+import { Search, Check, SlidersHorizontal, X, ChevronLeft, ChevronRight } from "lucide-react";
 import { getAllPages, type Page } from "@/lib/api";
 import { useStrings, useLocaleConfig } from "@/lib/locale";
+import { eur } from "@/lib/pricing";
+import "@/styles/linea-catalog.css";
 
 // ─── Pricing ──────────────────────────────────────────────────────────────────
 // Mirrors the per-product pricing rules in PageView.tsx so cards agree with the
@@ -91,13 +75,6 @@ export function computeCardPrice(d: ProductBlockData): { amount: number; from: b
   return null;
 }
 
-const eurFmt = new Intl.NumberFormat("hr-HR", {
-  style: "currency",
-  currency: "EUR",
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-});
-
 // ─── Card model ─────────────────────────────────────────────────────────────
 
 interface ProductCardData {
@@ -115,7 +92,23 @@ interface ProductCardData {
 
 type SortKey = "newest" | "oldest" | "name" | "price_asc" | "price_desc";
 
-const PAGE_SIZE_OPTIONS = ["12", "24", "48"];
+const PAGE_SIZE_OPTIONS = [12, 24, 48];
+
+/** Page-number list with ellipsis gaps: always first/last + current ±1. */
+function pageList(current: number, total: number): (number | "gap")[] {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  const wanted = new Set<number>([1, total]);
+  for (let i = current - 1; i <= current + 1; i++) if (i >= 1 && i <= total) wanted.add(i);
+  const sorted = [...wanted].sort((a, b) => a - b);
+  const out: (number | "gap")[] = [];
+  let prev = 0;
+  for (const n of sorted) {
+    if (n - prev > 1) out.push("gap");
+    out.push(n);
+    prev = n;
+  }
+  return out;
+}
 
 // ─── View ─────────────────────────────────────────────────────────────────────
 
@@ -124,6 +117,10 @@ export function AllProductsView({ page }: { page: Page }) {
   const { defaultLocale } = useLocaleConfig();
   const locale = localeParam ?? defaultLocale;
   const { t } = useStrings();
+  const tx = (key: string, fb: string) => {
+    const v = t(key);
+    return v === key ? fb : v;
+  };
 
   const [loading, setLoading] = useState(true);
   const [productsPages, setProductsPages] = useState<Page[]>([]);
@@ -188,90 +185,112 @@ export function AllProductsView({ page }: { page: Page }) {
     return out;
   }, [productsPages, categoryPages, itemPages, locale]);
 
-  // ─── Filter form (draft) vs. applied filters ────────────────────────────────
-  // Sidebar edits accumulate in the draft; nothing re-filters the grid until
-  // "Apply filters" copies the draft into the applied state.
-  const [searchDraft, setSearchDraft] = useState("");
-  const [catDraft, setCatDraft] = useState<string[]>([]);
-  const [subDraft, setSubDraft] = useState<string[]>([]);
-  // Kept as the raw NumberInput value (number or in-progress string) and parsed
-  // to a number only at apply time, so decimals can be typed without resetting.
-  const [minDraft, setMinDraft] = useState<number | string>("");
-  const [maxDraft, setMaxDraft] = useState<number | string>("");
+  // Product count per group (shown next to each category checkbox).
+  const groupCounts = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const c of cards) m.set(c.productsId, (m.get(c.productsId) ?? 0) + 1);
+    return m;
+  }, [cards]);
 
-  const [applied, setApplied] = useState<{
-    search: string;
-    catIds: string[];
-    subIds: string[];
-    min: number | null;
-    max: number | null;
-  }>({ search: "", catIds: [], subIds: [], min: null, max: null });
+  // ─── Live filters ────────────────────────────────────────────────────────────
+  // Every control writes straight into these and the grid re-filters as you
+  // type / tick — there's no "Apply filters" step.
+  const [search, setSearch] = useState("");
+  const [catIds, setCatIds] = useState<string[]>([]);
+  const [subIds, setSubIds] = useState<string[]>([]);
+  const [minStr, setMinStr] = useState<string>("");
+  const [maxStr, setMaxStr] = useState<string>("");
 
   // Display controls apply immediately (they're not part of the filter form).
   const [sort, setSort] = useState<SortKey>("newest");
   const [pageSize, setPageSize] = useState(12);
   const [pageNum, setPageNum] = useState(1);
 
-  // Subcategory options narrow to the picked categories (if any). Drop drafted
+  // Mobile filter drawer.
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  useEffect(() => {
+    if (!filtersOpen) return;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [filtersOpen]);
+
+  // Subcategory options narrow to the picked categories (if any). Drop selected
   // subcategory ids that fall outside the current category selection.
   const visibleSubs = useMemo(() => {
-    const subs = catDraft.length
-      ? categoryPages.filter((c) => c.parentId && catDraft.includes(c.parentId))
+    const subs = catIds.length
+      ? categoryPages.filter((c) => c.parentId && catIds.includes(c.parentId))
       : categoryPages;
     return [...subs].sort((a, b) => a.title.localeCompare(b.title));
-  }, [categoryPages, catDraft]);
+  }, [categoryPages, catIds]);
 
   useEffect(() => {
     const valid = new Set(visibleSubs.map((s) => s.id));
-    setSubDraft((prev) => prev.filter((id) => valid.has(id)));
+    setSubIds((prev) => prev.filter((id) => valid.has(id)));
   }, [visibleSubs]);
+
+  // Any filter change snaps back to the first results page.
+  useEffect(() => {
+    setPageNum(1);
+  }, [search, catIds, subIds, minStr, maxStr]);
+
+  // Deep-link from the homepage's "Naš asortiman" cards:
+  // `?kategorija=<products-slug>` pre-checks that category once the data loads.
+  const [searchParams] = useSearchParams();
+  const catParam = searchParams.get("kategorija");
+  const seededRef = useRef(false);
+  useEffect(() => {
+    if (seededRef.current) return;
+    if (!catParam) { seededRef.current = true; return; }
+    if (!productsPages.length) return; // wait for the groups to load
+    const match = productsPages.find((p) => p.slug === catParam);
+    if (match) setCatIds([match.id]);
+    seededRef.current = true;
+  }, [catParam, productsPages]);
 
   const categoryOptions = useMemo(
     () => [...productsPages].sort((a, b) => a.title.localeCompare(b.title)),
     [productsPages],
   );
 
-  function toBound(v: number | string): number | null {
-    const n = typeof v === "number" ? v : parseFloat(v);
+  function toBound(v: string): number | null {
+    const n = parseFloat(v);
     return Number.isFinite(n) ? n : null;
   }
 
-  function applyFilters() {
-    setApplied({
-      search: searchDraft.trim(),
-      catIds: catDraft,
-      subIds: subDraft,
-      min: toBound(minDraft),
-      max: toBound(maxDraft),
-    });
-    setPageNum(1);
+  function toggleCat(id: string) {
+    setCatIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  }
+  function toggleSub(id: string) {
+    setSubIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   }
 
   function resetFilters() {
-    setSearchDraft("");
-    setCatDraft([]);
-    setSubDraft([]);
-    setMinDraft("");
-    setMaxDraft("");
-    setApplied({ search: "", catIds: [], subIds: [], min: null, max: null });
-    setPageNum(1);
+    setSearch("");
+    setCatIds([]);
+    setSubIds([]);
+    setMinStr("");
+    setMaxStr("");
   }
 
   const filtered = useMemo(() => {
-    const q = applied.search.toLowerCase();
+    const q = search.trim().toLowerCase();
+    const min = toBound(minStr);
+    const max = toBound(maxStr);
     return cards.filter((c) => {
       if (q && !c.title.toLowerCase().includes(q)) return false;
-      if (applied.catIds.length && !applied.catIds.includes(c.productsId)) return false;
-      if (applied.subIds.length && !applied.subIds.includes(c.categoryId)) return false;
+      if (catIds.length && !catIds.includes(c.productsId)) return false;
+      if (subIds.length && !subIds.includes(c.categoryId)) return false;
       // A price bound excludes inquiry-only products (no comparable price).
-      if (applied.min != null || applied.max != null) {
+      if (min != null || max != null) {
         if (!c.price) return false;
-        if (applied.min != null && c.price.amount < applied.min) return false;
-        if (applied.max != null && c.price.amount > applied.max) return false;
+        if (min != null && c.price.amount < min) return false;
+        if (max != null && c.price.amount > max) return false;
       }
       return true;
     });
-  }, [cards, applied]);
+  }, [cards, search, catIds, subIds, minStr, maxStr]);
 
   const sorted = useMemo(() => {
     const arr = [...filtered];
@@ -312,15 +331,7 @@ export function AllProductsView({ page }: { page: Page }) {
   const currentPage = Math.min(pageNum, totalPages);
   const paged = sorted.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
-  if (loading) {
-    return (
-      <Box py="xl" ta="center">
-        <Loader />
-      </Box>
-    );
-  }
-
-  const sortData = [
+  const sortOptions: { value: SortKey; label: string }[] = [
     { value: "newest", label: t("allproducts.sort_newest") },
     { value: "oldest", label: t("allproducts.sort_oldest") },
     { value: "name", label: t("allproducts.sort_name") },
@@ -328,162 +339,251 @@ export function AllProductsView({ page }: { page: Page }) {
     { value: "price_desc", label: t("allproducts.sort_price_desc") },
   ];
 
-  return (
-    <Box>
-      <Title order={1} mb="lg">{page.title}</Title>
+  function priceMarkup(price: ProductCardData["price"]) {
+    if (!price) {
+      return <div className="cat-card__price is-inquiry">{t("allproducts.price_inquiry")}</div>;
+    }
+    return (
+      <div className="cat-card__price">
+        {price.from && <span className="vec">{t("allproducts.price_from")} </span>}
+        {eur(price.amount)} <small>{t("product.price_vat_suffix")}</small>
+      </div>
+    );
+  }
 
-      <Grid gutter="xl">
-        {/* ── Sidebar: filter form ── */}
-        <Grid.Col span={{ base: 12, md: 3 }}>
-          <Stack gap="lg">
-            <Box>
-              <Text fw={600} size="sm" mb={6}>{t("allproducts.search_label")}</Text>
-              <TextInput
-                placeholder={t("allproducts.search_placeholder")}
-                value={searchDraft}
-                onChange={(e) => setSearchDraft(e.currentTarget.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") applyFilters();
-                }}
-              />
-            </Box>
+  if (loading) {
+    return (
+      <div className="cat-view">
+        <div className="ln-container" style={{ padding: "96px 0", textAlign: "center" }}>
+          <Loader color="#9acb34" />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="cat-view">
+      {/* PAGE HEAD */}
+      <section className="cat-pagehead">
+        <div className="ln-container">
+          <span className="cat-eyebrow">{tx("allproducts.eyebrow", "Katalog")}</span>
+          <h1>{page.title}</h1>
+          <p>{tx("allproducts.intro", "Pregledajte cijeli asortiman — filtrirajte po kategoriji, cijeni ili nazivu i otvorite proizvod za upit.")}</p>
+        </div>
+      </section>
+
+      <section className="ln-container">
+        <div className="cat-layout">
+
+          {/* SIDEBAR / DRAWER */}
+          <aside className={`flt${filtersOpen ? " is-open" : ""}`} aria-label={tx("allproducts.filters", "Filteri")}>
+            <div className="flt__mobilehead">
+              <h2>{tx("allproducts.filters", "Filteri")}</h2>
+              <button type="button" className="flt__close" aria-label={tx("allproducts.close_filters", "Zatvori filtere")} onClick={() => setFiltersOpen(false)}>
+                <X aria-hidden="true" />
+              </button>
+            </div>
+
+            <div className="flt__sec">
+              <h3 className="flt__h">{t("allproducts.search_label")}</h3>
+              <div className="flt__search">
+                <Search aria-hidden="true" />
+                <input
+                  type="search"
+                  value={search}
+                  placeholder={t("allproducts.search_placeholder")}
+                  onChange={(e) => setSearch(e.currentTarget.value)}
+                />
+              </div>
+            </div>
 
             {categoryOptions.length > 0 && (
-              <Box>
-                <Text fw={600} size="sm" mb={6}>{t("allproducts.categories_label")}</Text>
-                <Checkbox.Group value={catDraft} onChange={setCatDraft}>
-                  <Stack gap={8}>
-                    {categoryOptions.map((c) => (
-                      <Checkbox key={c.id} value={c.id} label={c.title} />
-                    ))}
-                  </Stack>
-                </Checkbox.Group>
-              </Box>
+              <div className="flt__sec">
+                <h3 className="flt__h">{t("allproducts.categories_label")}</h3>
+                {categoryOptions.map((c) => (
+                  <label className="cat-check" key={c.id}>
+                    <input type="checkbox" checked={catIds.includes(c.id)} onChange={() => toggleCat(c.id)} />
+                    <span className="cat-check__box"><Check aria-hidden="true" /></span>
+                    <span className="cat-check__txt">{c.title}</span>
+                    <span className="cat-check__n">{groupCounts.get(c.id) ?? 0}</span>
+                  </label>
+                ))}
+              </div>
             )}
 
             {visibleSubs.length > 0 && (
-              <Box>
-                <Text fw={600} size="sm" mb={6}>{t("allproducts.subcategories_label")}</Text>
-                <Chip.Group multiple value={subDraft} onChange={setSubDraft}>
-                  <Group gap={8}>
-                    {visibleSubs.map((s) => (
-                      <Chip key={s.id} value={s.id} size="sm">{s.title}</Chip>
-                    ))}
-                  </Group>
-                </Chip.Group>
-              </Box>
+              <div className="flt__sec">
+                <h3 className="flt__h">{t("allproducts.subcategories_label")}</h3>
+                <div className="flt__chips">
+                  {visibleSubs.map((s) => (
+                    <button
+                      type="button"
+                      key={s.id}
+                      className={`cat-chip${subIds.includes(s.id) ? " is-on" : ""}`}
+                      onClick={() => toggleSub(s.id)}
+                    >
+                      {s.title}
+                    </button>
+                  ))}
+                </div>
+              </div>
             )}
 
-            <Box>
-              <Text fw={600} size="sm" mb={6}>{t("allproducts.price_label")}</Text>
-              <Group gap="xs" grow wrap="nowrap" align="center">
-                <NumberInput
-                  placeholder={t("allproducts.price_min")}
-                  value={minDraft}
-                  onChange={setMinDraft}
-                  min={0}
-                  hideControls
-                />
-                <Text c="dimmed">—</Text>
-                <NumberInput
-                  placeholder={t("allproducts.price_max")}
-                  value={maxDraft}
-                  onChange={setMaxDraft}
-                  min={0}
-                  hideControls
-                />
-              </Group>
-            </Box>
-
-            <Button onClick={applyFilters}>{t("allproducts.apply_filters")}</Button>
-            <Button variant="subtle" onClick={resetFilters}>{t("allproducts.reset_filters")}</Button>
-          </Stack>
-        </Grid.Col>
-
-        {/* ── Results ── */}
-        <Grid.Col span={{ base: 12, md: 9 }}>
-          <Group justify="space-between" align="center" mb="md" wrap="wrap">
-            <Text fw={600}>
-              {t("allproducts.count_prefix")} {sorted.length} {t("allproducts.count_suffix")}
-            </Text>
-            <Group gap="xs" align="center">
-              <Text size="sm" c="dimmed">{t("allproducts.sort_label")}</Text>
-              <Select
-                data={sortData}
-                value={sort}
-                onChange={(v) => {
-                  setSort((v as SortKey) ?? "newest");
-                  setPageNum(1);
-                }}
-                allowDeselect={false}
-                w={200}
-              />
-            </Group>
-          </Group>
-
-          {paged.length === 0 ? (
-            <Box py="xl" ta="center">
-              <Text c="dimmed">{t("allproducts.empty")}</Text>
-            </Box>
-          ) : (
-            <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="lg">
-              {paged.map((c) => (
-                <Card key={c.id} component={Link} to={c.url} withBorder padding="md" radius="md">
-                  <Card.Section>
-                    <Image
-                      src={c.image ?? undefined}
-                      h={180}
-                      alt={c.title}
-                      fallbackSrc="https://placehold.co/400x300?text=%20"
-                    />
-                  </Card.Section>
-                  <Stack gap={6} mt="sm">
-                    {c.categoryTitle && (
-                      <Text size="xs" c="dimmed" tt="uppercase" fw={600}>{c.categoryTitle}</Text>
-                    )}
-                    <Text fw={600} lineClamp={2}>{c.title}</Text>
-                    {c.description && (
-                      <Text size="sm" c="dimmed" lineClamp={2}>{c.description}</Text>
-                    )}
-                    <Box mt={4}>
-                      {c.price ? (
-                        <Text fw={700}>
-                          {c.price.from ? `${t("allproducts.price_from")} ` : ""}
-                          {eurFmt.format(c.price.amount)}
-                        </Text>
-                      ) : (
-                        <Text size="sm" c="dimmed">{t("allproducts.price_inquiry")}</Text>
-                      )}
-                    </Box>
-                  </Stack>
-                </Card>
-              ))}
-            </SimpleGrid>
-          )}
-
-          {sorted.length > 0 && (
-            <>
-              <Divider my="lg" />
-              <Group justify="space-between" align="center" wrap="wrap">
-                <Group gap="xs" align="center">
-                  <Text size="sm" c="dimmed">{t("allproducts.per_page_label")}</Text>
-                  <Select
-                    data={PAGE_SIZE_OPTIONS}
-                    value={String(pageSize)}
-                    onChange={(v) => {
-                      setPageSize(Number(v) || 12);
-                      setPageNum(1);
-                    }}
-                    allowDeselect={false}
-                    w={90}
+            <div className="flt__sec">
+              <h3 className="flt__h">{t("allproducts.price_label")}</h3>
+              <div className="flt__price">
+                <div className="flt__pricefield">
+                  <label htmlFor="fltMin">{t("allproducts.price_min")}</label>
+                  <input
+                    id="fltMin"
+                    type="number"
+                    min={0}
+                    inputMode="numeric"
+                    placeholder="0"
+                    value={minStr}
+                    onChange={(e) => setMinStr(e.currentTarget.value)}
                   />
-                </Group>
-                <Pagination total={totalPages} value={currentPage} onChange={setPageNum} />
-              </Group>
-            </>
-          )}
-        </Grid.Col>
-      </Grid>
-    </Box>
+                </div>
+                <span className="dash">–</span>
+                <div className="flt__pricefield">
+                  <label htmlFor="fltMax">{t("allproducts.price_max")}</label>
+                  <input
+                    id="fltMax"
+                    type="number"
+                    min={0}
+                    inputMode="numeric"
+                    placeholder="500"
+                    value={maxStr}
+                    onChange={(e) => setMaxStr(e.currentTarget.value)}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flt__sec">
+              <div className="flt__actions">
+                {/* Filters apply live, so on mobile this just dismisses the drawer
+                    to reveal the already-updated grid (hidden on desktop). */}
+                <button type="button" className="ln-btn ln-btn--primary flt__show" onClick={() => setFiltersOpen(false)}>
+                  {tx("allproducts.show_results", "Prikaži rezultate")} ({sorted.length})
+                </button>
+                <button type="button" className="ln-btn ln-btn--ghost" onClick={resetFilters}>
+                  {t("allproducts.reset_filters")}
+                </button>
+              </div>
+            </div>
+          </aside>
+
+          {/* RESULTS */}
+          <div className="cat-results">
+            <div className="cat-resbar">
+              <div className="cat-resbar__left">
+                <button type="button" className="ln-btn ln-btn--ghost openfilters" onClick={() => setFiltersOpen(true)}>
+                  <SlidersHorizontal aria-hidden="true" />
+                  {tx("allproducts.filters", "Filteri")}
+                </button>
+                <span className="cat-count">
+                  {t("allproducts.count_prefix")} <b>{sorted.length}</b> {t("allproducts.count_suffix")}
+                </span>
+              </div>
+              <div className="cat-sortwrap">
+                <label htmlFor="resSort">{t("allproducts.sort_label")}</label>
+                <select
+                  id="resSort"
+                  className="cat-select"
+                  value={sort}
+                  onChange={(e) => { setSort(e.currentTarget.value as SortKey); setPageNum(1); }}
+                >
+                  {sortOptions.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {paged.length === 0 ? (
+              <div className="cat-empty">
+                <Search aria-hidden="true" />
+                <p>{t("allproducts.empty")}</p>
+                <span>{tx("allproducts.empty_hint", "Pokušajte proširiti raspon cijene ili poništiti filtere.")}</span>
+              </div>
+            ) : (
+              <div className="cat-grid">
+                {paged.map((c) => (
+                  <Link key={c.id} to={c.url} className="cat-card">
+                    <div className="cat-card__media">
+                      {c.image && <img className="ln-img" src={c.image} alt={c.title} loading="lazy" />}
+                    </div>
+                    <div className="cat-card__b">
+                      {c.categoryTitle && <div className="cat-card__cat">{c.categoryTitle}</div>}
+                      <div className="cat-card__name">{c.title}</div>
+                      {c.description && <div className="cat-card__desc">{c.description}</div>}
+                      {priceMarkup(c.price)}
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+
+            {sorted.length > 0 && (
+              <div className="cat-pager">
+                <div className="cat-per">
+                  <label htmlFor="resPer">{t("allproducts.per_page_label")}</label>
+                  <select
+                    id="resPer"
+                    className="cat-select"
+                    value={pageSize}
+                    onChange={(e) => { setPageSize(Number(e.currentTarget.value) || 12); setPageNum(1); }}
+                  >
+                    {PAGE_SIZE_OPTIONS.map((n) => (
+                      <option key={n} value={n}>{n}</option>
+                    ))}
+                  </select>
+                </div>
+                {totalPages > 1 && (
+                  <div className="cat-pagenums">
+                    <button
+                      type="button"
+                      className="cat-page is-nav"
+                      aria-label="Prethodna"
+                      disabled={currentPage <= 1}
+                      onClick={() => setPageNum(currentPage - 1)}
+                    >
+                      <ChevronLeft aria-hidden="true" />
+                    </button>
+                    {pageList(currentPage, totalPages).map((p, i) =>
+                      p === "gap" ? (
+                        <span key={`gap-${i}`} className="cat-page__gap">…</span>
+                      ) : (
+                        <button
+                          type="button"
+                          key={p}
+                          className={`cat-page${p === currentPage ? " is-active" : ""}`}
+                          onClick={() => setPageNum(p)}
+                        >
+                          {p}
+                        </button>
+                      ),
+                    )}
+                    <button
+                      type="button"
+                      className="cat-page is-nav"
+                      aria-label="Sljedeća"
+                      disabled={currentPage >= totalPages}
+                      onClick={() => setPageNum(currentPage + 1)}
+                    >
+                      <ChevronRight aria-hidden="true" />
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+
+      {/* Mobile drawer overlay */}
+      <div className={`flt-overlay${filtersOpen ? " is-open" : ""}`} onClick={() => setFiltersOpen(false)} />
+    </div>
   );
 }

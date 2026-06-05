@@ -1,32 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router";
-import {
-  Container,
-  Title,
-  Text,
-  Box,
-  Group,
-  Stack,
-  Button,
-  Badge,
-  Card,
-  Image,
-  AspectRatio,
-  SimpleGrid,
-  Select,
-  Loader,
-  Pagination,
-  Divider,
-  Anchor,
-} from "@mantine/core";
+import { Loader } from "@mantine/core";
+import { Star, ArrowRight, Newspaper, ChevronLeft, ChevronRight } from "lucide-react";
 import { getAllPages, type Page } from "@/lib/api";
+import { useStrings } from "@/lib/locale";
+import "@/styles/linea-news.css";
 
 // ─── Article model (derived from child `article` pages of the news page) ───────
 //
 // Each article is a published `article` page whose parent is this news page.
 // Content fields come from the article page's typeData:
 //   articleType  → string (the Settings → Article dropdown value)
-//   articlePhoto → { cdnUrl } (large/hero image)
 //   cardPhoto    → { cdnUrl } (listing thumbnail)
 // The short excerpt is the SEO meta description of the article in this locale.
 
@@ -35,8 +19,6 @@ interface ArticleCard {
   title: string;
   slug: string;
   type: string;
-  // Listing cards always use the card photo ("fotografija kartice"); the larger
-  // article photo is reserved for the article detail page.
   cardImage: string | null;
   excerpt: string;
   date: string;
@@ -62,44 +44,48 @@ function toArticle(p: Page, locale: string): ArticleCard {
   };
 }
 
-// ─── UI labels (minimal, locale-aware) ─────────────────────────────────────────
-
+// Fixed UI labels (in code, not editable — per handoff §9).
 const LABELS = {
-  en: {
-    all: "All",
-    sortLabel: "Sort",
-    latest: "Latest",
-    oldest: "Oldest",
-    read: "Read article",
-    empty: "No articles yet.",
-    featured: "Featured",
-  },
-  hr: {
-    all: "Sve",
-    sortLabel: "Sortiraj",
-    latest: "Najnovije",
-    oldest: "Najstarije",
-    read: "Pročitaj članak",
-    empty: "Još nema članaka.",
-    featured: "Izdvojeno",
-  },
+  en: { all: "All", sortLabel: "Sort", latest: "Latest", oldest: "Oldest", read: "Read article", empty: "No articles yet.", featured: "Featured" },
+  hr: { all: "Sve", sortLabel: "Sortiraj", latest: "Najnovije", oldest: "Najstarije", read: "Pročitaj članak", empty: "Još nema članaka.", featured: "Izdvojeno" },
 } as const;
 
+// Croatian short date "5. lip. 2026" (month abbreviations per handoff).
+const HR_MONTHS = ["sij", "velj", "ožu", "tra", "svi", "lip", "srp", "kol", "ruj", "lis", "stu", "pro"];
 function formatDate(iso: string, locale: string): string {
   if (!iso) return "";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleDateString(locale === "hr" ? "hr-HR" : "en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
+  if (locale === "hr") return `${d.getDate()}. ${HR_MONTHS[d.getMonth()]}. ${d.getFullYear()}`;
+  return d.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+}
+
+/** Page-number list with ellipsis gaps. */
+function pageList(current: number, total: number): (number | "gap")[] {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  const wanted = new Set<number>([1, total]);
+  for (let i = current - 1; i <= current + 1; i++) if (i >= 1 && i <= total) wanted.add(i);
+  const sorted = [...wanted].sort((a, b) => a - b);
+  const out: (number | "gap")[] = [];
+  let prev = 0;
+  for (const n of sorted) {
+    if (n - prev > 1) out.push("gap");
+    out.push(n);
+    prev = n;
+  }
+  return out;
 }
 
 const PAGE_SIZE = 9;
 
 export function NewsView({ page, locale }: { page: Page; locale: string }) {
   const L = LABELS[locale as keyof typeof LABELS] ?? LABELS.en;
+  const { t } = useStrings();
+  const tx = (key: string, fb: string) => {
+    const v = t(key);
+    return v === key ? fb : v;
+  };
+
   const [articles, setArticles] = useState<ArticleCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>("__all__");
@@ -109,23 +95,14 @@ export function NewsView({ page, locale }: { page: Page; locale: string }) {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    // News is a singleton root, so every `article` page belongs to it — but we
-    // still scope to this page's id so the view stays correct if that changes.
     getAllPages("article", locale)
       .then((pages) => {
         if (cancelled) return;
-        const mine = pages.filter((p) => p.parentId === page.id).map((p) => toArticle(p, locale));
-        setArticles(mine);
+        setArticles(pages.filter((p) => p.parentId === page.id).map((p) => toArticle(p, locale)));
       })
-      .catch(() => {
-        if (!cancelled) setArticles([]);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
+      .catch(() => { if (!cancelled) setArticles([]); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, [page.id, locale]);
 
   // Distinct article types present in the content drive the filter chips.
@@ -137,138 +114,146 @@ export function NewsView({ page, locale }: { page: Page; locale: string }) {
 
   const visible = useMemo(() => {
     const filtered = filter === "__all__" ? articles : articles.filter((a) => a.type === filter);
-    const sorted = [...filtered].sort((a, b) =>
+    return [...filtered].sort((a, b) =>
       sort === "latest" ? b.date.localeCompare(a.date) : a.date.localeCompare(b.date)
     );
-    return sorted;
   }, [articles, filter, sort]);
 
-  // Reset to the first page whenever the filter/sort changes.
   useEffect(() => setPageNo(1), [filter, sort]);
 
+  // Featured = newest, only in the default view (Najnovije + "Sve").
   const featured = sort === "latest" && filter === "__all__" ? visible[0] : undefined;
   const listSource = featured ? visible.slice(1) : visible;
   const totalPages = Math.max(1, Math.ceil(listSource.length / PAGE_SIZE));
-  const pageItems = listSource.slice((pageNo - 1) * PAGE_SIZE, pageNo * PAGE_SIZE);
+  const currentPage = Math.min(pageNo, totalPages);
+  const pageItems = listSource.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
   const articleHref = (slug: string) => `/${locale}/${page.slug}/${slug}`;
 
   return (
-    <Container size="lg" py={48}>
-      {/* Header — the news page title (news has no body content of its own). */}
-      <Title order={1} mb="xl">{page.title}</Title>
+    <div className="nw-view">
+      <section className="nw-head">
+        <div className="ln-container">
+          <span className="nw-eyebrow">{tx("news.eyebrow", "Iz Linee")}</span>
+          <h1>{page.title}</h1>
+          <p>{tx("news.intro", "Investicije, nove tehnologije i proizvodi — pratite što se događa u našem studiju i proizvodnom pogonu.")}</p>
+        </div>
+      </section>
 
-      {loading ? (
-        <Group justify="center" py="xl"><Loader /></Group>
-      ) : articles.length === 0 ? (
-        <Text c="dimmed">{L.empty}</Text>
-      ) : (
-        <Stack gap="xl">
-          {/* Featured (latest) article */}
-          {featured && (
-            <Card withBorder padding="lg" radius="md">
-              <Group align="stretch" wrap="nowrap" gap="lg">
-                <Box style={{ flex: "0 0 45%", minWidth: 0 }}>
-                  <AspectRatio ratio={16 / 10}>
-                    {featured.cardImage ? (
-                      <Image src={featured.cardImage} alt={featured.title} radius="sm" fit="cover" />
-                    ) : (
-                      <Box bg="gray.1" style={{ borderRadius: 8 }} />
-                    )}
-                  </AspectRatio>
-                </Box>
-                <Stack gap="sm" style={{ flex: 1, minWidth: 0 }} justify="center">
-                  <Group gap="xs">
-                    <Badge color="green" variant="light">{L.featured}</Badge>
-                    {featured.type && <Badge variant="light">{featured.type}</Badge>}
-                    <Text size="sm" c="dimmed">{formatDate(featured.date, locale)}</Text>
-                  </Group>
-                  <Title order={2}>{featured.title}</Title>
-                  {featured.excerpt && <Text c="dimmed" lineClamp={3}>{featured.excerpt}</Text>}
-                  <Box>
-                    <Button component={Link} to={articleHref(featured.slug)} variant="filled" color="dark">
+      <section className="nw-body">
+        <div className="ln-container">
+          {loading ? (
+            <div style={{ padding: "80px 0", textAlign: "center" }}><Loader color="#9acb34" /></div>
+          ) : articles.length === 0 ? (
+            <div className="nw-empty">
+              <div className="nw-empty__ico"><Newspaper aria-hidden="true" /></div>
+              <p>{L.empty}</p>
+            </div>
+          ) : (
+            <>
+              {/* Featured (newest, default view only) */}
+              {featured && (
+                <Link to={articleHref(featured.slug)} className="nw-feat">
+                  <div className="nw-feat__media">
+                    {featured.cardImage && <img className="ln-img" src={featured.cardImage} alt={featured.title} />}
+                    <span className="nw-feat__izd"><Star aria-hidden="true" />{L.featured}</span>
+                  </div>
+                  <div className="nw-feat__b">
+                    <div className="nw-feat__meta">
+                      {featured.type && <span className="nw-badge">{featured.type}</span>}
+                      {formatDate(featured.date, locale) && <span className="nw-feat__date">{formatDate(featured.date, locale)}</span>}
+                    </div>
+                    <h2 className="nw-feat__title">{featured.title}</h2>
+                    {featured.excerpt && <p className="nw-feat__ex">{featured.excerpt}</p>}
+                    <span className="nw-feat__cta ln-btn ln-btn--primary ln-btn--lg">
                       {L.read}
-                    </Button>
-                  </Box>
-                </Stack>
-              </Group>
-            </Card>
-          )}
+                      <ArrowRight className="ln-arrow" aria-hidden="true" />
+                    </span>
+                  </div>
+                </Link>
+              )}
 
-          {/* Filter + sort bar */}
-          <Group justify="space-between" align="center">
-            <Group gap="xs">
-              <Button
-                size="xs"
-                variant={filter === "__all__" ? "filled" : "default"}
-                color="green"
-                onClick={() => setFilter("__all__")}
-              >
-                {L.all}
-              </Button>
-              {types.map((t) => (
-                <Button
-                  key={t}
-                  size="xs"
-                  variant={filter === t ? "filled" : "default"}
-                  color="green"
-                  onClick={() => setFilter(t)}
-                >
-                  {t}
-                </Button>
-              ))}
-            </Group>
-            <Select
-              size="xs"
-              w={180}
-              label={undefined}
-              aria-label={L.sortLabel}
-              value={sort}
-              onChange={(v) => setSort(v ?? "latest")}
-              data={[
-                { value: "latest", label: L.latest },
-                { value: "oldest", label: L.oldest },
-              ]}
-            />
-          </Group>
+              {/* Filter + sort bar */}
+              <div className="nw-bar">
+                <div className="nw-chips">
+                  <button
+                    type="button"
+                    className={`nw-chip${filter === "__all__" ? " is-on" : ""}`}
+                    onClick={() => setFilter("__all__")}
+                  >
+                    {L.all}
+                  </button>
+                  {types.map((ty) => (
+                    <button
+                      key={ty}
+                      type="button"
+                      className={`nw-chip${filter === ty ? " is-on" : ""}`}
+                      onClick={() => setFilter(ty)}
+                    >
+                      {ty}
+                    </button>
+                  ))}
+                </div>
+                <div className="nw-sortwrap">
+                  <label htmlFor="nwSort">{L.sortLabel}</label>
+                  <select id="nwSort" className="nw-select" value={sort} onChange={(e) => setSort(e.currentTarget.value)}>
+                    <option value="latest">{L.latest}</option>
+                    <option value="oldest">{L.oldest}</option>
+                  </select>
+                </div>
+              </div>
 
-          <Divider />
+              {/* Grid */}
+              {pageItems.length === 0 ? (
+                <div className="nw-empty">
+                  <div className="nw-empty__ico"><Newspaper aria-hidden="true" /></div>
+                  <p>{L.empty}</p>
+                </div>
+              ) : (
+                <div className="nw-grid">
+                  {pageItems.map((a) => (
+                    <Link key={a.id} to={articleHref(a.slug)} className="nw-card">
+                      <div className="nw-card__media">
+                        {a.cardImage && <img className="ln-img" src={a.cardImage} alt={a.title} loading="lazy" />}
+                        {a.type && <span className="nw-badge nw-badge--onmedia">{a.type}</span>}
+                      </div>
+                      <div className="nw-card__b">
+                        {formatDate(a.date, locale) && <div className="nw-card__date">{formatDate(a.date, locale)}</div>}
+                        <div className="nw-card__title">{a.title}</div>
+                        {a.excerpt && <div className="nw-card__ex">{a.excerpt}</div>}
+                        <span className="nw-card__link">
+                          {L.read}
+                          <ArrowRight aria-hidden="true" />
+                        </span>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              )}
 
-          {/* Article grid */}
-          <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }} spacing="lg">
-            {pageItems.map((a) => (
-              <Card key={a.id} withBorder padding="md" radius="md" component={Link} to={articleHref(a.slug)}>
-                <Card.Section>
-                  <AspectRatio ratio={16 / 10}>
-                    {a.cardImage ? (
-                      <Image src={a.cardImage} alt={a.title} fit="cover" />
+              {totalPages > 1 && (
+                <div className="nw-pager">
+                  <button type="button" className="nw-page is-nav" aria-label="Prethodna" disabled={currentPage <= 1} onClick={() => setPageNo(currentPage - 1)}>
+                    <ChevronLeft aria-hidden="true" />
+                  </button>
+                  {pageList(currentPage, totalPages).map((p, i) =>
+                    p === "gap" ? (
+                      <span key={`gap-${i}`} className="nw-page__gap">…</span>
                     ) : (
-                      <Box bg="gray.1" />
-                    )}
-                  </AspectRatio>
-                </Card.Section>
-                <Group justify="space-between" mt="sm" mb={4}>
-                  {a.type ? <Badge variant="light" size="sm">{a.type}</Badge> : <span />}
-                  <Text size="xs" c="dimmed">{formatDate(a.date, locale)}</Text>
-                </Group>
-                <Text fw={600} lineClamp={2}>{a.title}</Text>
-                {a.excerpt && (
-                  <Text size="sm" c="dimmed" mt={4} lineClamp={3}>{a.excerpt}</Text>
-                )}
-                <Anchor component="span" size="sm" c="green" mt="sm" fw={600}>
-                  {L.read} →
-                </Anchor>
-              </Card>
-            ))}
-          </SimpleGrid>
-
-          {totalPages > 1 && (
-            <Group justify="center">
-              <Pagination total={totalPages} value={pageNo} onChange={setPageNo} color="green" />
-            </Group>
+                      <button type="button" key={p} className={`nw-page${p === currentPage ? " is-active" : ""}`} onClick={() => setPageNo(p)}>
+                        {p}
+                      </button>
+                    ),
+                  )}
+                  <button type="button" className="nw-page is-nav" aria-label="Sljedeća" disabled={currentPage >= totalPages} onClick={() => setPageNo(currentPage + 1)}>
+                    <ChevronRight aria-hidden="true" />
+                  </button>
+                </div>
+              )}
+            </>
           )}
-        </Stack>
-      )}
-    </Container>
+        </div>
+      </section>
+    </div>
   );
 }

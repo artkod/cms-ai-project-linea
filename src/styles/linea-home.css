@@ -46,6 +46,9 @@
 
 .ln-wordmark { font-family: "Archivo", system-ui, sans-serif; font-weight: 800; font-size: 1.35rem; letter-spacing: -0.03em; text-decoration: none; color: var(--ink); display: inline-flex; align-items: center; gap: 8px; flex-shrink: 0; }
 .ln-wordmark .ln-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--brand); display: inline-block; }
+/* SVG brand mark — inherits color via currentColor (brand navy in the header,
+   white on the dark footer below). */
+.ln-logo { display: block; width: auto; height: 30px; color: #353e4a; }
 
 .ln-nav { display: flex; align-items: center; gap: 2px; list-style: none; margin: 0; padding: 0; }
 .ln-nav a { display: block; padding: 8px 13px; font-size: 0.9rem; font-weight: 500; color: var(--ink); text-decoration: none; border-radius: 7px; white-space: nowrap; transition: color .14s, background .14s; }
@@ -91,6 +94,7 @@
 .ln-footer { background: var(--footer-bg); color: var(--footer-ink); }
 .ln-footer__top { display: grid; grid-template-columns: 1.4fr 1fr 1.3fr; gap: 48px; padding: 64px 0 48px; }
 .ln-footer__brand .ln-wordmark { color: #fff; font-size: 1.5rem; }
+.ln-footer__brand .ln-logo { height: 34px; color: #fff; }
 .ln-footer__tag { margin: 16px 0 0; max-width: 30ch; color: var(--footer-ink-2); font-size: 0.92rem; line-height: 1.6; }
 .ln-footer h4 { margin: 0 0 16px; font-size: 0.78rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--brand); font-family: "Archivo", sans-serif; }
 .ln-footer__links { list-style: none; margin: 0; padding: 0; display: grid; gap: 11px; }

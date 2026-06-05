@@ -1,25 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router";
-import {
-  Container,
-  Title,
-  Text,
-  Box,
-  Group,
-  Stack,
-  Button,
-  Grid,
-  SimpleGrid,
-  Card,
-  Modal,
-  TextInput,
-  Textarea,
-  Select,
-  UnstyledButton,
-  AspectRatio,
-  Image,
-} from "@mantine/core";
-import { icons } from "lucide-react";
+import { Modal, AspectRatio, Button } from "@mantine/core";
+import { icons, Phone, Mail, Printer, MapPin, ArrowUpRight, UploadCloud } from "lucide-react";
 import {
   type Page,
   type Block,
@@ -28,8 +10,10 @@ import {
   type ContactInfo,
   getFeaturedBanners,
   getContactInfo,
+  getSystemPageSlug,
 } from "@/lib/api";
 import { useLocaleConfig, useStrings } from "@/lib/locale";
+import "@/styles/linea-about.css";
 
 // ─── about-us block data ──────────────────────────────────────────────────────
 
@@ -86,8 +70,7 @@ export function mapsAppLink(address: string, embedSrc: string): string {
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
-// Resolve a CMS LinkData object → a navigable href (mirrors PageView's
-// LinkRenderer, but standalone since this view lives in its own file).
+// Resolve a CMS LinkData object → a navigable href.
 function resolveHref(
   link: Record<string, unknown> | null,
   locale: string,
@@ -122,230 +105,75 @@ function pickLocalized(map: Record<string, string> | undefined, locale: string, 
   return map[locale] || map[defaultLocale] || Object.values(map).find((v) => v && v.trim()) || "";
 }
 
-function CmsButton({
+const IS_MOBILE =
+  typeof navigator !== "undefined" && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+// `.ln-btn` CTA from a CMS LinkData (with a fallback label + href). A "#anchor"
+// href smooth-scrolls in-page rather than navigating.
+function LnCta({
   link,
-  label: fallbackLabel,
+  fallbackLabel,
+  fallbackHref,
   variant,
   locale,
   linkPages,
 }: {
   link: Record<string, unknown> | null;
-  label?: string;
-  variant: "filled" | "outline";
+  fallbackLabel: string;
+  fallbackHref: string;
+  variant: "primary" | "ghost";
   locale: string;
   linkPages: LinkPagesMap;
 }) {
   const resolved = resolveHref(link, locale, linkPages);
-  if (!resolved) return null;
-  const label = (link?.linkText as string) || fallbackLabel || resolved.href;
-  const tooltip = (link?.tooltip as string) || undefined;
-  const btn = (
-    <Button variant={variant} color="teal" size="md">
-      {label}
-    </Button>
-  );
-  // Same-page anchor (e.g. a "remote URL" of "#kontakt") → smooth-scroll instead
-  // of navigating. Lets a CTA like "Kontaktiraj nas" focus section 3.
-  if (resolved.href.startsWith("#")) {
+  const href = resolved?.href ?? fallbackHref;
+  const label = (link?.linkText as string) || fallbackLabel;
+  const cls = `ln-btn ln-btn--${variant} ln-btn--lg`;
+
+  if (href.startsWith("#")) {
     return (
-      <UnstyledButton onClick={() => scrollToAnchor(resolved.href)} title={tooltip}>
-        {btn}
-      </UnstyledButton>
+      <a href={href} className={cls} onClick={(e) => { e.preventDefault(); scrollToAnchor(href); }}>
+        {label}
+      </a>
     );
   }
-  if (resolved.internal && !resolved.newTab) {
-    return (
-      <Link to={resolved.href} style={{ textDecoration: "none" }} title={tooltip}>
-        {btn}
-      </Link>
-    );
-  }
+  const internal = resolved ? resolved.internal : href.startsWith("/");
+  const newTab = resolved?.newTab ?? false;
+  if (internal && !newTab) return <Link to={href} className={cls}>{label}</Link>;
   return (
-    <a
-      href={resolved.href}
-      title={tooltip}
-      target={resolved.newTab ? "_blank" : undefined}
-      rel={resolved.newTab ? "noopener noreferrer" : undefined}
-      style={{ textDecoration: "none" }}
-    >
-      {btn}
+    <a href={href} className={cls} target={newTab ? "_blank" : undefined} rel={newTab ? "noopener noreferrer" : undefined}>
+      {label}
     </a>
   );
 }
 
-// Heading with the small teal accent bar used under section titles.
-function SectionTitle({ children }: { children: React.ReactNode }) {
-  return (
-    <Box>
-      <Title order={2} mb={8}>
-        {children}
-      </Title>
-      <Box w={56} h={3} bg="teal.6" style={{ borderRadius: 2 }} />
-    </Box>
-  );
-}
-
-const IS_MOBILE =
-  typeof navigator !== "undefined" && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-
-// ─── Featured banners ─────────────────────────────────────────────────────────
+// ─── Featured banners (reuses the homepage .a-banner vocabulary) ─────────────
 
 function FeaturedBanners({ banners, locale, defaultLocale }: { banners: FeaturedBanner[]; locale: string; defaultLocale: string }) {
   if (!banners.length) return null;
   return (
-    <SimpleGrid cols={{ base: 1, sm: banners.length >= 3 ? 3 : banners.length }} spacing="lg">
+    <div className="a-banners">
       {banners.map((b, i) => {
         const Icon = b.icon ? (icons as Record<string, typeof icons.Truck>)[b.icon] : null;
         const title = pickLocalized(b.title, locale, defaultLocale);
         const content = pickLocalized(b.content, locale, defaultLocale);
         return (
-          <Card key={i} withBorder padding="lg" radius="md">
-            <Stack gap="sm">
-              {Icon && (
-                <Box
-                  w={40}
-                  h={40}
-                  bg="teal.5"
-                  c="white"
-                  style={{ borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center" }}
-                >
-                  <Icon size={20} />
-                </Box>
-              )}
-              {title && (
-                <Text fw={600} fz="lg">
-                  {title}
-                </Text>
-              )}
-              {content && (
-                <Text c="dimmed" fz="sm">
-                  {content}
-                </Text>
-              )}
-            </Stack>
-          </Card>
+          <div className="a-banner" key={i}>
+            <div className="a-banner__ico">{Icon && <Icon aria-hidden="true" />}</div>
+            {title && <h3>{title}</h3>}
+            {content && <p>{content}</p>}
+          </div>
         );
       })}
-    </SimpleGrid>
+    </div>
   );
 }
 
-// ─── Contact panel (info + map) ───────────────────────────────────────────────
-
-function ContactPanel({ contact }: { contact: ContactInfo | null }) {
-  const { t } = useStrings();
-  const [mapOpen, setMapOpen] = useState(false);
-  if (!contact) return null;
-
-  const Phone = icons.Phone;
-  const Mail = icons.Mail;
-  const Pin = icons.MapPin;
-
-  const hasMaps = Boolean(contact.mapsUrl && contact.mapsUrl.trim());
-  const embedSrc = extractMapEmbedSrc(contact.mapsUrl);
-  const appLink = mapsAppLink(contact.address, embedSrc);
-
-  function onMapClick() {
-    if (!hasMaps) return;
-    // On phones/tablets, open a place link directly so the OS hands it to the
-    // native Google Maps / Apple Maps app. On desktop, show the embed modal.
-    if (IS_MOBILE) {
-      window.open(appLink, "_blank", "noopener,noreferrer");
-    } else {
-      setMapOpen(true);
-    }
-  }
-
-  return (
-    <Stack gap="lg">
-      <SimpleGrid cols={{ base: 1, xs: 2 }} spacing="md">
-        {contact.phone && (
-          <Group gap="sm" align="flex-start" wrap="nowrap">
-            <Box c="teal.6" mt={2}><Phone size={18} /></Box>
-            <div>
-              <Text fz="xs" fw={700} c="dimmed" tt="uppercase">{t("about.contact_phone")}</Text>
-              <Text fz="sm" component="a" href={`tel:${contact.phone.replace(/[^+\d]/g, "")}`} style={{ color: "inherit" }}>
-                {contact.phone}
-              </Text>
-            </div>
-          </Group>
-        )}
-        {contact.email && (
-          <Group gap="sm" align="flex-start" wrap="nowrap">
-            <Box c="teal.6" mt={2}><Mail size={18} /></Box>
-            <div>
-              <Text fz="xs" fw={700} c="dimmed" tt="uppercase">{t("about.contact_email")}</Text>
-              <Text fz="sm" component="a" href={`mailto:${contact.email}`} style={{ color: "inherit" }}>
-                {contact.email}
-              </Text>
-            </div>
-          </Group>
-        )}
-        {contact.fax && (
-          <Group gap="sm" align="flex-start" wrap="nowrap">
-            <Box c="teal.6" mt={2}><Phone size={18} /></Box>
-            <div>
-              <Text fz="xs" fw={700} c="dimmed" tt="uppercase">{t("about.contact_fax")}</Text>
-              <Text fz="sm" component="a" href={`tel:${contact.fax.replace(/[^+\d]/g, "")}`} style={{ color: "inherit" }}>
-                {contact.fax}
-              </Text>
-            </div>
-          </Group>
-        )}
-        {contact.address && (
-          <Group gap="sm" align="flex-start" wrap="nowrap">
-            <Box c="teal.6" mt={2}><Pin size={18} /></Box>
-            <div>
-              <Text fz="xs" fw={700} c="dimmed" tt="uppercase">{t("about.contact_address")}</Text>
-              <Text fz="sm">{contact.address}</Text>
-            </div>
-          </Group>
-        )}
-      </SimpleGrid>
-
-      <UnstyledButton
-        onClick={onMapClick}
-        disabled={!hasMaps}
-        style={{ display: "block", cursor: hasMaps ? "pointer" : "default", borderRadius: 8, overflow: "hidden" }}
-        aria-label={t("about.map_title")}
-      >
-        <Image src="/map.svg" alt={t("about.map_title")} radius="md" />
-      </UnstyledButton>
-
-      <Modal opened={mapOpen} onClose={() => setMapOpen(false)} title={t("about.map_title")} size="xl" centered>
-        <Stack gap="md">
-          <AspectRatio ratio={16 / 9}>
-            <iframe
-              title="Google Maps"
-              src={embedSrc}
-              style={{ border: 0, width: "100%", height: "100%", borderRadius: 8 }}
-              loading="lazy"
-              referrerPolicy="no-referrer-when-downgrade"
-              allowFullScreen
-            />
-          </AspectRatio>
-          <Group justify="flex-end">
-            <Button
-              component="a"
-              href={appLink}
-              target="_blank"
-              rel="noopener noreferrer"
-              variant="light"
-              color="teal"
-            >
-              {t("about.map_open")}
-            </Button>
-          </Group>
-        </Stack>
-      </Modal>
-    </Stack>
-  );
-}
-
-// ─── Static contact form (UI only) ────────────────────────────────────────────
+// ─── Static inquiry form (UI only) ────────────────────────────────────────────
 
 function InquiryForm() {
   const { t } = useStrings();
+  const [service, setService] = useState("");
   const serviceOptions = [
     t("about.form_service_opt1"),
     t("about.form_service_opt2"),
@@ -355,39 +183,139 @@ function InquiryForm() {
     t("about.form_service_opt6"),
   ];
   return (
-    <form onSubmit={(e) => e.preventDefault()}>
-      <Stack gap="md">
-        <Grid gutter="md">
-          <Grid.Col span={{ base: 12, sm: 6 }}>
-            <TextInput label={t("about.form_fullname")} placeholder={t("about.form_fullname_ph")} />
-          </Grid.Col>
-          <Grid.Col span={{ base: 12, sm: 6 }}>
-            <TextInput label={t("about.form_email")} type="email" placeholder={t("about.form_email_ph")} />
-          </Grid.Col>
-        </Grid>
-        <Select
-          label={t("about.form_service")}
-          placeholder={t("about.form_service_ph")}
-          data={serviceOptions}
-        />
-        <Textarea label={t("about.form_message")} placeholder={t("about.form_message_ph")} autosize minRows={4} />
-        <Box
-          p="md"
-          style={{
-            border: "1px dashed var(--mantine-color-gray-4)",
-            borderRadius: 8,
-            textAlign: "center",
-            color: "var(--mantine-color-dimmed)",
-            fontSize: 14,
-          }}
+    <form className="ab-form" onSubmit={(e) => e.preventDefault()} noValidate>
+      <div className="ab-form__row">
+        <div className="ab-field">
+          <label>{t("about.form_fullname")}</label>
+          <input className="ab-input" type="text" placeholder={t("about.form_fullname_ph")} />
+        </div>
+        <div className="ab-field">
+          <label>{t("about.form_email")}</label>
+          <input className="ab-input" type="email" placeholder={t("about.form_email_ph")} />
+        </div>
+      </div>
+      <div className="ab-field">
+        <label>{t("about.form_service")}</label>
+        <select
+          className={`ab-select${service === "" ? " is-placeholder" : ""}`}
+          value={service}
+          onChange={(e) => setService(e.currentTarget.value)}
         >
-          {t("about.form_dropzone")}
-        </Box>
-        <Button type="submit" color="teal" size="md" fullWidth>
-          {t("about.form_submit")}
-        </Button>
-      </Stack>
+          <option value="" disabled>{t("about.form_service_ph")}</option>
+          {serviceOptions.map((o) => (
+            <option key={o} value={o}>{o}</option>
+          ))}
+        </select>
+      </div>
+      <div className="ab-field">
+        <label>{t("about.form_message")}</label>
+        <textarea className="ab-textarea" placeholder={t("about.form_message_ph")} />
+      </div>
+      <div className="ab-field">
+        <div className="ab-drop">
+          <div className="ab-drop__ico"><UploadCloud aria-hidden="true" /></div>
+          <p>{t("about.form_dropzone")}</p>
+        </div>
+      </div>
+      <div className="ab-form__submit">
+        <button type="submit" className="ln-btn ln-btn--primary ln-btn--lg">{t("about.form_submit")}</button>
+      </div>
     </form>
+  );
+}
+
+// ─── Contact panel (info + stylized map → real embed modal / deep-link) ───────
+
+const PIN_SVG = (
+  <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+    <path d="M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7zm0 9.5A2.5 2.5 0 1 1 12 6a2.5 2.5 0 0 1 0 5.5z" />
+  </svg>
+);
+
+function ContactPanel({ contact }: { contact: ContactInfo | null }) {
+  const { t } = useStrings();
+  const [mapOpen, setMapOpen] = useState(false);
+  if (!contact) return null;
+
+  const hasMaps = Boolean(contact.mapsUrl && contact.mapsUrl.trim());
+  const embedSrc = extractMapEmbedSrc(contact.mapsUrl);
+  const appLink = mapsAppLink(contact.address, embedSrc);
+
+  function onMapClick() {
+    if (!hasMaps) return;
+    // On phones/tablets, hand the place link to the native maps app; on desktop
+    // show the real embed in a modal.
+    if (IS_MOBILE) window.open(appLink, "_blank", "noopener,noreferrer");
+    else setMapOpen(true);
+  }
+
+  const rows: { k: string; icon: React.ReactNode; node: React.ReactNode }[] = [];
+  if (contact.phone)
+    rows.push({ k: t("about.contact_phone"), icon: <Phone aria-hidden="true" />, node: <a href={`tel:${contact.phone.replace(/[^+\d]/g, "")}`}>{contact.phone}</a> });
+  if (contact.email)
+    rows.push({ k: t("about.contact_email"), icon: <Mail aria-hidden="true" />, node: <a href={`mailto:${contact.email}`}>{contact.email}</a> });
+  if (contact.fax)
+    rows.push({ k: t("about.contact_fax"), icon: <Printer aria-hidden="true" />, node: contact.fax });
+  if (contact.address)
+    rows.push({ k: t("about.contact_address"), icon: <MapPin aria-hidden="true" />, node: contact.address });
+
+  return (
+    <div className="ab-panel">
+      <div className="ab-panel__card">
+        <ul className="ab-panel__list">
+          {rows.map((r, i) => (
+            <li key={i}>
+              <span className="ab-panel__ico">{r.icon}</span>
+              <div>
+                <div className="ab-panel__k">{r.k}</div>
+                <div className="ab-panel__v">{r.node}</div>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      {hasMaps && (
+        <div className="ab-map">
+          <div className="ab-map__head">
+            <h3>{t("about.map_title")}</h3>
+            <button type="button" className="ab-map__open" onClick={onMapClick}>
+              <ArrowUpRight aria-hidden="true" />
+              {t("about.map_open")}
+            </button>
+          </div>
+          <div className="ab-map__canvas" role="button" aria-label={t("about.map_title")} onClick={onMapClick}>
+            <div className="ab-map__road r1" />
+            <div className="ab-map__road r2" />
+            <div className="ab-map__pin">{PIN_SVG}</div>
+          </div>
+        </div>
+      )}
+
+      <Modal opened={mapOpen} onClose={() => setMapOpen(false)} title={t("about.map_title")} size="xl" centered>
+        <AspectRatio ratio={16 / 9}>
+          <iframe
+            title="Google Maps"
+            src={embedSrc}
+            style={{ border: 0, width: "100%", height: "100%", borderRadius: 8 }}
+            loading="lazy"
+            referrerPolicy="no-referrer-when-downgrade"
+            allowFullScreen
+          />
+        </AspectRatio>
+        <Button
+          component="a"
+          href={appLink}
+          target="_blank"
+          rel="noopener noreferrer"
+          variant="light"
+          color="teal"
+          mt="md"
+        >
+          {t("about.map_open")}
+        </Button>
+      </Modal>
+    </div>
   );
 }
 
@@ -396,71 +324,97 @@ function InquiryForm() {
 export function AboutUsView({ page, locale }: { page: Page; locale: string }) {
   const d = useMemo(() => readBlock(page), [page]);
   const { defaultLocale } = useLocaleConfig();
+  const { t } = useStrings();
+  const tx = (key: string, fb: string) => {
+    const v = t(key);
+    return v === key ? fb : v;
+  };
   const linkPages = page.linkPages ?? {};
 
   const [banners, setBanners] = useState<FeaturedBanner[]>([]);
   const [contact, setContact] = useState<ContactInfo | null>(null);
+  const [allProductsSlug, setAllProductsSlug] = useState("svi-proizvodi");
 
   useEffect(() => {
     let cancelled = false;
     void getFeaturedBanners().then((b) => !cancelled && setBanners(b));
     void getContactInfo().then((c) => !cancelled && setContact(c));
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, []);
+  useEffect(() => {
+    getSystemPageSlug("all-products", locale).then(setAllProductsSlug).catch(() => {});
+  }, [locale]);
+
+  const allProductsUrl = `/${locale}/${allProductsSlug}`;
 
   return (
-    <Container size="lg" py={48}>
-      <Stack gap={72}>
-        {/* ── Hero ──────────────────────────────────────────────────────── */}
-        <Grid gutter={{ base: 32, md: 48 }} align="center">
-          <Grid.Col span={{ base: 12, md: 6 }}>
-            <Stack gap="lg">
-              {d.altTitle && <Title order={1} fz={{ base: 32, md: 44 }} lh={1.1}>{d.altTitle}</Title>}
-              {d.subtitle && <Text c="dimmed" fz="lg">{d.subtitle}</Text>}
-              {(d.btn1Link || d.btn2Link) && (
-                <Group gap="md" mt="sm">
-                  <CmsButton link={d.btn1Link} variant="filled" locale={locale} linkPages={linkPages} />
-                  <CmsButton link={d.btn2Link} variant="outline" locale={locale} linkPages={linkPages} />
-                </Group>
-              )}
-            </Stack>
-          </Grid.Col>
-          <Grid.Col span={{ base: 12, md: 6 }}>
-            <AspectRatio ratio={4 / 3}>
-              {d.heroImage?.cdnUrl ? (
-                <Image src={d.heroImage.cdnUrl} alt={d.altTitle} radius="md" fit="cover" />
-              ) : (
-                <Box bg="gray.2" style={{ borderRadius: 8 }} />
-              )}
-            </AspectRatio>
-          </Grid.Col>
-        </Grid>
+    <div className="ab-view">
+      {/* ── HERO ── */}
+      <section className="ab-hero">
+        <div className="ln-container">
+          <div className="ab-hero__grid">
+            <div>
+              <span className="a-eyebrow">{tx("about.hero_eyebrow", "O nama")}</span>
+              <h1>{d.altTitle || page.title}</h1>
+              {d.subtitle && <p className="ab-hero__sub">{d.subtitle}</p>}
+              <div className="ab-hero__cta">
+                <LnCta
+                  link={d.btn1Link}
+                  fallbackLabel={tx("about.hero_cta_primary", "Pošaljite upit")}
+                  fallbackHref="#kontakt"
+                  variant="primary"
+                  locale={locale}
+                  linkPages={linkPages}
+                />
+                <LnCta
+                  link={d.btn2Link}
+                  fallbackLabel={tx("about.hero_cta_secondary", "Pregledaj proizvode")}
+                  fallbackHref={allProductsUrl}
+                  variant="ghost"
+                  locale={locale}
+                  linkPages={linkPages}
+                />
+              </div>
+            </div>
+            <div className="ab-hero__media">
+              <div className="ab-hero__frame">
+                {d.heroImage?.cdnUrl && <img className="ln-img" src={d.heroImage.cdnUrl} alt={d.altTitle || page.title} />}
+              </div>
+              <div className="ab-hero__tag">
+                <b>{tx("about.hero_stat_value", "1800 m²")}</b>
+                <span>{tx("about.hero_stat_label", "vlastiti proizvodni pogon")}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
 
-        {/* ── Section 2: title → description → featured banners ─────────── */}
-        <Stack gap="xl">
-          <Stack gap="md">
-            {d.section2Title && <SectionTitle>{d.section2Title}</SectionTitle>}
-            {d.description && <Text c="dimmed">{d.description}</Text>}
-          </Stack>
+      {/* ── WHY US ── */}
+      <section className="a-section a-section--tint">
+        <div className="ln-container">
+          <div className="a-head">
+            <span className="a-eyebrow">{tx("about.why_eyebrow", "Zašto Linea")}</span>
+            {d.section2Title && <h2>{d.section2Title}</h2>}
+            {d.description && <p>{d.description}</p>}
+          </div>
           <FeaturedBanners banners={banners} locale={locale} defaultLocale={defaultLocale} />
-        </Stack>
+        </div>
+      </section>
 
-        {/* ── Section 3: title + subtitle + form / contact ──────────────── */}
-        <Grid id="kontakt" gutter={{ base: 40, md: 64 }} style={{ scrollMarginTop: 80 }}>
-          <Grid.Col span={{ base: 12, md: 6 }}>
-            <Stack gap="lg">
-              {d.section3Title && <Title order={2}>{d.section3Title}</Title>}
-              {d.section3Subtitle && <Text c="dimmed">{d.section3Subtitle}</Text>}
-              <InquiryForm />
-            </Stack>
-          </Grid.Col>
-          <Grid.Col span={{ base: 12, md: 6 }}>
+      {/* ── CONTACT ── */}
+      <section className="a-section" id="kontakt" style={{ scrollMarginTop: 80 }}>
+        <div className="ln-container">
+          <div className="a-head">
+            <span className="a-eyebrow">{tx("about.contact_eyebrow", "Kontakt")}</span>
+            {d.section3Title && <h2>{d.section3Title}</h2>}
+            {d.section3Subtitle && <p>{d.section3Subtitle}</p>}
+          </div>
+          <div className="ab-contact__grid">
+            <InquiryForm />
             <ContactPanel contact={contact} />
-          </Grid.Col>
-        </Grid>
-      </Stack>
-    </Container>
+          </div>
+        </div>
+      </section>
+    </div>
   );
 }

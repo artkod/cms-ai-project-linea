@@ -1,10 +1,13 @@
 import { useEffect, useState } from "react";
 import { Container } from "@mantine/core";
 import { Outlet, Link, NavLink, useParams, useNavigate, useLocation } from "react-router";
-import { Search, ShoppingCart, Menu as MenuIcon, X, MapPin } from "lucide-react";
+import { Search, ShoppingCart, Menu as MenuIcon, X, MapPin, Mail } from "lucide-react";
 import { getMenu, getSystemPageSlug, getContactInfo, type MenuItem, type ContactInfo } from "../lib/api";
-import { useLocaleConfig, useStrings, PageAlternatesProvider, StringsProvider } from "../lib/locale";
+import { useLocaleConfig, useStrings, PageAlternatesProvider, StringsProvider, PageLayoutProvider, usePageLayout } from "../lib/locale";
+import { useCart } from "../lib/cart";
 import { LanguageSwitcher } from "./LanguageSwitcher";
+import { SiteModals } from "../components/SiteModals";
+import { LineaLogo } from "../components/LineaLogo";
 import { extractMapEmbedSrc, mapsAppLink } from "./AboutUsView";
 
 function injectHtml(html: string, target: HTMLElement, marker: string) {
@@ -80,6 +83,7 @@ function SiteHeader({
 }) {
   const navigate = useNavigate();
   const { t } = useStrings();
+  const { count: cartCount } = useCart();
   const [searchValue, setSearchValue] = useState("");
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -112,8 +116,8 @@ function SiteHeader({
   return (
     <header className="ln-header">
       <div className="ln-container ln-header__bar">
-        <Link to={`/${activeLocale}/`} className="ln-wordmark">
-          <span className="ln-dot" /> {siteTitle}
+        <Link to={`/${activeLocale}/`} className="ln-wordmark" aria-label={siteTitle}>
+          <LineaLogo className="ln-logo" title={siteTitle} />
         </Link>
 
         {/* desktop nav — flat, single level */}
@@ -134,7 +138,7 @@ function SiteHeader({
 
           <Link to={`/${activeLocale}/${cartSlug}`} className="ln-iconbtn" aria-label="Košarica">
             <ShoppingCart aria-hidden="true" />
-            <span className="ln-cart-badge">0</span>
+            {cartCount > 0 && <span className="ln-cart-badge">{cartCount}</span>}
           </Link>
 
           <LanguageSwitcher />
@@ -198,11 +202,28 @@ function SiteFooter({
   return (
     <footer className="ln-footer">
       <div className="ln-container">
+        {/* Newsletter CTA — fires the same window event the global 30s auto-pop
+            (SiteModals) listens for, so the modal is reachable on demand too. */}
+        <div className="ln-foot-news">
+          <div className="ln-foot-news__txt">
+            <h3>{tx("newsletter.cta_title", "Pretplatite se na novosti")}</h3>
+            <p>{tx("newsletter.cta_text", "Primajte obavijesti o novim proizvodima, akcijama i projektima — povremeno i bez spama.")}</p>
+          </div>
+          <button
+            type="button"
+            className="ln-foot-news__btn"
+            onClick={() => window.dispatchEvent(new Event("linea:open-newsletter"))}
+          >
+            <Mail aria-hidden="true" />
+            {tx("newsletter.cta_button", "Pretplatite se")}
+          </button>
+        </div>
+
         <div className="ln-footer__top">
           {/* Brand */}
           <div className="ln-footer__brand">
-            <Link to={`/${activeLocale}/`} className="ln-wordmark">
-              <span className="ln-dot" /> {siteTitle}
+            <Link to={`/${activeLocale}/`} className="ln-wordmark" aria-label={siteTitle}>
+              <LineaLogo className="ln-logo" title={siteTitle} />
             </Link>
             {tagline && <p className="ln-footer__tag">{tagline}</p>}
           </div>
@@ -265,6 +286,34 @@ function SiteFooter({
         </div>
       </div>
     </footer>
+  );
+}
+
+// Main content area. The homepage and any page that flips
+// `usePageLayout().fullBleed` (e.g. the product page) render full-bleed — their
+// bands span the viewport, each with its own inner `.ln-container`. Everything
+// else stays inside the centered 1140px content container.
+//
+// IMPORTANT: we keep a SINGLE <Container> instance and only toggle its props.
+// Swapping the wrapper element (bare <Outlet/> vs container-wrapped) changes the
+// tree shape and remounts <Outlet/> → PageView resets to a loading state, which
+// flips `fullBleed` back, which remounts again: an infinite refetch loop.
+function MainArea({ activeLocale }: { activeLocale: string }) {
+  const { fullBleed } = usePageLayout();
+  const { pathname } = useLocation();
+  const isHome = pathname === `/${activeLocale}` || pathname === `/${activeLocale}/`;
+  const bleed = isHome || fullBleed;
+  return (
+    <main style={{ flex: 1 }}>
+      <Container
+        fluid={bleed}
+        size={bleed ? undefined : 1140}
+        px={bleed ? 0 : undefined}
+        py={bleed ? 0 : "xl"}
+      >
+        <Outlet />
+      </Container>
+    </main>
   );
 }
 
@@ -339,16 +388,15 @@ export function RootLayout() {
 
   const siteTitle = settings?.siteTitle || "Linea";
 
-  // The homepage renders full-bleed (its alternating bands span the viewport,
-  // each with its own inner `.ln-container`). Every other route stays inside
-  // the 1140px content container.
-  const { pathname } = useLocation();
-  const isHome = pathname === `/${activeLocale}` || pathname === `/${activeLocale}/`;
-
+  // The homepage and the product page render full-bleed (their bands span the
+  // viewport, each with its own inner `.ln-container`); every other route stays
+  // inside the 1140px content container. The product page opts in at runtime via
+  // PageLayoutProvider's `fullBleed` flag, consumed by <MainArea>.
   return (
     <PageAlternatesProvider>
      <StringsProvider locale={activeLocale}>
-      <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh" }}>
+      <PageLayoutProvider>
+       <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh" }}>
         {/* Header */}
         <SiteHeader
           activeLocale={activeLocale}
@@ -359,15 +407,7 @@ export function RootLayout() {
         />
 
         {/* Main */}
-        <main style={{ flex: 1 }}>
-          {isHome ? (
-            <Outlet />
-          ) : (
-            <Container size={1140} py="xl">
-              <Outlet />
-            </Container>
-          )}
-        </main>
+        <MainArea activeLocale={activeLocale} />
 
         {/* Footer */}
         <SiteFooter
@@ -377,7 +417,11 @@ export function RootLayout() {
           footerItems={footerItems}
           contact={contact}
         />
-      </div>
+
+        {/* Global cookie consent + newsletter */}
+        <SiteModals />
+       </div>
+      </PageLayoutProvider>
      </StringsProvider>
     </PageAlternatesProvider>
   );

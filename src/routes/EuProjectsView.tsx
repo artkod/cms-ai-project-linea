@@ -1,26 +1,15 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
-import {
-  Container,
-  Title,
-  Text,
-  Box,
-  Group,
-  Stack,
-  SimpleGrid,
-  Card,
-  Image,
-  AspectRatio,
-  Loader,
-  Pagination,
-  Anchor,
-} from "@mantine/core";
+import { Loader } from "@mantine/core";
+import { ArrowRight, FolderOpen, ChevronLeft, ChevronRight } from "lucide-react";
 import { getAllPages, type Page } from "@/lib/api";
+import { useStrings } from "@/lib/locale";
+import "@/styles/linea-eu.css";
 
 // ─── EU-project model (derived from child `eu-project-item` pages) ─────────────
 //
 // Each entry is a published `eu-project-item` page whose parent is this
-// eu-projects page. Its card image is the project's main photo; the short
+// eu-projects page. Its card image is the project's `cardPhoto`; the short
 // excerpt is the SEO meta description in this locale.
 
 interface ProjectCard {
@@ -44,20 +33,43 @@ function toCard(p: Page, locale: string): ProjectCard {
     id: p.id,
     title: p.title,
     slug: p.slug,
-    image: imgUrl(td.mainPhoto),
+    image: imgUrl(td.cardPhoto),
     excerpt: p.translations?.[locale]?.metaDescription ?? "",
   };
 }
 
+// Fixed UI labels (in code, not editable — per handoff §8).
 const LABELS = {
   en: { read: "View project", empty: "No projects yet." },
   hr: { read: "Pogledaj projekt", empty: "Još nema projekata." },
 } as const;
 
+/** Page-number list with ellipsis gaps. */
+function pageList(current: number, total: number): (number | "gap")[] {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  const wanted = new Set<number>([1, total]);
+  for (let i = current - 1; i <= current + 1; i++) if (i >= 1 && i <= total) wanted.add(i);
+  const sorted = [...wanted].sort((a, b) => a - b);
+  const out: (number | "gap")[] = [];
+  let prev = 0;
+  for (const n of sorted) {
+    if (n - prev > 1) out.push("gap");
+    out.push(n);
+    prev = n;
+  }
+  return out;
+}
+
 const PAGE_SIZE = 9;
 
 export function EuProjectsView({ page, locale }: { page: Page; locale: string }) {
   const L = LABELS[locale as keyof typeof LABELS] ?? LABELS.en;
+  const { t } = useStrings();
+  const tx = (key: string, fb: string) => {
+    const v = t(key);
+    return v === key ? fb : v;
+  };
+
   const [items, setItems] = useState<ProjectCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [pageNo, setPageNo] = useState(1);
@@ -65,70 +77,84 @@ export function EuProjectsView({ page, locale }: { page: Page; locale: string })
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    // eu-projects is a singleton root, so every `eu-project-item` belongs to it —
-    // but we still scope to this page's id so the view stays correct if that changes.
     getAllPages("eu-project-item", locale)
       .then((pages) => {
         if (cancelled) return;
-        const mine = pages.filter((p) => p.parentId === page.id).map((p) => toCard(p, locale));
-        setItems(mine);
+        setItems(pages.filter((p) => p.parentId === page.id).map((p) => toCard(p, locale)));
       })
-      .catch(() => {
-        if (!cancelled) setItems([]);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
+      .catch(() => { if (!cancelled) setItems([]); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, [page.id, locale]);
 
   const totalPages = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
-  const pageItems = items.slice((pageNo - 1) * PAGE_SIZE, pageNo * PAGE_SIZE);
+  const currentPage = Math.min(pageNo, totalPages);
+  const pageItems = items.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
   const itemHref = (slug: string) => `/${locale}/${page.slug}/${slug}`;
 
   return (
-    <Container size="lg" py={48}>
-      <Title order={1} mb="xl">{page.title}</Title>
+    <div className="eu-view">
+      <section className="eu-head">
+        <div className="ln-container">
+          <span className="eu-eyebrow">{tx("euprojects.eyebrow", "Transparentnost i razvoj")}</span>
+          <h1>{page.title}</h1>
+          <p>{tx("euprojects.intro", "Ulažemo u znanje, tehnologiju i kapacitete uz potporu europskih fondova. U nastavku donosimo pregled projekata u kojima sudjelujemo.")}</p>
+        </div>
+      </section>
 
-      {loading ? (
-        <Group justify="center" py="xl"><Loader /></Group>
-      ) : items.length === 0 ? (
-        <Text c="dimmed">{L.empty}</Text>
-      ) : (
-        <Stack gap="xl">
-          <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }} spacing="lg">
-            {pageItems.map((it) => (
-              <Card key={it.id} withBorder padding="md" radius="md" component={Link} to={itemHref(it.slug)}>
-                <Card.Section>
-                  <AspectRatio ratio={16 / 10}>
-                    {it.image ? (
-                      <Image src={it.image} alt={it.title} fit="cover" />
+      <section className="eu-body">
+        <div className="ln-container">
+          {loading ? (
+            <div style={{ padding: "80px 0", textAlign: "center" }}><Loader color="#9acb34" /></div>
+          ) : items.length === 0 ? (
+            <div className="eu-empty">
+              <div className="eu-empty__ico"><FolderOpen aria-hidden="true" /></div>
+              <p>{L.empty}</p>
+            </div>
+          ) : (
+            <>
+              <div className="eu-grid">
+                {pageItems.map((it) => (
+                  <Link key={it.id} to={itemHref(it.slug)} className="eu-card">
+                    <div className="eu-card__media">
+                      {it.image && <img className="ln-img" src={it.image} alt={it.title} loading="lazy" />}
+                    </div>
+                    <div className="eu-card__b">
+                      <h3>{it.title}</h3>
+                      {it.excerpt && <p className="eu-card__ex">{it.excerpt}</p>}
+                      <span className="eu-card__link">
+                        {L.read}
+                        <ArrowRight aria-hidden="true" />
+                      </span>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+
+              {totalPages > 1 && (
+                <div className="eu-pager">
+                  <button type="button" className="eu-page is-nav" aria-label="Prethodna" disabled={currentPage <= 1} onClick={() => setPageNo(currentPage - 1)}>
+                    <ChevronLeft aria-hidden="true" />
+                  </button>
+                  {pageList(currentPage, totalPages).map((p, i) =>
+                    p === "gap" ? (
+                      <span key={`gap-${i}`} className="eu-page__gap">…</span>
                     ) : (
-                      <Box bg="gray.1" />
-                    )}
-                  </AspectRatio>
-                </Card.Section>
-                <Text fw={600} mt="sm" lineClamp={2}>{it.title}</Text>
-                {it.excerpt && (
-                  <Text size="sm" c="dimmed" mt={4} lineClamp={3}>{it.excerpt}</Text>
-                )}
-                <Anchor component="span" size="sm" c="green" mt="sm" fw={600}>
-                  {L.read} →
-                </Anchor>
-              </Card>
-            ))}
-          </SimpleGrid>
-
-          {totalPages > 1 && (
-            <Group justify="center">
-              <Pagination total={totalPages} value={pageNo} onChange={setPageNo} color="green" />
-            </Group>
+                      <button type="button" key={p} className={`eu-page${p === currentPage ? " is-active" : ""}`} onClick={() => setPageNo(p)}>
+                        {p}
+                      </button>
+                    ),
+                  )}
+                  <button type="button" className="eu-page is-nav" aria-label="Sljedeća" disabled={currentPage >= totalPages} onClick={() => setPageNo(currentPage + 1)}>
+                    <ChevronRight aria-hidden="true" />
+                  </button>
+                </div>
+              )}
+            </>
           )}
-        </Stack>
-      )}
-    </Container>
+        </div>
+      </section>
+    </div>
   );
 }
