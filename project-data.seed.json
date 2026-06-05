@@ -52,6 +52,8 @@
     { "locale": "en", "key": "product.add_to_cart",         "value": "Add to cart" },
     { "locale": "hr", "key": "product.added_to_cart",       "value": "Dodano u košaricu" },
     { "locale": "en", "key": "product.added_to_cart",       "value": "Added to cart" },
+    { "locale": "hr", "key": "product.in_cart",             "value": "U košarici" },
+    { "locale": "en", "key": "product.in_cart",             "value": "In cart" },
     { "locale": "hr", "key": "product.trust_available",     "value": "Dostupno" },
     { "locale": "en", "key": "product.trust_available",     "value": "In stock" },
     { "locale": "hr", "key": "product.trust_fast_delivery", "value": "Brza dostava" },

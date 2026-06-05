@@ -730,10 +730,20 @@ function ProductItemView({ page }: { page: Page }) {
   // on-request line (`unitPrice: null`). The one gate is a configurator with
   // nothing selected yet — the button is disabled until the customer picks an
   // option, so we never add an unconfigured build.
-  const { addItem } = useCart();
+  const { addItem, items } = useCart();
   const [justAdded, setJustAdded] = useState(false);
   const addAsInquiry = priceMode === "inquiry";
   const needsSelection = priceMode === "configurator" && !configurator.hasAnySelection;
+
+  // Cart-line key for the current build: a configurator build keys on id +
+  // selection so distinct builds are distinct lines; everything else keys on id.
+  const cartKey = configurator.selectionKey
+    ? `${page.id}#${configurator.selectionKey}`
+    : page.id;
+  // Once this exact line is in the cart we lock the CTA — re-adding would only
+  // bump the qty, which the cart page handles. The customer removes the line to
+  // re-enable adding.
+  const alreadyInCart = items.some((it) => it.key === cartKey);
 
   const productUrl =
     groupSlug && categorySlug
@@ -744,12 +754,12 @@ function ProductItemView({ page }: { page: Page }) {
 
   const addLabel = tx("product.add_to_cart", "Dodaj u košaricu");
   const addedLabel = tx("product.added_to_cart", "Dodano u košaricu");
+  const inCartLabel = tx("product.in_cart", "U košarici");
 
   const handleAddToCart = () => {
-    if (needsSelection) return;
-    const configKey = configurator.selectionKey;
+    if (needsSelection || alreadyInCart) return;
     addItem({
-      key: configKey ? `${page.id}#${configKey}` : page.id,
+      key: cartKey,
       productId: page.id,
       title: page.title,
       image: mainPhoto?.cdnUrl ?? activeImage?.cdnUrl ?? null,
@@ -877,12 +887,12 @@ function ProductItemView({ page }: { page: Page }) {
                   type="button"
                   className="ln-btn ln-btn--primary ln-btn--lg pi-cta"
                   onClick={handleAddToCart}
-                  disabled={needsSelection}
+                  disabled={needsSelection || alreadyInCart}
                 >
-                  {justAdded ? (
+                  {justAdded || alreadyInCart ? (
                     <>
                       <Check size={18} aria-hidden="true" />
-                      {addedLabel}
+                      {alreadyInCart && !justAdded ? inCartLabel : addedLabel}
                     </>
                   ) : (
                     <>
@@ -1049,8 +1059,8 @@ function ProductItemView({ page }: { page: Page }) {
             {effectiveInquiry ? t("product.mobile_on_inquiry") : eur(displayPrice)}
           </span>
         </div>
-        <button type="button" className="ln-btn ln-btn--primary" onClick={handleAddToCart} disabled={needsSelection}>
-          {justAdded ? addedLabel : addLabel}
+        <button type="button" className="ln-btn ln-btn--primary" onClick={handleAddToCart} disabled={needsSelection || alreadyInCart}>
+          {alreadyInCart ? inCartLabel : justAdded ? addedLabel : addLabel}
         </button>
       </div>
       {/* Spacer so the footer clears the fixed mobile bar (≤760px). */}

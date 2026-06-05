@@ -31,7 +31,10 @@
     align-items: center;
     flex-wrap: wrap;
     gap: 8px;
-    padding: 14px 0;
+    // padding-block only — the shorthand `padding: 14px 0` would clobber the
+    // .ln-container horizontal gutter (padding-inline), shoving the crumb flush
+    // to the 1140px box edge and out of line with the hero content.
+    padding-block: 14px;
     font-size: 0.83rem;
     color: var(--ink-2);
   }
