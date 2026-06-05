@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
 import { Loader } from "@mantine/core";
 import { Search, ChevronLeft, ChevronRight } from "lucide-react";
-import { getAllPages, type Page } from "@/lib/api";
+import { getAllPages, getProductCategories, getSystemPageSlug, type Page, type ProductMainCategory } from "@/lib/api";
+import { indexCategories, resolveProductCategory, resolveLabel as resolveCatLabel } from "@/lib/productCategories";
 import { useStrings, useLocaleConfig } from "@/lib/locale";
 import { eur } from "@/lib/pricing";
 import { computeCardPrice } from "./AllProductsView";
@@ -19,6 +20,8 @@ interface ProductBlockData {
   mainPhoto?: { mediaId: string; cdnUrl: string } | null;
   description?: string;
   priceEur?: string;
+  mainCategoryId?: string | null;
+  subcategoryId?: string | null;
   konfiguratorCijene?: {
     enabled?: boolean;
     konstrukcija?: { id: string; naziv: string; cijena: string }[];
@@ -72,28 +75,27 @@ export function SearchView({ page }: { page: Page }) {
   const query = (searchParams.get("q") ?? "").trim();
 
   const [loading, setLoading] = useState(true);
-  const [productsPages, setProductsPages] = useState<Page[]>([]);
-  const [categoryPages, setCategoryPages] = useState<Page[]>([]);
+  const [categories, setCategories] = useState<ProductMainCategory[]>([]);
   const [itemPages, setItemPages] = useState<Page[]>([]);
+  const [allProductsSlug, setAllProductsSlug] = useState("svi-proizvodi");
 
   useEffect(() => {
     let alive = true;
     setLoading(true);
     Promise.all([
-      getAllPages("products", locale),
-      getAllPages("product-category", locale),
+      getProductCategories(),
       getAllPages("product-item", locale),
+      getSystemPageSlug("all-products", locale),
     ])
-      .then(([products, categories, items]) => {
+      .then(([cats, items, allSlug]) => {
         if (!alive) return;
-        setProductsPages(products);
-        setCategoryPages(categories);
+        setCategories(cats);
         setItemPages(items);
+        setAllProductsSlug(allSlug);
       })
       .catch(() => {
         if (!alive) return;
-        setProductsPages([]);
-        setCategoryPages([]);
+        setCategories([]);
         setItemPages([]);
       })
       .finally(() => {
@@ -104,33 +106,31 @@ export function SearchView({ page }: { page: Page }) {
     };
   }, [locale]);
 
-  // Each product-item joins to its category (parent) and products (grandparent)
-  // so we can build a reachable hierarchical URL. Items whose ancestor chain
-  // isn't fully published+active in this locale are skipped — same rule as the
-  // all-products listing.
+  const catIndex = useMemo(() => indexCategories(categories), [categories]);
+
+  // Each product-item reads its category from its own block data; the URL is the
+  // flat `/{locale}/{all-products}/{slug}`.
   const cards = useMemo<ProductCardData[]>(() => {
-    const productsById = new Map(productsPages.map((p) => [p.id, p]));
-    const categoriesById = new Map(categoryPages.map((p) => [p.id, p]));
     const out: ProductCardData[] = [];
     for (const item of itemPages) {
-      const category = item.parentId ? categoriesById.get(item.parentId) : undefined;
-      const products = category?.parentId ? productsById.get(category.parentId) : undefined;
-      if (!category || !products) continue;
       const block = item.blocks?.find((b) => b.type === "product-item");
       const d = (block?.data ?? {}) as ProductBlockData;
+      const { main, sub } = resolveProductCategory(catIndex, d.mainCategoryId, d.subcategoryId);
       out.push({
         id: item.id,
         title: item.title,
         description: d.description?.trim() || "",
         image: d.mainPhoto?.cdnUrl ?? null,
-        url: `/${locale}/${products.slug}/${category.slug}/${item.slug}`,
-        categoryTitle: category.title,
+        url: `/${locale}/${allProductsSlug}/${item.slug}`,
+        categoryTitle:
+          (sub ? resolveCatLabel(sub.label, locale, defaultLocale) : "") ||
+          (main ? resolveCatLabel(main.label, locale, defaultLocale) : ""),
         createdAt: item.createdAt,
         price: computeCardPrice(d),
       });
     }
     return out;
-  }, [productsPages, categoryPages, itemPages, locale]);
+  }, [itemPages, catIndex, locale, defaultLocale, allProductsSlug]);
 
   // Free-text match over title + description (case-insensitive).
   const matched = useMemo(() => {

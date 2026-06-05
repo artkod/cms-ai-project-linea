@@ -12,11 +12,14 @@ import {
   getPageBySlug,
   getAllPages,
   getSystemPageSlug,
+  getProductCategories,
   type Page,
   type Block,
   type LinkPagesMap,
   type AncestorEntry,
+  type ProductMainCategory,
 } from "@/lib/api";
+import { indexCategories, resolveProductCategory, resolveLabel as resolveCatLabel } from "@/lib/productCategories";
 import { tiptapToHtml } from "@/lib/tiptapRenderer";
 import { usePageAlternates, useStrings, useLocaleConfig, usePageLayout } from "@/lib/locale";
 import { parsePrice, eur } from "@/lib/pricing";
@@ -370,6 +373,8 @@ interface ProductItemBlockData {
   galleryImages?: GalleryImage[];
   description?: string;
   priceEur?: string;
+  mainCategoryId?: string | null;
+  subcategoryId?: string | null;
   additionalInfo?: { tabs?: ProductItemTab[] };
   konfiguratorCijene?: {
     enabled?: boolean;
@@ -646,48 +651,72 @@ function ProductItemView({ page }: { page: Page }) {
         ? configurator.total
         : 0;
 
-  // ── Breadcrumb / category — from the by-slug `ancestors` (root → parent).
-  // For a product-item that chain is [products-group, product-category]; the
-  // immediate parent (last entry) is the category shown as the buy-card eyebrow.
+  // ── Breadcrumb ancestors (root → parent). After flattening the product
+  // taxonomy this chain is just [all-products] — the catalogue landing is the
+  // product's only ancestor and the breadcrumb renders it generically below.
   const ancestors = page.ancestors ?? [];
-  const categoryAnc = ancestors.length ? ancestors[ancestors.length - 1] : null;
   const ancTitle = (a: AncestorEntry) =>
     a.locales[locale]?.title || a.locales[defaultLocale]?.title || a.type;
   const ancSlug = (a: AncestorEntry) =>
     a.locales[locale]?.slug || a.locales[defaultLocale]?.slug || "";
-  const categoryTitle = categoryAnc ? ancTitle(categoryAnc) : "";
-  const groupSlug = ancestors[0] ? ancSlug(ancestors[0]) : "";
-  const categorySlug = categoryAnc ? ancSlug(categoryAnc) : "";
 
-  // ── Related rail — other product-items under the same category (siblings,
-  // auto-derived). Hidden when there are none. URLs reuse this page's group +
-  // category slug chain. "Svi proizvodi" resolves the live all-products slug.
+  // ── Category — now data on the product block, resolved against the
+  // `product_categories` taxonomy (no more product/product-category pages). The
+  // subcategory label (fallback main) is the buy-card eyebrow.
+  const [categories, setCategories] = useState<ProductMainCategory[]>([]);
+  const catIndex = useMemo(() => indexCategories(categories), [categories]);
+  const { main: mainCat, sub: subCat } = resolveProductCategory(catIndex, d.mainCategoryId, d.subcategoryId);
+  const categoryTitle =
+    (subCat ? resolveCatLabel(subCat.label, locale, defaultLocale) : "") ||
+    (mainCat ? resolveCatLabel(mainCat.label, locale, defaultLocale) : "");
+
+  // all-products landing slug — the product's only ancestor, with a fetched /
+  // conventional fallback so links never dead-end.
+  const allProductsAnc = ancestors[0] ?? null;
+  const [allProductsSlugFetched, setAllProductsSlugFetched] = useState("svi-proizvodi");
+  const allProductsSlug = (allProductsAnc ? ancSlug(allProductsAnc) : "") || allProductsSlugFetched;
+
+  // ── Related rail — other products in the same subcategory (fallback: same
+  // main category). Hidden when there are none. URLs are `/{locale}/{all-products}/{slug}`.
   const [related, setRelated] = useState<RelatedCard[]>([]);
-  const [allProductsSlug, setAllProductsSlug] = useState("svi-proizvodi");
   useEffect(() => {
     let alive = true;
-    if (!page.parentId || !groupSlug || !categorySlug) {
-      setRelated([]);
-      return;
-    }
     Promise.all([
       getAllPages("product-item", locale),
+      getProductCategories(),
       getSystemPageSlug("all-products", locale),
     ])
-      .then(([items, allSlug]) => {
+      .then(([items, cats, allSlug]) => {
         if (!alive) return;
-        setAllProductsSlug(allSlug);
+        setCategories(cats);
+        setAllProductsSlugFetched(allSlug);
+        const slug = (allProductsAnc ? ancSlug(allProductsAnc) : "") || allSlug;
+        const idx = indexCategories(cats);
+        const resolved = resolveProductCategory(idx, d.mainCategoryId, d.subcategoryId);
+        const catTitle =
+          (resolved.sub ? resolveCatLabel(resolved.sub.label, locale, defaultLocale) : "") ||
+          (resolved.main ? resolveCatLabel(resolved.main.label, locale, defaultLocale) : "");
+        if (!d.subcategoryId && !d.mainCategoryId) {
+          setRelated([]);
+          return;
+        }
         setRelated(
           items
-            .filter((it) => it.parentId === page.parentId && it.id !== page.id)
+            .filter((it) => {
+              if (it.id === page.id) return false;
+              const bd = (it.blocks?.find((bl) => bl.type === "product-item")?.data ?? {}) as ProductItemBlockData;
+              return d.subcategoryId
+                ? bd.subcategoryId === d.subcategoryId
+                : bd.mainCategoryId === d.mainCategoryId;
+            })
             .map((it) => {
               const bd = (it.blocks?.find((bl) => bl.type === "product-item")?.data ?? {}) as ProductItemBlockData;
               return {
                 id: it.id,
                 title: it.title,
-                categoryTitle,
+                categoryTitle: catTitle,
                 image: bd.mainPhoto?.cdnUrl ?? null,
-                url: `/${locale}/${groupSlug}/${categorySlug}/${it.slug}`,
+                url: `/${locale}/${slug}/${it.slug}`,
                 price: computeCardPrice(bd),
               };
             }),
@@ -699,7 +728,8 @@ function ProductItemView({ page }: { page: Page }) {
     return () => {
       alive = false;
     };
-  }, [page.id, page.parentId, locale, groupSlug, categorySlug, categoryTitle]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page.id, locale, defaultLocale, d.subcategoryId, d.mainCategoryId]);
 
   const allProductsUrl = `/${locale}/${allProductsSlug}`;
 
@@ -746,8 +776,8 @@ function ProductItemView({ page }: { page: Page }) {
   const alreadyInCart = items.some((it) => it.key === cartKey);
 
   const productUrl =
-    groupSlug && categorySlug
-      ? `/${locale}/${groupSlug}/${categorySlug}/${page.slug}`
+    allProductsSlug
+      ? `/${locale}/${allProductsSlug}/${page.slug}`
       : typeof window !== "undefined"
         ? window.location.pathname
         : `/${locale}/`;

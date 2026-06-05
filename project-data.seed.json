@@ -509,32 +509,5 @@
     { "locale": "en", "key": "catalogues.cta_button",            "value": "Contact Support" }
   ],
 
-  "pageTypes": [
-    {
-      "type": "products",
-      "label": { "hr": "Proizvodi", "en": "Products" },
-      "deletable": true,
-      "canBeRoot": true,
-      "limit": null,
-      "perParentLimit": null,
-      "allowedParentTypes": [],
-      "allowedChildTypes": ["product-category"],
-      "allowBlocks": false,
-      "allowedBlockTypes": null,
-      "fields": []
-    },
-    {
-      "type": "product-category",
-      "label": { "hr": "Vrsta proizvoda", "en": "Product category" },
-      "deletable": true,
-      "canBeRoot": false,
-      "limit": null,
-      "perParentLimit": null,
-      "allowedParentTypes": ["products"],
-      "allowedChildTypes": ["product-item"],
-      "allowBlocks": true,
-      "allowedBlockTypes": ["product-category"],
-      "fields": []
-    }
-  ]
+  "pageTypes": []
 }

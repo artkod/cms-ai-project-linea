@@ -4,13 +4,16 @@ import { Link, useParams } from "react-router";
 import { icons, ArrowRight } from "lucide-react";
 import {
   getAllPages,
+  getProductCategories,
   getFeaturedBanners,
   getContactInfo,
   getSystemPageSlug,
   type Page,
   type FeaturedBanner,
   type ContactInfo,
+  type ProductMainCategory,
 } from "@/lib/api";
+import { indexCategories, resolveProductCategory, resolveLabel as resolveCatLabel } from "@/lib/productCategories";
 import { usePageAlternates, useStrings, useLocaleConfig } from "@/lib/locale";
 import { computeCardPrice } from "./AllProductsView";
 
@@ -31,11 +34,9 @@ interface ProductBlockData {
   mainPhoto?: { mediaId: string; cdnUrl: string } | null;
   description?: string;
   priceEur?: string;
+  mainCategoryId?: string | null;
+  subcategoryId?: string | null;
   konfiguratorCijene?: Record<string, unknown>;
-}
-
-interface CategoryBlockData {
-  mainImage?: { mediaId: string; cdnUrl: string } | null;
 }
 
 interface GroupCard {
@@ -59,9 +60,6 @@ interface ProductCard {
 function productData(p: Page): ProductBlockData {
   return (p.blocks?.find((b) => b.type === "product-item")?.data ?? {}) as ProductBlockData;
 }
-function categoryData(p: Page): CategoryBlockData {
-  return (p.blocks?.find((b) => b.type === "product-category")?.data ?? {}) as CategoryBlockData;
-}
 
 export function HomePage() {
   const { locale } = useParams<{ locale: string }>();
@@ -71,8 +69,7 @@ export function HomePage() {
   const { t } = useStrings();
 
   const [loading, setLoading] = useState(true);
-  const [groups, setGroups] = useState<Page[]>([]);
-  const [categories, setCategories] = useState<Page[]>([]);
+  const [categories, setCategories] = useState<ProductMainCategory[]>([]);
   const [items, setItems] = useState<Page[]>([]);
   const [banners, setBanners] = useState<FeaturedBanner[]>([]);
   const [contact, setContact] = useState<ContactInfo | null>(null);
@@ -89,17 +86,15 @@ export function HomePage() {
     let alive = true;
     setLoading(true);
     Promise.all([
-      getAllPages("products", activeLocale),
-      getAllPages("product-category", activeLocale),
+      getProductCategories(),
       getAllPages("product-item", activeLocale),
       getFeaturedBanners(),
       getContactInfo(),
       getSystemPageSlug("all-products", activeLocale),
       getSystemPageSlug("about-us", activeLocale),
     ])
-      .then(([grp, cats, its, bnr, ct, allSlug, abSlug]) => {
+      .then(([cats, its, bnr, ct, allSlug, abSlug]) => {
         if (!alive) return;
-        setGroups(grp);
         setCategories(cats);
         setItems(its);
         setBanners(bnr);
@@ -109,7 +104,6 @@ export function HomePage() {
       })
       .catch(() => {
         if (!alive) return;
-        setGroups([]);
         setCategories([]);
         setItems([]);
         setBanners([]);
@@ -129,59 +123,53 @@ export function HomePage() {
   const loc = (m: Record<string, string> | undefined): string =>
     (m?.[activeLocale] || m?.[defaultLocale] || "").trim();
 
-  // Group cards: name list + count from child categories; representative image
-  // from the first child category's mainImage, else a child product's photo.
+  const catIndex = useMemo(() => indexCategories(categories), [categories]);
+
+  // Group cards: one per main category. Subcategory names list + count; the
+  // representative image is the first product photo found in that main category.
   const groupCards = useMemo<GroupCard[]>(() => {
-    return groups.map((g) => {
-      const childCats = categories.filter((c) => c.parentId === g.id);
-      let image: string | null = null;
-      for (const c of childCats) {
-        const mi = categoryData(c).mainImage?.cdnUrl;
-        if (mi) {
-          image = mi;
-          break;
-        }
-      }
-      if (!image) {
-        const childCatIds = new Set(childCats.map((c) => c.id));
-        const firstItem = items.find((it) => it.parentId && childCatIds.has(it.parentId));
-        image = firstItem ? productData(firstItem).mainPhoto?.cdnUrl ?? null : null;
-      }
+    return categories.map((main) => {
+      const firstItem = items.find((it) => {
+        const d = productData(it);
+        return d.mainCategoryId === main.id && d.mainPhoto?.cdnUrl;
+      });
       return {
-        id: g.id,
-        title: g.title,
-        // Open the full catalog with this group's category filter pre-applied
-        // (instead of the standalone group page).
-        url: `/${activeLocale}/${allProductsSlug}?kategorija=${encodeURIComponent(g.slug)}`,
-        catNames: childCats.map((c) => c.title).join(" · "),
-        catCount: childCats.length,
-        image,
+        id: main.id,
+        title: resolveCatLabel(main.label, activeLocale, defaultLocale),
+        // Open the full catalog with this main category's filter pre-applied.
+        url: `/${activeLocale}/${allProductsSlug}?kategorija=${encodeURIComponent(main.slug)}`,
+        catNames: (main.subcategories ?? [])
+          .map((s) => resolveCatLabel(s.label, activeLocale, defaultLocale))
+          .filter(Boolean)
+          .join(" · "),
+        catCount: (main.subcategories ?? []).length,
+        image: firstItem ? productData(firstItem).mainPhoto?.cdnUrl ?? null : null,
       };
     });
-  }, [groups, categories, items, activeLocale, allProductsSlug]);
+  }, [categories, items, activeLocale, defaultLocale, allProductsSlug]);
 
-  // Newest 4 product-items by createdAt desc, joined to category + group for a
-  // reachable hierarchical URL.
+  // Newest 4 product-items by createdAt desc. URL is the flat
+  // `/{locale}/{all-products}/{slug}`; category label from the item's own data.
   const newest = useMemo<ProductCard[]>(() => {
-    const catById = new Map(categories.map((c) => [c.id, c]));
-    const grpById = new Map(groups.map((g) => [g.id, g]));
     return [...items]
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
       .slice(0, 4)
       .map((it) => {
-        const cat = it.parentId ? catById.get(it.parentId) : undefined;
-        const grp = cat?.parentId ? grpById.get(cat.parentId) : undefined;
         const d = productData(it);
+        const { main, sub } = resolveProductCategory(catIndex, d.mainCategoryId, d.subcategoryId);
+        const categoryTitle =
+          (sub ? resolveCatLabel(sub.label, activeLocale, defaultLocale) : "") ||
+          (main ? resolveCatLabel(main.label, activeLocale, defaultLocale) : "");
         return {
           id: it.id,
           title: it.title,
-          categoryTitle: cat?.title ?? "",
+          categoryTitle,
           image: d.mainPhoto?.cdnUrl ?? null,
-          url: grp && cat ? `/${activeLocale}/${grp.slug}/${cat.slug}/${it.slug}` : "#",
+          url: `/${activeLocale}/${allProductsSlug}/${it.slug}`,
           price: computeCardPrice(d),
         };
       });
-  }, [items, categories, groups, activeLocale]);
+  }, [items, catIndex, activeLocale, defaultLocale, allProductsSlug]);
 
   const trustImage = newest.find((p) => p.image)?.image ?? null;
   const phoneTel = contact?.phone ? contact.phone.replace(/[^+\d]/g, "") : "";
@@ -216,11 +204,11 @@ export function HomePage() {
           </div>
           <div className="a-hero__stats">
             <div>
-              <b>{groups.length}</b>
+              <b>{categories.length}</b>
               <span>{t("home.stat_groups_label")}</span>
             </div>
             <div>
-              <b>{categories.length}</b>
+              <b>{categories.reduce((n, c) => n + (c.subcategories?.length ?? 0), 0)}</b>
               <span>{t("home.stat_categories_label")}</span>
             </div>
             <div>
