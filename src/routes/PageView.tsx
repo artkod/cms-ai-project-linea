@@ -1241,7 +1241,7 @@ export function PageView() {
   useEffect(() => {
     const FULL_BLEED = new Set([
       "product-item", "cart", "all-products", "catalogues", "about-us", "news", "article",
-      "eu-projects", "eu-project-item", "default",
+      "eu-projects", "eu-project-item", "search", "default",
     ]);
     setFullBleed(FULL_BLEED.has(page?.type ?? ""));
     return () => setFullBleed(false);

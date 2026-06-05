@@ -211,6 +211,8 @@
     { "locale": "hr", "key": "allproducts.price_inquiry",        "value": "Cijena na upit" },
     { "locale": "en", "key": "allproducts.price_inquiry",        "value": "Price on inquiry" },
 
+    { "locale": "hr", "key": "search.eyebrow",                   "value": "Pretraga" },
+    { "locale": "en", "key": "search.eyebrow",                   "value": "Search" },
     { "locale": "hr", "key": "search.prompt",                    "value": "Unesite pojam za pretraživanje." },
     { "locale": "en", "key": "search.prompt",                    "value": "Enter a search term to see results." },
     { "locale": "hr", "key": "search.count_prefix",              "value": "Prikazano" },

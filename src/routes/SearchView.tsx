@@ -1,30 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
-import {
-  Box,
-  Button,
-  Card,
-  Divider,
-  Group,
-  Image,
-  Loader,
-  Pagination,
-  Select,
-  SimpleGrid,
-  Stack,
-  Text,
-  Title,
-} from "@mantine/core";
+import { Loader } from "@mantine/core";
+import { Search, ChevronLeft, ChevronRight } from "lucide-react";
 import { getAllPages, type Page } from "@/lib/api";
 import { useStrings, useLocaleConfig } from "@/lib/locale";
+import { eur } from "@/lib/pricing";
 import { computeCardPrice } from "./AllProductsView";
+import "@/styles/linea-catalog.css";
 
-// The search page renders product-item results that match the `?q=` query.
-// There is no search input in the chrome yet (it lands in the navigation
-// later) — the query is read straight from the URL, so this view works the
-// moment a `?q=…` is appended. Layout mirrors AllProductsView's results
-// column but without the left filter sidebar: a count headline, a sort
-// dropdown, the same product cards, and pagination.
+// The search page renders product-item results that match the `?q=` query
+// submitted from the navbar search form. The query is read straight from the
+// URL. The layout reuses the catalog's `.cat-*` design (cards, sort bar, pager,
+// empty state) — same as AllProductsView's results column, minus the filter
+// sidebar — so search looks identical to the rest of the catalog.
 
 interface ProductBlockData {
   altTitle?: string;
@@ -52,20 +40,33 @@ interface ProductCardData {
 
 type SortKey = "newest" | "oldest" | "name" | "price_asc" | "price_desc";
 
-const PAGE_SIZE_OPTIONS = ["12", "24", "48"];
+const PAGE_SIZE_OPTIONS = [12, 24, 48];
 
-const eurFmt = new Intl.NumberFormat("hr-HR", {
-  style: "currency",
-  currency: "EUR",
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-});
+/** Page-number list with ellipsis gaps: always first/last + current ±1. */
+function pageList(current: number, total: number): (number | "gap")[] {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  const wanted = new Set<number>([1, total]);
+  for (let i = current - 1; i <= current + 1; i++) if (i >= 1 && i <= total) wanted.add(i);
+  const sorted = [...wanted].sort((a, b) => a - b);
+  const out: (number | "gap")[] = [];
+  let prev = 0;
+  for (const n of sorted) {
+    if (n - prev > 1) out.push("gap");
+    out.push(n);
+    prev = n;
+  }
+  return out;
+}
 
 export function SearchView({ page }: { page: Page }) {
   const { locale: localeParam } = useParams<{ locale: string }>();
   const { defaultLocale } = useLocaleConfig();
   const locale = localeParam ?? defaultLocale;
   const { t } = useStrings();
+  const tx = (key: string, fb: string) => {
+    const v = t(key);
+    return v === key ? fb : v;
+  };
 
   const [searchParams] = useSearchParams();
   const query = (searchParams.get("q") ?? "").trim();
@@ -189,7 +190,7 @@ export function SearchView({ page }: { page: Page }) {
 
   const home = `/${locale}/`;
 
-  const sortData = [
+  const sortOptions: { value: SortKey; label: string }[] = [
     { value: "newest", label: t("allproducts.sort_newest") },
     { value: "oldest", label: t("allproducts.sort_oldest") },
     { value: "name", label: t("allproducts.sort_name") },
@@ -197,120 +198,144 @@ export function SearchView({ page }: { page: Page }) {
     { value: "price_desc", label: t("allproducts.sort_price_desc") },
   ];
 
+  function priceMarkup(price: ProductCardData["price"]) {
+    if (!price) {
+      return <div className="cat-card__price is-inquiry">{t("allproducts.price_inquiry")}</div>;
+    }
+    return (
+      <div className="cat-card__price">
+        {price.from && <span className="vec">{t("allproducts.price_from")} </span>}
+        {eur(price.amount)} <small>{t("product.price_vat_suffix")}</small>
+      </div>
+    );
+  }
+
   if (loading) {
     return (
-      <Box py="xl" ta="center">
-        <Loader />
-      </Box>
+      <div className="cat-view">
+        <div className="ln-container" style={{ padding: "96px 0", textAlign: "center" }}>
+          <Loader color="#9acb34" />
+        </div>
+      </div>
     );
   }
 
-  // ── No query yet (search input lands in the nav later) ──
-  if (!query) {
-    return (
-      <Box>
-        <Title order={1} mb="lg">{page.title}</Title>
-        <Box py={64} ta="center">
-          <Text c="dimmed">{t("search.prompt")}</Text>
-        </Box>
-      </Box>
-    );
-  }
+  const hasResults = query.length > 0 && sorted.length > 0;
 
-  // ── No results template ──
-  if (sorted.length === 0) {
-    return (
-      <Box>
-        <Title order={1} mb="lg">{page.title}</Title>
-        <Stack align="center" gap="sm" py={64} style={{ textAlign: "center" }}>
-          <Text size="3rem">🔍</Text>
-          <Title order={3}>{t("search.empty_title")}</Title>
-          <Text c="dimmed" maw={460}>
-            {t("search.empty_text")} “{query}”.
-          </Text>
-          <Button component={Link as any} to={home} variant="light" color="teal" mt="sm">
-            {t("notfound.home")}
-          </Button>
-        </Stack>
-      </Box>
-    );
-  }
-
-  // ── Results ──
   return (
-    <Box>
-      <Title order={1} mb="md">{page.title}</Title>
+    <div className="cat-view">
+      {/* PAGE HEAD */}
+      <section className="cat-pagehead">
+        <div className="ln-container">
+          <span className="cat-eyebrow">{tx("search.eyebrow", "Pretraga")}</span>
+          <h1>{page.title}</h1>
+          {!query && <p>{t("search.prompt")}</p>}
+        </div>
+      </section>
 
-      <Group justify="space-between" align="center" mb="md" wrap="wrap">
-        <Text fw={600}>
-          {t("search.count_prefix")} {sorted.length} {t("search.count_suffix")} “{query}”
-        </Text>
-        <Group gap="xs" align="center">
-          <Text size="sm" c="dimmed">{t("allproducts.sort_label")}</Text>
-          <Select
-            data={sortData}
-            value={sort}
-            onChange={(v) => {
-              setSort((v as SortKey) ?? "newest");
-              setPageNum(1);
-            }}
-            allowDeselect={false}
-            w={200}
-          />
-        </Group>
-      </Group>
+      <section className="ln-container">
+        <div className="cat-searchbody">
+          {hasResults ? (
+            <>
+              <div className="cat-resbar">
+                <div className="cat-resbar__left">
+                  <span className="cat-count">
+                    {t("search.count_prefix")} <b>{sorted.length}</b> {t("search.count_suffix")} “{query}”
+                  </span>
+                </div>
+                <div className="cat-sortwrap">
+                  <label htmlFor="resSort">{t("allproducts.sort_label")}</label>
+                  <select
+                    id="resSort"
+                    className="cat-select"
+                    value={sort}
+                    onChange={(e) => { setSort(e.currentTarget.value as SortKey); setPageNum(1); }}
+                  >
+                    {sortOptions.map((o) => (
+                      <option key={o.value} value={o.value}>{o.label}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
 
-      <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="lg">
-        {paged.map((c) => (
-          <Card key={c.id} component={Link} to={c.url} withBorder padding="md" radius="md">
-            <Card.Section>
-              <Image
-                src={c.image ?? undefined}
-                h={180}
-                alt={c.title}
-                fallbackSrc="https://placehold.co/400x300?text=%20"
-              />
-            </Card.Section>
-            <Stack gap={6} mt="sm">
-              {c.categoryTitle && (
-                <Text size="xs" c="dimmed" tt="uppercase" fw={600}>{c.categoryTitle}</Text>
-              )}
-              <Text fw={600} lineClamp={2}>{c.title}</Text>
-              {c.description && (
-                <Text size="sm" c="dimmed" lineClamp={2}>{c.description}</Text>
-              )}
-              <Box mt={4}>
-                {c.price ? (
-                  <Text fw={700}>
-                    {c.price.from ? `${t("allproducts.price_from")} ` : ""}
-                    {eurFmt.format(c.price.amount)}
-                  </Text>
-                ) : (
-                  <Text size="sm" c="dimmed">{t("allproducts.price_inquiry")}</Text>
+              <div className="cat-grid">
+                {paged.map((c) => (
+                  <Link key={c.id} to={c.url} className="cat-card">
+                    <div className="cat-card__media">
+                      {c.image && <img className="ln-img" src={c.image} alt={c.title} loading="lazy" />}
+                    </div>
+                    <div className="cat-card__b">
+                      {c.categoryTitle && <div className="cat-card__cat">{c.categoryTitle}</div>}
+                      <div className="cat-card__name">{c.title}</div>
+                      {c.description && <div className="cat-card__desc">{c.description}</div>}
+                      {priceMarkup(c.price)}
+                    </div>
+                  </Link>
+                ))}
+              </div>
+
+              <div className="cat-pager">
+                <div className="cat-per">
+                  <label htmlFor="resPer">{t("allproducts.per_page_label")}</label>
+                  <select
+                    id="resPer"
+                    className="cat-select"
+                    value={pageSize}
+                    onChange={(e) => { setPageSize(Number(e.currentTarget.value) || 12); setPageNum(1); }}
+                  >
+                    {PAGE_SIZE_OPTIONS.map((n) => (
+                      <option key={n} value={n}>{n}</option>
+                    ))}
+                  </select>
+                </div>
+                {totalPages > 1 && (
+                  <div className="cat-pagenums">
+                    <button
+                      type="button"
+                      className="cat-page is-nav"
+                      aria-label="Prethodna"
+                      disabled={currentPage <= 1}
+                      onClick={() => setPageNum(currentPage - 1)}
+                    >
+                      <ChevronLeft aria-hidden="true" />
+                    </button>
+                    {pageList(currentPage, totalPages).map((p, i) =>
+                      p === "gap" ? (
+                        <span key={`gap-${i}`} className="cat-page__gap">…</span>
+                      ) : (
+                        <button
+                          type="button"
+                          key={p}
+                          className={`cat-page${p === currentPage ? " is-active" : ""}`}
+                          onClick={() => setPageNum(p)}
+                        >
+                          {p}
+                        </button>
+                      ),
+                    )}
+                    <button
+                      type="button"
+                      className="cat-page is-nav"
+                      aria-label="Sljedeća"
+                      disabled={currentPage >= totalPages}
+                      onClick={() => setPageNum(currentPage + 1)}
+                    >
+                      <ChevronRight aria-hidden="true" />
+                    </button>
+                  </div>
                 )}
-              </Box>
-            </Stack>
-          </Card>
-        ))}
-      </SimpleGrid>
-
-      <Divider my="lg" />
-      <Group justify="space-between" align="center" wrap="wrap">
-        <Group gap="xs" align="center">
-          <Text size="sm" c="dimmed">{t("allproducts.per_page_label")}</Text>
-          <Select
-            data={PAGE_SIZE_OPTIONS}
-            value={String(pageSize)}
-            onChange={(v) => {
-              setPageSize(Number(v) || 12);
-              setPageNum(1);
-            }}
-            allowDeselect={false}
-            w={90}
-          />
-        </Group>
-        <Pagination total={totalPages} value={currentPage} onChange={setPageNum} />
-      </Group>
-    </Box>
+              </div>
+            </>
+          ) : query ? (
+            <div className="cat-empty">
+              <Search aria-hidden="true" />
+              <p>{t("search.empty_title")}</p>
+              <span>{t("search.empty_text")} “{query}”.</span>
+              <Link to={home} className="ln-btn ln-btn--ghost cat-empty__cta">{t("notfound.home")}</Link>
+            </div>
+          ) : null}
+        </div>
+      </section>
+    </div>
   );
 }

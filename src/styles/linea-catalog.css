@@ -128,6 +128,11 @@
 .cat-empty svg { width: 40px; height: 40px; color: var(--brand-deep); opacity: .7; }
 .cat-empty p { margin: 16px 0 0; font-family: "Archivo"; font-weight: 700; font-size: 1.15rem; color: var(--ink); }
 .cat-empty span { display: block; margin-top: 8px; color: var(--ink-2); font-size: 0.95rem; }
+.cat-empty__cta { display: inline-flex; margin-top: 20px; }
+
+/* Search results have no filter sidebar, so they can't borrow `.cat-layout`'s
+   vertical rhythm — this gives the results column the same top/bottom spacing. */
+.cat-searchbody { padding: clamp(28px, 4vw, 44px) 0 clamp(56px, 8vw, 96px); }
 
 /* ---- PAGER ---- */
 .cat-pager { display: flex; align-items: center; justify-content: space-between; gap: 18px; flex-wrap: wrap; margin-top: 34px; }
