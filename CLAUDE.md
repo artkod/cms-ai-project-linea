@@ -8,20 +8,31 @@ This file is auto-loaded by Claude Code at the start of every session.
 
 Minimal, content-managed light-theme website powered by `cms-ai-core`.
 Mantine UI (light, `primaryColor: "teal"`), system-ui font, centered layout.
-Ships with one code-defined page type — **`product-item`**, registered in
-`admin/src/main.tsx`. Everything else uses the built-in `default` type (or
-runtime types added via Pages → Options).
+Ships with code-defined page types registered in `admin/src/main.tsx`. The
+catalogue uses a **flat product model**: a single **`product-item`** type whose
+instances live directly under the **`all-products`** landing page and carry their
+category as data. The old `products` → `product-category` folder pages were
+**removed** (see "Flat product taxonomy" below). Everything else uses the
+built-in `default` type (or runtime types).
 
-### `product-item` page type
+### `product-item` page type (flat)
 
 - Code-defined in `admin/src/main.tsx` as `productItemPageType`:
   `label: { en: "Product", hr: "Proizvod" }`, `canBeRoot: false`,
-  `allowedParentTypes: ["product-category"]`, `allowBlocks: true`,
-  `allowedBlockTypes: ["product-item"]`. Because there's exactly one
-  allowed block type, the framework treats this as a **singleton-block
-  page type** (see cms-ai-core CLAUDE.md): on create the admin auto-seeds
-  one `product-item` block, and the "+ Add new section" and per-block
-  Remove buttons are hidden.
+  `allowedParentTypes: ["all-products"]`, **`hideFromTree: true`**,
+  `allowBlocks: true`, `allowedBlockTypes: ["product-item"]`. Because there's
+  exactly one allowed block type, the framework treats this as a
+  **singleton-block page type** (see cms-ai-core CLAUDE.md): on create the admin
+  auto-seeds one `product-item` block, and the "+ Add new section" and per-block
+  Remove buttons are hidden. **`hideFromTree` keeps the ~100 items out of the
+  Pages tree entirely** — they're created/edited/deleted from the dedicated
+  **Products** sidebar screen (`admin/src/products/ProductsScreen.tsx`), not the
+  tree. The public URL is therefore flat: `/{locale}/{all-products-slug}/{item-slug}`.
+- **Category**: the block carries `mainCategoryId` + `subcategoryId` (cascading
+  dropdowns at the top of `ProductItemBlock`, sub disabled until a main is
+  picked). They reference entries in the `product_categories` project-setting
+  (see below). The category is **per-locale block data**; the migration writes it
+  to every locale and the public catalogue reads it per-locale.
 - The block (`admin/src/blocks/ProductItemBlock.tsx`) holds all authored
   product content: alternative title, main photo, gallery, plain-text
   description, EUR price, an "Additional info" section with real Mantine
@@ -95,27 +106,45 @@ runtime types added via Pages → Options).
   Free-text `cijena` strings are parsed with `parsePrice` (handles comma
   or dot decimal separator); empty / non-positive values resolve to 0.
 
-### `product-category` page type
+### Flat product taxonomy & the Products screen
 
-- Originally seeded as a runtime type; now **code-defined** in
-  `admin/src/main.tsx` as `productCategoryPageType` so it can carry a block.
-  `label: { en: "Product category", hr: "Vrsta proizvoda" }`,
-  `canBeRoot: false`, `deletable: true`, `allowedParentTypes: ["products"]`,
-  `allowedChildTypes: ["product-item"]`, `allowBlocks: true`,
-  `allowedBlockTypes: ["product-category"]`. With exactly one allowed block
-  type it's a **singleton-block page type** (same mechanics as `product-item`:
-  one block auto-seeded on create, no add/remove UI). The code def shadows
-  the matching runtime row from `project-data.seed.json` (PageTypeContext
-  drops runtime rows whose slug clashes with a code slug), so it takes effect
-  with no DB change; the seed entry was updated to the same `allowBlocks` /
-  `allowedBlockTypes` values to stay consistent. **Note:** `product-category`
-  pages created *before* this change have no block and no add button — the
-  auto-seed only fires at create time. Re-create such pages to pick up the block.
-- The block (`admin/src/blocks/ProductCategoryBlock.tsx`) holds three fields:
-  **Alternativni naslov** (text input), **Glavna slika** (single-image picker),
-  and **Alternativna slika** (single-image picker). No frontend renderer yet —
-  `product-category` falls through to `DefaultView` in `PageView.tsx`; add a
-  `case` there if/when the category content needs a custom view.
+The old `products` (main-category folder) and `product-category` (subcategory
+folder) page types were **removed**. They had no frontend view and made the Pages
+tree unwieldy with ~100 leaf items. The taxonomy is now plain data and products
+are managed in a dedicated screen.
+
+- **Taxonomy data** lives in the generic `project_settings` store under key
+  **`product_categories`** (public GET, so the frontend reads it like any other
+  project setting):
+  ```
+  { categories: [ { id, slug, label:{hr,en}, subcategories:[ { id, slug, label:{hr,en} } ] } ] }
+  ```
+  A product references a main + subcategory by `id` (stable across renames);
+  `slug` is used for catalogue deep-links (`?kategorija=<main-slug>`). Shared
+  admin model in `admin/src/products/categoryModel.ts`; frontend resolver in
+  `src/lib/productCategories.ts`.
+- **Products sidebar screen** (`admin/src/products/ProductsScreen.tsx`), injected
+  via **`createAdmin({ navSections: [productsNavSection] })`** (a cms-ai-core
+  capability — see core CLAUDE.md "Project-injected sidebar screens"). Key
+  `products`, icon `Boxes`, roles developer/admin/editor. Two tabs:
+  - **Products** — a searchable, paginated table of every `product-item` (drafts
+    + published) with main/sub **category filters**. Rows show thumbnail, title,
+    main/sub category, status. "New product" calls the injected `createPage(
+    "product-item", <all-products-id>)`; row click / pencil calls `openPageEditor(
+    id)`; trash soft-deletes via the admin API. Returning from the editor remounts
+    the screen so the table refreshes.
+  - **Categories** — the taxonomy editor (add/rename/remove main categories &
+    subcategories, per-locale labels, auto-slug). Saves `product_categories`.
+  - Talks to authenticated admin endpoints through `admin/src/lib/adminApi.ts`
+    (cookie auth + `X-Project-Slug`, paging past the 100-row list cap) since
+    admin-base doesn't re-export page CRUD.
+- **Migration** from the old folder model: `scripts/migrate-flatten-products.mjs`
+  (run `pnpm migrate:flatten-products`, `--dry-run` to preview). Builds
+  `product_categories` from the existing folder pages, writes `mainCategoryId`/
+  `subcategoryId` onto every item's block in all locales, re-parents items to
+  `all-products` (resolving slug collisions), and hard-deletes the folder pages +
+  their runtime `page_types` rows. Needs `DATABASE_URL`; requires the `pg`
+  devDependency (`pnpm install`).
 
 ## Related repos
 
@@ -191,14 +220,13 @@ network blocks Google Fonts.
 
 ## Page types
 
-The product taxonomy on this project is three-level:
+The product catalogue is **flat**: `product-item` pages live under `all-products`
+and carry their category as block data (see "Flat product taxonomy" above).
 
 | Slug | Label (en / hr) | Source | Parent | Children |
 |---|---|---|---|---|
-| `all-products` | All products / Svi proizvodi | code-defined (`admin/src/main.tsx`) | (root) | (none) |
-| `products` | Products / Proizvodi | code-defined (`admin/src/main.tsx`) | (root) | `product-category` |
-| `product-category` | Product category / Vrsta proizvoda | code-defined (`admin/src/main.tsx`) | `products` | `product-item` |
-| `product-item` | Product / Proizvod | code-defined (`admin/src/main.tsx`) | `product-category` | (leaf) |
+| `all-products` | All products / Svi proizvodi | code-defined (`admin/src/main.tsx`) | (root) | `product-item` |
+| `product-item` | Product / Proizvod | code-defined (`admin/src/main.tsx`) | `all-products` | (leaf) |
 | `about-us` | About us / O nama | code-defined (`admin/src/main.tsx`) | (root) | (none) |
 | `catalogues` | Catalogues / Katalozi | code-defined (`admin/src/main.tsx`) | (root) | (none) |
 | `news` | News / Novosti | code-defined (`admin/src/main.tsx`) | (root) | `article` |
@@ -209,26 +237,23 @@ The product taxonomy on this project is three-level:
 | `cart` | Cart / Košarica | code-defined (`admin/src/main.tsx`) | (root) | (none) |
 | `404` | 404 / 404 | code-defined (`admin/src/main.tsx`) | (root) | (none) |
 
-`products` is `canBeRoot: true`, `deletable: true`, with **no limit** (multiple
-root "Products" pages are allowed and they can be deleted). `product-category`
-has no limit and is a singleton-block page type. `product-item` is a
-singleton-block page type — see the sections above.
+`product-item` is a `hideFromTree` singleton-block page type — see the sections
+above. It is managed from the **Products** sidebar screen, not the Pages tree.
 
-`all-products` is the public **catalogue landing page**: `canBeRoot: true`,
-`deletable: false`, `limit: 1` (singleton), no children, no blocks, and no
-fields beyond the title. It is also a **`system: true`** type (see the
-search/cart/404 note below) — developer-only in the admin tree, orange-tagged. Its frontend renderer (`AllProductsView` in
+`all-products` is the public **catalogue landing page** AND the structural parent
+of every product: `canBeRoot: true`, `deletable: false`, `limit: 1` (singleton),
+`allowedChildTypes: ["product-item"]`, no blocks, no fields beyond the title. It
+is also a **`system: true`** type — developer-only in the admin tree,
+orange-tagged. Its frontend renderer (`AllProductsView` in
 `src/routes/AllProductsView.tsx`, branched on `page.type === "all-products"` in
-`PageView.tsx`) fetches **every** published `products` / `product-category` /
-`product-item` page in the active locale (via `getAllPages()` in `lib/api.ts`,
-which paginates past the API's 100-row cap) and joins each item to its category
-(parent) and products (grandparent). It renders a left filter sidebar + a
-sortable, paginated product grid (plain Mantine — no design system yet):
-- **Search** (title), **Categories** (the `products` grandparent), **Subcategories**
-  (the `product-category` parent — options narrow to the picked categories), and
-  a **price range**. None of these re-filter the grid until **Apply filters** is
-  pressed (Enter in the search box also applies); a price bound excludes
-  inquiry-only products.
+`PageView.tsx`) fetches every published `product-item` in the active locale (via
+`getAllPages()` in `lib/api.ts`) plus the `product_categories` taxonomy (via
+`getProductCategories()`), resolves each item's main/sub category from its block
+data, and builds the card URL as `/{locale}/{all-products-slug}/{item-slug}`. It
+renders a left filter sidebar + a sortable, paginated product grid:
+- **Search** (title), **Categories** (main categories from the taxonomy),
+  **Subcategories** (narrow to the picked main categories), and a **price range**.
+  Filters apply live; a price bound excludes inquiry-only products.
 - **Sort** (newest / oldest / name / price low→high / price high→low) and
   **per-page** size (12/24/48) + pagination apply immediately. Inquiry-only
   products always sort last under price sorts.
@@ -244,7 +269,7 @@ sortable, paginated product grid (plain Mantine — no design system yet):
 `about-us` is a **singleton root page** (`canBeRoot: true`, `deletable: false`,
 `limit: 1`, no parent, no children). It is a **singleton-block page type**
 (`allowBlocks: true`, `allowedBlockTypes: ["about-us"]`) — same mechanics as
-`product-item` / `product-category`: the framework auto-seeds one `about-us`
+`product-item`: the framework auto-seeds one `about-us`
 block on create and hides "+ Add new section" + the per-block Remove icon, so the
 editor shows a single fixed Content Section card. Content lives in the block
 (`admin/src/blocks/AboutUsBlock.tsx`, `aboutUsBlock` registered in `main.tsx`),
@@ -352,12 +377,10 @@ later; until then the search view reads its query from `?q=…` on the URL and t
 cart view shows placeholder line items. Rendered by `SearchView` / `CartView` /
 `NotFound` (see "Frontend rendering").
 
-The built-in `default` and the code-defined `products`, `product-category`, and
-`product-item` are all registered in code. `products` and `product-category`
-also have seed entries in `project-data.seed.json` that predate their code
-definitions — the code defs shadow those rows (PageTypeContext drops runtime
-rows whose slug clashes with a code slug), but the seed entries are kept
-consistent so a fresh DB matches. The frontend renders the default view for any
+The built-in `default` and the code-defined `product-item` / `all-products` (+
+the others) are registered in code. The old `products` / `product-category`
+runtime seed entries were removed from `project-data.seed.json` (the migration
+deletes any leftover rows). The frontend renders the default view for any
 page type without a `case` branch in `PageView.tsx` — currently
 `product-item`, `all-products`, `about-us`, `catalogues`, `news`, `article`,
 `eu-projects`, `eu-project-item`, `search`, `cart`,
@@ -434,9 +457,10 @@ inserts page types one at a time.
   deep-link), then a copyright bottom bar. Structural labels go through `t()`
   (`footer.*` keys) with Croatian fallbacks.
 - **Homepage** (`HomePage.tsx`) — full-bleed, six sections: typographic **hero**
-  (stat strip counts computed from `groups`/`categories`), **product groups grid**
-  (live `products` + a fixed "Cijeli katalog" CTA tile; group thumbnail = first
-  child category `mainImage` → child product `mainPhoto` → tinted empty),
+  (stat strip = main-category count + subcategory count from the `product_categories`
+  taxonomy), **product groups grid** (one card per **main category** from the
+  taxonomy + a fixed "Cijeli katalog" CTA tile; card links to
+  `?kategorija=<main-slug>`; thumbnail = first product photo in that category),
   **featured banners** (`getFeaturedBanners()`, icon resolved via lucide's `icons`
   registry), **"Zašto Linea" trust strip**, **newest 4 `product-item`s** (reuses
   `computeCardPrice`), and a **contact CTA band** (phone from the `contact`
@@ -507,8 +531,8 @@ inserts page types one at a time.
     (UA-sniffed) click opens a place link built from the address (`maps/search/?api=1&query=…`) so the OS
     hands it to the native maps app.
 - `search` — **`SearchView`** (`src/routes/SearchView.tsx`). Reads the query from `?q=…` (no in-chrome search
-  input yet). Fetches `products` / `product-category` / `product-item` via `getAllPages()` (same as
-  `AllProductsView`), builds the same product cards (reuses `computeCardPrice` exported from `AllProductsView`),
+  input yet). Fetches `product-item` via `getAllPages()` + the `product_categories` taxonomy + the
+  `all-products` slug (for flat URLs), builds the same product cards (reuses `computeCardPrice` exported from `AllProductsView`),
   and free-text-matches title + description. No left sidebar — just a `"Showing N results for 'q'"` headline,
   a sort `Select` (reuses `allproducts.sort_*` keys), the card grid, and pagination (reuses
   `allproducts.per_page_label`). Three states: no query → `search.prompt`; query with no matches → no-results

@@ -41,9 +41,12 @@ CLAUDE.md              Project guide for Claude Code (kept current)
 
 ## Customising
 
-This project ships a product taxonomy of code-defined page types
-(`all-products`, `products`, `product-category`, `product-item`) plus the
-built-in `default` type. To add a project-specific page type, see the
+This project ships a **flat** product catalogue: `product-item` pages live under
+the `all-products` landing page and carry their main/sub category as data (stored
+in the `product_categories` project-setting, edited in the **Products** sidebar
+screen). The old `products`/`product-category` folder page types were removed —
+run `pnpm migrate:flatten-products` to migrate an existing DB. To add a
+project-specific page type, see the
 "Page types" section of `CLAUDE.md` (and the matching block in
 `cms-ai-core/docs/project-CLAUDE-template.md`).
 
@@ -58,6 +61,11 @@ details — phone/fax/email/address/maps link, key `contact`). Both live in
 `admin/src/settings/` and are saved to the generic `project_settings` store; a
 frontend renderer can read each via `GET /api/project-settings/:key`. See the
 "Project-only Settings tabs" section of `CLAUDE.md`.
+
+The admin also adds a top-level **Products** sidebar screen via
+`createAdmin({ navSections })` (`admin/src/products/ProductsScreen.tsx`) — a table
+of all products with category filters + a category-taxonomy editor. See the "Flat
+product taxonomy & the Products screen" section of `CLAUDE.md`.
 
 See [`cms-ai-core/CLAUDE.md`](../cms-ai-core/CLAUDE.md) and
 [`cms-ai-core/docs/DECISIONS.md`](../cms-ai-core/docs/DECISIONS.md) for the

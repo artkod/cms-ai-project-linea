@@ -271,6 +271,25 @@ export async function getContactInfo(): Promise<ContactInfo | null> {
   return getProjectSettings<ContactInfo>("contact");
 }
 
+// Product taxonomy (main categories + subcategories) for the flat product model.
+// Same JSON shape the admin Products screen edits under `product_categories`.
+export interface ProductSubcategory {
+  id: string;
+  slug: string;
+  label: Record<string, string>;
+}
+export interface ProductMainCategory {
+  id: string;
+  slug: string;
+  label: Record<string, string>;
+  subcategories: ProductSubcategory[];
+}
+
+export async function getProductCategories(): Promise<ProductMainCategory[]> {
+  const value = await getProjectSettings<{ categories?: ProductMainCategory[] }>("product_categories");
+  return Array.isArray(value?.categories) ? value!.categories : [];
+}
+
 export async function getStrings(locale: string): Promise<Record<string, string>> {
   const res = await fetch(
     `${API_URL}/api/strings?locale=${encodeURIComponent(locale)}`,

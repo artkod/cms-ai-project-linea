@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
 import { Loader } from "@mantine/core";
 import { Search, Check, SlidersHorizontal, X, ChevronLeft, ChevronRight } from "lucide-react";
-import { getAllPages, type Page } from "@/lib/api";
+import { getAllPages, getProductCategories, type Page, type ProductMainCategory } from "@/lib/api";
+import { indexCategories, resolveProductCategory, resolveLabel } from "@/lib/productCategories";
 import { useStrings, useLocaleConfig } from "@/lib/locale";
 import { eur } from "@/lib/pricing";
 import "@/styles/pages/catalog.scss";
@@ -21,6 +22,8 @@ interface ProductBlockData {
   mainPhoto?: { mediaId: string; cdnUrl: string } | null;
   description?: string;
   priceEur?: string;
+  mainCategoryId?: string | null;
+  subcategoryId?: string | null;
   konfiguratorCijene?: {
     enabled?: boolean;
     konstrukcija?: KonstrukcijaRow[];
@@ -83,9 +86,9 @@ interface ProductCardData {
   description: string;
   image: string | null;
   url: string;
-  categoryId: string; // product-category (parent) id  — drives subcategory filter
-  productsId: string; // products (grandparent) id      — drives category filter
-  categoryTitle: string;
+  categoryId: string; // subcategory id — drives the subcategory filter
+  productsId: string; // main category id — drives the category filter
+  categoryTitle: string; // subcategory label (shown on the card)
   createdAt: string;
   price: { amount: number; from: boolean } | null;
 }
@@ -123,28 +126,21 @@ export function AllProductsView({ page }: { page: Page }) {
   };
 
   const [loading, setLoading] = useState(true);
-  const [productsPages, setProductsPages] = useState<Page[]>([]);
-  const [categoryPages, setCategoryPages] = useState<Page[]>([]);
+  const [categories, setCategories] = useState<ProductMainCategory[]>([]);
   const [itemPages, setItemPages] = useState<Page[]>([]);
 
   useEffect(() => {
     let alive = true;
     setLoading(true);
-    Promise.all([
-      getAllPages("products", locale),
-      getAllPages("product-category", locale),
-      getAllPages("product-item", locale),
-    ])
-      .then(([products, categories, items]) => {
+    Promise.all([getProductCategories(), getAllPages("product-item", locale)])
+      .then(([cats, items]) => {
         if (!alive) return;
-        setProductsPages(products);
-        setCategoryPages(categories);
+        setCategories(cats);
         setItemPages(items);
       })
       .catch(() => {
         if (!alive) return;
-        setProductsPages([]);
-        setCategoryPages([]);
+        setCategories([]);
         setItemPages([]);
       })
       .finally(() => {
@@ -155,40 +151,37 @@ export function AllProductsView({ page }: { page: Page }) {
     };
   }, [locale]);
 
-  // Build the card list: each item joins to its category (parent) and products
-  // (grandparent) so we can resolve a reachable URL and the filter facets.
+  const catIndex = useMemo(() => indexCategories(categories), [categories]);
+
+  // Build the card list: each item reads its main/sub category from its own
+  // block data (no more parent-chain join). Items live under the all-products
+  // landing page, so the URL is `/{locale}/{all-products-slug}/{item-slug}`.
   const cards = useMemo<ProductCardData[]>(() => {
-    const productsById = new Map(productsPages.map((p) => [p.id, p]));
-    const categoriesById = new Map(categoryPages.map((p) => [p.id, p]));
     const out: ProductCardData[] = [];
     for (const item of itemPages) {
-      const category = item.parentId ? categoriesById.get(item.parentId) : undefined;
-      const products = category?.parentId ? productsById.get(category.parentId) : undefined;
-      // Skip items whose ancestor chain isn't fully published+active in this
-      // locale — their hierarchical URL wouldn't resolve anyway.
-      if (!category || !products) continue;
       const block = item.blocks?.find((b) => b.type === "product-item");
       const d = (block?.data ?? {}) as ProductBlockData;
+      const { main, sub } = resolveProductCategory(catIndex, d.mainCategoryId, d.subcategoryId);
       out.push({
         id: item.id,
         title: item.title,
         description: d.description?.trim() || "",
         image: d.mainPhoto?.cdnUrl ?? null,
-        url: `/${locale}/${products.slug}/${category.slug}/${item.slug}`,
-        categoryId: category.id,
-        productsId: products.id,
-        categoryTitle: category.title,
+        url: `/${locale}/${page.slug}/${item.slug}`,
+        categoryId: sub?.id ?? "",
+        productsId: main?.id ?? "",
+        categoryTitle: sub ? resolveLabel(sub.label, locale, defaultLocale) : "",
         createdAt: item.createdAt,
         price: computeCardPrice(d),
       });
     }
     return out;
-  }, [productsPages, categoryPages, itemPages, locale]);
+  }, [itemPages, catIndex, locale, defaultLocale, page.slug]);
 
-  // Product count per group (shown next to each category checkbox).
+  // Product count per main category (shown next to each category checkbox).
   const groupCounts = useMemo(() => {
     const m = new Map<string, number>();
-    for (const c of cards) m.set(c.productsId, (m.get(c.productsId) ?? 0) + 1);
+    for (const c of cards) if (c.productsId) m.set(c.productsId, (m.get(c.productsId) ?? 0) + 1);
     return m;
   }, [cards]);
 
@@ -216,14 +209,15 @@ export function AllProductsView({ page }: { page: Page }) {
     };
   }, [filtersOpen]);
 
-  // Subcategory options narrow to the picked categories (if any). Drop selected
-  // subcategory ids that fall outside the current category selection.
+  // Subcategory options narrow to the picked main categories (if any). Drop
+  // selected subcategory ids that fall outside the current category selection.
   const visibleSubs = useMemo(() => {
-    const subs = catIds.length
-      ? categoryPages.filter((c) => c.parentId && catIds.includes(c.parentId))
-      : categoryPages;
-    return [...subs].sort((a, b) => a.title.localeCompare(b.title));
-  }, [categoryPages, catIds]);
+    const mains = catIds.length ? categories.filter((c) => catIds.includes(c.id)) : categories;
+    const subs = mains.flatMap((c) =>
+      (c.subcategories ?? []).map((sub) => ({ id: sub.id, title: resolveLabel(sub.label, locale, defaultLocale) })),
+    );
+    return subs.sort((a, b) => a.title.localeCompare(b.title));
+  }, [categories, catIds, locale, defaultLocale]);
 
   useEffect(() => {
     const valid = new Set(visibleSubs.map((s) => s.id));
@@ -236,22 +230,25 @@ export function AllProductsView({ page }: { page: Page }) {
   }, [search, catIds, subIds, minStr, maxStr]);
 
   // Deep-link from the homepage's "Naš asortiman" cards:
-  // `?kategorija=<products-slug>` pre-checks that category once the data loads.
+  // `?kategorija=<main-category-slug>` pre-checks that category once data loads.
   const [searchParams] = useSearchParams();
   const catParam = searchParams.get("kategorija");
   const seededRef = useRef(false);
   useEffect(() => {
     if (seededRef.current) return;
     if (!catParam) { seededRef.current = true; return; }
-    if (!productsPages.length) return; // wait for the groups to load
-    const match = productsPages.find((p) => p.slug === catParam);
+    if (!categories.length) return; // wait for the taxonomy to load
+    const match = categories.find((c) => c.slug === catParam);
     if (match) setCatIds([match.id]);
     seededRef.current = true;
-  }, [catParam, productsPages]);
+  }, [catParam, categories]);
 
   const categoryOptions = useMemo(
-    () => [...productsPages].sort((a, b) => a.title.localeCompare(b.title)),
-    [productsPages],
+    () =>
+      categories
+        .map((c) => ({ id: c.id, title: resolveLabel(c.label, locale, defaultLocale) }))
+        .sort((a, b) => a.title.localeCompare(b.title)),
+    [categories, locale, defaultLocale],
   );
 
   function toBound(v: string): number | null {

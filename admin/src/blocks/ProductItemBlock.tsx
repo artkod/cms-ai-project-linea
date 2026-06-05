@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import {
   Accordion,
   ActionIcon,
@@ -7,6 +7,7 @@ import {
   Group,
   Image,
   Modal,
+  Select,
   Stack,
   Tabs,
   Text,
@@ -19,10 +20,20 @@ import {
   IconButton,
   ImagePickerModal,
   RichTextEditor,
+  fetchProjectSettings,
+  useContentLocale,
   type BlockEditorProps,
   type BlockTypeDefinition,
   type GalleryImage,
 } from "@cms/admin-base";
+import {
+  PRODUCT_CATEGORIES_KEY,
+  EMPTY_CATEGORIES,
+  normalizeCategories,
+  resolveCatLabel,
+  findMain,
+  type ProductCategoriesValue,
+} from "../products/categoryModel";
 import {
   Pencil,
   Plus,
@@ -78,6 +89,11 @@ interface KonfiguratorData {
 }
 
 interface ProductItemData {
+  /** Main category id — references an entry in the `product_categories`
+   *  project-setting. Replaces the old product-category parent page. */
+  mainCategoryId: string | null;
+  /** Subcategory id — references a subcategory under `mainCategoryId`. */
+  subcategoryId: string | null;
   altTitle: string;
   mainPhoto: GalleryImage | null;
   galleryImages: GalleryImage[];
@@ -98,6 +114,8 @@ const PREDEFINED_TABS: Array<{ id: string; title: string }> = [
 ];
 
 const DEFAULT_DATA: ProductItemData = {
+  mainCategoryId: null,
+  subcategoryId: null,
   altTitle: "",
   mainPhoto: null,
   galleryImages: [],
@@ -133,6 +151,8 @@ function normalize(raw: Record<string, unknown>): ProductItemData {
   const ai = (r.additionalInfo ?? {}) as Partial<ProductItemData["additionalInfo"]>;
   const kc = (r.konfiguratorCijene ?? {}) as Partial<ProductItemData["konfiguratorCijene"]>;
   return {
+    mainCategoryId: typeof r.mainCategoryId === "string" ? r.mainCategoryId : null,
+    subcategoryId: typeof r.subcategoryId === "string" ? r.subcategoryId : null,
     altTitle: typeof r.altTitle === "string" ? r.altTitle : "",
     mainPhoto: r.mainPhoto ?? null,
     galleryImages: Array.isArray(r.galleryImages) ? r.galleryImages : [],
@@ -938,6 +958,92 @@ function KonfiguratorCijene({
   );
 }
 
+// ─── Category section: cascading main → sub dropdowns ────────────────────────
+//
+// Reads the `product_categories` taxonomy from the project-settings store. The
+// subcategory select is disabled until a main category is chosen, and its
+// options narrow to the selected main's subcategories. Replaces the old
+// product/product-category parent pages — category is now data on the product.
+
+function CategorySection({
+  mainCategoryId,
+  subcategoryId,
+  onChange,
+}: {
+  mainCategoryId: string | null;
+  subcategoryId: string | null;
+  onChange: (patch: { mainCategoryId?: string | null; subcategoryId?: string | null }) => void;
+}) {
+  const { locale, defaultLocale } = useContentLocale();
+  const [cats, setCats] = useState<ProductCategoriesValue>(EMPTY_CATEGORIES);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchProjectSettings<ProductCategoriesValue>(PRODUCT_CATEGORIES_KEY)
+      .then(({ value }) => {
+        if (!cancelled) setCats(normalizeCategories(value));
+      })
+      .catch(() => {
+        /* leave empty */
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const mainOptions = cats.categories.map((c) => ({
+    value: c.id,
+    label: resolveCatLabel(c.label, locale, defaultLocale) || "(bez naziva)",
+  }));
+  const selectedMain = findMain(cats, mainCategoryId);
+  const subOptions = (selectedMain?.subcategories ?? []).map((sub) => ({
+    value: sub.id,
+    label: resolveCatLabel(sub.label, locale, defaultLocale) || "(bez naziva)",
+  }));
+
+  const noCats = !loading && cats.categories.length === 0;
+
+  return (
+    <Stack gap={10}>
+      <SectionHeader title="Kategorija" />
+      {noCats ? (
+        <Text size="xs" c="dimmed">
+          Još nema kategorija. Dodajte ih u izborniku „Proizvodi” → „Kategorije”.
+        </Text>
+      ) : (
+        <Group gap={12} grow align="flex-start">
+          <Select
+            label="Glavna kategorija"
+            placeholder={loading ? "Učitavanje…" : "Odaberi kategoriju"}
+            data={mainOptions}
+            value={mainCategoryId}
+            disabled={loading}
+            onChange={(v) => onChange({ mainCategoryId: v, subcategoryId: null })}
+            searchable
+            clearable
+            comboboxProps={{ withinPortal: true }}
+          />
+          <Select
+            label="Potkategorija"
+            placeholder={!mainCategoryId ? "Prvo odaberi glavnu kategoriju" : "Odaberi potkategoriju"}
+            data={subOptions}
+            value={subcategoryId}
+            disabled={loading || !mainCategoryId || subOptions.length === 0}
+            onChange={(v) => onChange({ subcategoryId: v })}
+            searchable
+            clearable
+            comboboxProps={{ withinPortal: true }}
+          />
+        </Group>
+      )}
+    </Stack>
+  );
+}
+
 // ─── Block editor (top-level) ────────────────────────────────────────────────
 
 function ProductItemEditor({ data, onChange }: BlockEditorProps) {
@@ -949,6 +1055,13 @@ function ProductItemEditor({ data, onChange }: BlockEditorProps) {
 
   return (
     <Stack gap={20}>
+      {/* Category (main → sub) */}
+      <CategorySection
+        mainCategoryId={d.mainCategoryId}
+        subcategoryId={d.subcategoryId}
+        onChange={(p) => patch(p)}
+      />
+
       {/* Basics */}
       <Stack gap={10}>
         <SectionHeader title="Osnovni podaci" />
