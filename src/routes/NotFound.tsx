@@ -3,7 +3,7 @@ import { Link, useParams } from "react-router";
 import { Package, FileText, Newspaper, Phone } from "lucide-react";
 import { useLocaleConfig, useStrings } from "@/lib/locale";
 import { getSystemPageSlug } from "@/lib/api";
-import "@/styles/linea-notfound.css";
+import "@/styles/pages/notfound.scss";
 
 export function NotFound() {
   const { locale: localeParam } = useParams<{ locale?: string }>();

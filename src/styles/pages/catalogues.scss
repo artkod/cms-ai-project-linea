@@ -1,0 +1,350 @@
+// ============================================================
+// Catalogues (katalozi / documents)  ·  "Clean & Corporate"
+// ------------------------------------------------------------
+// Lifted from the design mock's inline <style> (.ct-* prefix).
+// Image slots ship as <img class="ln-img">. The page wrapper is
+// `.ct-view`; React controls the empty state so the mock's
+// display:none is dropped.
+// ============================================================
+
+@use "../abstracts/breakpoints" as *;
+
+.ct-view {
+  font-family: "Hanken Grotesk", system-ui, sans-serif;
+  color: var(--ink);
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: "Archivo", system-ui, sans-serif;
+  }
+}
+
+.ct-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--brand-deep);
+
+  &::before {
+    content: "";
+    width: 22px;
+    height: 2px;
+    background: var(--brand);
+  }
+}
+
+// page head
+.ct-head {
+  padding: clamp(32px, 5vw, 56px) 0 clamp(24px, 3vw, 36px);
+
+  h1 {
+    font-weight: 800;
+    font-size: clamp(2rem, 4.4vw, 3rem);
+    letter-spacing: -0.03em;
+    margin: 14px 0 0;
+    line-height: 1.04;
+  }
+
+  p {
+    margin: 14px 0 0;
+    color: var(--ink-2);
+    font-size: 1.08rem;
+    max-width: 58ch;
+  }
+}
+
+.ct-body {
+  padding-bottom: clamp(20px, 3vw, 32px);
+}
+
+// meta line + type chip (shared)
+.ct-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 0.82rem;
+  color: var(--ink-2);
+  font-weight: 500;
+
+  .dot {
+    width: 3px;
+    height: 3px;
+    border-radius: 50%;
+    background: var(--ink-2);
+    opacity: 0.5;
+  }
+}
+
+.ct-type {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: "Archivo";
+  font-weight: 700;
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  color: var(--brand-deep);
+  background: var(--brand-tint);
+  border: 1px solid var(--border);
+  padding: 4px 9px;
+  border-radius: 7px;
+
+  svg {
+    width: 13px;
+    height: 13px;
+  }
+}
+
+// ---- FEATURED ----
+.ct-featured {
+  display: grid;
+  grid-template-columns: 0.92fr 1.08fr;
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  overflow: hidden;
+  background: var(--surface);
+  margin-bottom: 28px;
+
+  &__media {
+    position: relative;
+    background: var(--brand-tint);
+    min-height: 280px;
+
+    .ln-img {
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      inset: 0;
+    }
+  }
+
+  &__badge {
+    position: absolute;
+    top: 18px;
+    left: 18px;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 6px 13px;
+    font-size: 0.74rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--brand-deep);
+
+    svg {
+      width: 14px;
+      height: 14px;
+    }
+  }
+
+  &__b {
+    padding: clamp(26px, 3.5vw, 44px);
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+
+    h2 {
+      font-weight: 800;
+      font-size: clamp(1.5rem, 2.8vw, 2.1rem);
+      letter-spacing: -0.025em;
+      margin: 16px 0 0;
+      line-height: 1.1;
+    }
+
+    .ct-meta {
+      margin-top: 16px;
+    }
+
+    .ln-btn {
+      margin-top: 26px;
+    }
+  }
+}
+
+// ---- GRID ----
+.ct-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 22px;
+}
+
+.ct-card {
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  overflow: hidden;
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  transition: border-color 0.16s, box-shadow 0.16s, transform 0.16s;
+
+  &:hover {
+    border-color: var(--brand);
+    box-shadow: 0 18px 46px -30px rgba(95, 132, 32, 0.5);
+    transform: translateY(-3px);
+  }
+
+  &__media {
+    position: relative;
+    height: 152px;
+    background: var(--brand-tint);
+    border-bottom: 1px solid var(--border);
+
+    .ln-img {
+      width: 100%;
+      height: 100%;
+    }
+  }
+
+  &__fileicon {
+    position: absolute;
+    right: 14px;
+    bottom: -20px;
+    width: 44px;
+    height: 44px;
+    border-radius: 11px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--brand-deep);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 10px 24px -14px rgba(29, 32, 20, 0.4);
+
+    svg {
+      width: 22px;
+      height: 22px;
+    }
+  }
+
+  &__b {
+    padding: 28px 18px 18px;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+
+    h3 {
+      font-family: "Archivo";
+      font-weight: 700;
+      font-size: 1.08rem;
+      letter-spacing: -0.01em;
+      margin: 0;
+      line-height: 1.3;
+    }
+
+    .ct-meta {
+      margin-top: 10px;
+    }
+  }
+
+  &__dl {
+    margin-top: 18px;
+
+    .ln-btn {
+      width: 100%;
+    }
+  }
+}
+
+.ln-btn svg.dlico {
+  width: 17px;
+  height: 17px;
+}
+
+// ---- EMPTY ----
+.ct-empty {
+  text-align: center;
+  padding: 90px 20px;
+  border: 1px dashed var(--border);
+  border-radius: 18px;
+  background: var(--brand-tint);
+
+  &__ico {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--brand-deep);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 20px;
+
+    svg {
+      width: 28px;
+      height: 28px;
+    }
+  }
+
+  p {
+    margin: 0;
+    font-family: "Archivo";
+    font-weight: 700;
+    font-size: 1.2rem;
+    color: var(--ink);
+  }
+}
+
+// ---- CTA BAND ----
+.ct-cta-sec {
+  padding: clamp(48px, 7vw, 88px) 0 clamp(56px, 8vw, 96px);
+}
+
+.ct-cta {
+  background: var(--brand-tint);
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  padding: clamp(40px, 6vw, 72px);
+  text-align: center;
+
+  h2 {
+    font-family: "Archivo";
+    font-weight: 800;
+    font-size: clamp(1.7rem, 3.6vw, 2.6rem);
+    letter-spacing: -0.025em;
+    margin: 0;
+  }
+
+  p {
+    margin: 16px auto 0;
+    max-width: 56ch;
+    color: var(--ink-2);
+    font-size: 1.08rem;
+  }
+
+  .ln-btn {
+    margin-top: 28px;
+  }
+}
+
+@include mq(900px) {
+  .ct-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .ct-featured {
+    grid-template-columns: 1fr;
+  }
+
+  .ct-featured__media {
+    min-height: 200px;
+  }
+}
+
+@include mq(540px) {
+  .ct-grid {
+    grid-template-columns: 1fr;
+  }
+}

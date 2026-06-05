@@ -5,7 +5,7 @@ import { Search, Check, SlidersHorizontal, X, ChevronLeft, ChevronRight } from "
 import { getAllPages, type Page } from "@/lib/api";
 import { useStrings, useLocaleConfig } from "@/lib/locale";
 import { eur } from "@/lib/pricing";
-import "@/styles/linea-catalog.css";
+import "@/styles/pages/catalog.scss";
 
 // ─── Pricing ──────────────────────────────────────────────────────────────────
 // Mirrors the per-product pricing rules in PageView.tsx so cards agree with the

@@ -1,0 +1,16 @@
+// ============================================================
+// Breakpoint helpers
+// ------------------------------------------------------------
+// The design uses ad-hoc max-width breakpoints, so we expose a
+// single max-width media-query mixin rather than a fixed scale.
+//
+//   @include mq(940px) { ... }
+//
+// emits `@media (max-width: 940px) { ... }`.
+// ============================================================
+
+@mixin mq($max-width) {
+  @media (max-width: $max-width) {
+    @content;
+  }
+}

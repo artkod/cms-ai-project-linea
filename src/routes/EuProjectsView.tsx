@@ -4,7 +4,7 @@ import { Loader } from "@mantine/core";
 import { ArrowRight, FolderOpen, ChevronLeft, ChevronRight } from "lucide-react";
 import { getAllPages, type Page } from "@/lib/api";
 import { useStrings } from "@/lib/locale";
-import "@/styles/linea-eu.css";
+import "@/styles/pages/eu.scss";
 
 // ─── EU-project model (derived from child `eu-project-item` pages) ─────────────
 //

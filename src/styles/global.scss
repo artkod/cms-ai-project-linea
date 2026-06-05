@@ -1,0 +1,21 @@
+// ============================================================
+// Linea — global stylesheet (Direction A "Clean & Corporate")
+// ------------------------------------------------------------
+// Imported once near the app root (src/main.tsx). Holds the design
+// tokens, the layout primitives, the sticky header / dark footer
+// chrome, the button system, and the shared homepage content
+// sections (which the About and Product pages also reuse).
+//
+// Per-route styles live in `pages/*.scss` and `components/*.scss`
+// and are imported by the route/component that needs them.
+//
+// Order below mirrors the original single-file stylesheet so the
+// cascade is unchanged.
+// ============================================================
+
+@use "abstracts/tokens";
+@use "base/layout";
+@use "base/header";
+@use "base/footer";
+@use "base/buttons";
+@use "sections/home";

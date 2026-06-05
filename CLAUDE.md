@@ -145,7 +145,8 @@ PostgreSQL 16 (Docker)
 
 **Site-wide content width** is **1140px**. The redesigned header, footer and
 homepage use the CSS class **`.ln-container`** (max-width 1140px + responsive
-gutter, defined in `src/styles/linea-home.css`); the remaining (Mantine) routes
+gutter, defined in `src/styles/base/_layout.scss`; the `--ln-container` /
+`--ln-gutter` tokens live in `src/styles/abstracts/_tokens.scss`); the remaining (Mantine) routes
 still use `<Container size={1140}>` in `src/routes/RootLayout.tsx`'s `<main>`.
 **The homepage renders full-bleed** — `RootLayout` drops the `<main>` container
 for the index route (`isHome`) so the homepage's alternating tinted bands span
@@ -153,13 +154,33 @@ the viewport, while each section keeps its own inner `.ln-container`.
 
 **Direction A redesign (lime).** Header, footer and homepage follow the "Clean &
 Corporate" design: lime `#9acb34` accent, **Archivo** (headings/wordmark) +
-**Hanken Grotesk** (body), styled by the drop-in stylesheet
-`src/styles/linea-home.css` (imported once in `src/main.tsx`). It is plain
-`className`-based CSS scoped with `.ln-*` (chrome/buttons) and `.a-*` / `.ln-home`
-(homepage) prefixes, so it coexists with Mantine. **The global Mantine theme is
-still light/teal** (`src/main.tsx`) — the redesigned surfaces are lime purely via
-this stylesheet's CSS vars and `.ln-btn` classes, so a full theme swap (which
-would re-tint every Mantine content route) is still pending.
+**Hanken Grotesk** (body). It is plain `className`-based styling scoped with
+`.ln-*` (chrome/buttons) and `.a-*` / `.ln-home` (homepage) prefixes, so it
+coexists with Mantine. **The global Mantine theme is still light/teal**
+(`src/main.tsx`) — the redesigned surfaces are lime purely via the stylesheet's
+CSS vars and `.ln-btn` classes, so a full theme swap (which would re-tint every
+Mantine content route) is still pending.
+
+**Stylesheets are SCSS** (compiled by Vite via the `sass` dev dependency) and live
+under `src/styles/` in a layered architecture — no inline single-line rules:
+
+- `abstracts/_tokens.scss` — the `:root` design tokens (`--brand`, `--ink`,
+  `--border`, `--ln-container`, …), kept as CSS custom properties so they stay
+  runtime-themeable; `abstracts/_breakpoints.scss` — the `mq($max-width)`
+  max-width media-query mixin (`@use "../abstracts/breakpoints" as *;`).
+- `base/` — `_layout.scss` (`.ln-container`, `.ln-img`, `.a-thumb`),
+  `_header.scss`, `_footer.scss`, `_buttons.scss` (`.ln-btn*`).
+- `sections/_home.scss` — homepage + the shared `.a-*` content primitives
+  (`.a-section`, `.a-head`, `.a-eyebrow`, `.a-prod`, `.a-banner`, …) that the
+  About and Product pages also reuse.
+- `global.scss` — the global entry that `@use`s tokens + base + sections in the
+  original cascade order; **imported once in `src/main.tsx`**.
+- `pages/*.scss` — per-route page styles (`cart`, `catalog`, `catalogues`,
+  `news`, `eu`, `product`, `mixed`, `detail`, `about`, `notfound`), each
+  **imported by the route that uses it** (preserves per-route import structure);
+  `components/modals.scss` — global modals/banner, imported by the modal
+  components. Page/component partials reference the global `var(--…)` tokens
+  directly and only `@use` the breakpoints mixin where needed.
 
 **Fonts** — Archivo + Hanken Grotesk + Inter are loaded site-wide via Google
 Fonts (`<link>` in `index.html`). The Mantine theme still uses Inter; the lime
@@ -659,7 +680,8 @@ cd ../cms-ai-core && pnpm --filter @cms/admin-base build
 | `src/lib/tiptapRenderer.ts` | Tiptap JSON → HTML (no Tiptap runtime needed) |
 | `src/App.tsx` | Route tree: `/` → defaultLocale redirect; `/:locale/*` gated by `LocaleGate` |
 | `src/routes/RootLayout.tsx` | Shared layout — Direction A `SiteHeader` (flat nav + functional search + cart + mobile panel) and `SiteFooter` (dark deep-green, dynamic links + `contact` block); homepage renders full-bleed |
-| `src/styles/linea-home.css` | Direction A drop-in stylesheet (lime; `.ln-*` chrome/buttons + `.a-*`/`.ln-home` homepage), imported once in `main.tsx` |
+| `src/styles/global.scss` | Direction A global SCSS entry — `@use`s `abstracts/` (tokens, breakpoints mixin), `base/` (layout, header, footer, buttons) + `sections/_home.scss` (homepage + shared `.a-*` primitives); imported once in `main.tsx` |
+| `src/styles/pages/*.scss` | Per-route page styles (`cart`, `catalog`, `catalogues`, `news`, `eu`, `product`, `mixed`, `detail`, `about`, `notfound`), each imported by its route; `components/modals.scss` = global modals/banner |
 | `src/routes/HomePage.tsx` | Direction A homepage — hero, product groups grid, featured banners, trust strip, newest products, contact CTA band |
 | `src/routes/PageView.tsx` | Renders the `default` page type and its Mixed Content blocks; switches custom views on `page.type` |
 | `src/routes/NewsView.tsx` | `news` page type — journal listing of child `article` pages (featured + type filter + sort + grid + pagination) |
@@ -668,7 +690,6 @@ cd ../cms-ai-core && pnpm --filter @cms/admin-base build
 | `src/routes/CartView.tsx` | `cart` page type — placeholder simple-Mantine cart (sample line items + summary; empty-cart branch) |
 | `src/routes/NotFound.tsx` | `404` page type — simple centered Mantine 404; localized via `t('notfound.*')` |
 | `src/routes/LanguageSwitcher.tsx` | Globe-icon dropdown; hidden when only one locale is available |
-| `src/nav.css` | CSS-only cascading dropdown nav (`.cms-nav`, `.cms-nav-dropdown`, `.cms-nav-sub`) |
 | `admin/src/main.tsx` | `createAdmin` config |
 
 ---

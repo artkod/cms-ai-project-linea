@@ -4,7 +4,7 @@ import { MantineProvider, createTheme } from "@mantine/core";
 import { Notifications } from "@mantine/notifications";
 import "@mantine/core/styles.css";
 import "@mantine/notifications/styles.css";
-import "./styles/linea-home.css";
+import "./styles/global.scss";
 import { CartProvider } from "./lib/cart";
 import App from "./App";
 

@@ -1,0 +1,56 @@
+// ============================================================
+// BUTTONS  (use these or map to Mantine <Button>)
+// ============================================================
+
+.ln-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.95rem;
+  padding: 13px 24px;
+  border-radius: 10px;
+  text-decoration: none;
+  cursor: pointer;
+  border: 1px solid transparent;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s, border-color 0.15s, transform 0.08s;
+
+  &:active {
+    transform: translateY(1px);
+  }
+
+  &--primary {
+    background: var(--brand);
+    color: var(--ink);
+
+    &:hover {
+      background: var(--brand-hover);
+      color: #fff;
+    }
+  }
+
+  &--ghost {
+    background: transparent;
+    color: var(--ink);
+    border-color: var(--border);
+
+    &:hover {
+      border-color: var(--brand);
+      color: var(--brand-deep);
+      background: var(--brand-tint);
+    }
+  }
+
+  &--lg {
+    padding: 16px 30px;
+    font-size: 1.02rem;
+  }
+}
+
+.ln-arrow {
+  width: 17px;
+  height: 17px;
+}

@@ -1,0 +1,24 @@
+// ============================================================
+// Layout primitives — page container + generic photo slots
+// ============================================================
+
+// Generic image fill used by every photo slot.
+.ln-img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+  background: var(--brand-tint);
+}
+
+// Photo slot — tinted so cards still read as intentional when no image resolves.
+.a-thumb {
+  background: var(--brand-tint);
+}
+
+.ln-container {
+  width: 100%;
+  max-width: var(--ln-container);
+  margin-inline: auto;
+  padding-inline: var(--ln-gutter);
+}

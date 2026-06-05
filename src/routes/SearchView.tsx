@@ -6,7 +6,7 @@ import { getAllPages, type Page } from "@/lib/api";
 import { useStrings, useLocaleConfig } from "@/lib/locale";
 import { eur } from "@/lib/pricing";
 import { computeCardPrice } from "./AllProductsView";
-import "@/styles/linea-catalog.css";
+import "@/styles/pages/catalog.scss";
 
 // The search page renders product-item results that match the `?q=` query
 // submitted from the navbar search form. The query is read straight from the

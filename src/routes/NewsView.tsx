@@ -4,7 +4,7 @@ import { Loader } from "@mantine/core";
 import { Star, ArrowRight, Newspaper, ChevronLeft, ChevronRight } from "lucide-react";
 import { getAllPages, type Page } from "@/lib/api";
 import { useStrings } from "@/lib/locale";
-import "@/styles/linea-news.css";
+import "@/styles/pages/news.scss";
 
 // ─── Article model (derived from child `article` pages of the news page) ───────
 //

@@ -6,7 +6,7 @@ import { useStrings, useLocaleConfig } from "@/lib/locale";
 import { useCart } from "@/lib/cart";
 import { eur } from "@/lib/pricing";
 import { InquiryModal, type InquiryItem } from "@/components/InquiryModal";
-import "@/styles/linea-cart.css";
+import "@/styles/pages/cart.scss";
 
 // Croatian item-count word: 1 artikl · 2–4 artikla · else artikala.
 function artiklWord(n: number): string {

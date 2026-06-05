@@ -1,0 +1,143 @@
+// ============================================================
+// FOOTER  (dark deep-green)
+// ============================================================
+
+@use "../abstracts/breakpoints" as *;
+
+.ln-footer {
+  background: var(--footer-bg);
+  color: var(--footer-ink);
+
+  &__top {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr 1.3fr;
+    gap: 48px;
+    padding: 64px 0 48px;
+  }
+
+  &__brand {
+    .ln-wordmark {
+      color: #fff;
+      font-size: 1.5rem;
+    }
+
+    .ln-logo {
+      height: 34px;
+      color: #fff;
+    }
+  }
+
+  &__tag {
+    margin: 16px 0 0;
+    max-width: 30ch;
+    color: var(--footer-ink-2);
+    font-size: 0.92rem;
+    line-height: 1.6;
+  }
+
+  h4 {
+    margin: 0 0 16px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--brand);
+    font-family: "Archivo", sans-serif;
+  }
+
+  &__links {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 11px;
+
+    a {
+      text-decoration: none;
+      color: var(--footer-ink);
+      font-size: 0.92rem;
+      transition: color 0.14s;
+
+      &:hover {
+        color: var(--brand);
+      }
+    }
+  }
+
+  &__bottom {
+    border-top: 1px solid var(--footer-line);
+    padding: 22px 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    color: var(--footer-ink-2);
+    font-size: 0.85rem;
+
+    nav {
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+
+    a {
+      color: var(--footer-ink-2);
+      text-decoration: none;
+
+      &:hover {
+        color: var(--brand);
+      }
+    }
+  }
+}
+
+.ln-contact {
+  display: grid;
+  gap: 11px;
+  font-size: 0.92rem;
+
+  div {
+    display: flex;
+    gap: 10px;
+    align-items: baseline;
+  }
+
+  .ln-contact__k {
+    color: var(--footer-ink-2);
+    min-width: 64px;
+    flex-shrink: 0;
+  }
+
+  a {
+    color: var(--footer-ink);
+    text-decoration: none;
+
+    &:hover {
+      color: var(--brand);
+    }
+  }
+}
+
+.ln-maplink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  color: var(--brand) !important;
+  font-weight: 600;
+  text-decoration: none;
+
+  svg {
+    width: 15px;
+    height: 15px;
+  }
+}
+
+@include mq(800px) {
+  .ln-footer__top {
+    grid-template-columns: 1fr;
+    gap: 36px;
+    padding: 48px 0 36px;
+  }
+}

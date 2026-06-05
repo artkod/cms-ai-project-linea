@@ -1,0 +1,478 @@
+// ============================================================
+// HOMEPAGE  (Direction A — Clean & Corporate)
+// ------------------------------------------------------------
+// Body font: Hanken Grotesk · Headings: Archivo
+// Several primitives here (.a-eyebrow, .a-section, .a-head,
+// .a-prod, .a-banner) are shared content building blocks reused
+// by the About and Product pages, which is why this lives in the
+// global bundle rather than a per-route page partial.
+// ============================================================
+
+@use "../abstracts/breakpoints" as *;
+
+.ln-home {
+  font-family: "Hanken Grotesk", system-ui, sans-serif;
+  color: var(--ink);
+
+  h1,
+  h2,
+  h3 {
+    font-family: "Archivo", system-ui, sans-serif;
+  }
+}
+
+.a-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--brand-deep);
+  font-family: "Archivo", sans-serif;
+
+  &::before {
+    content: "";
+    width: 22px;
+    height: 2px;
+    background: var(--brand);
+  }
+}
+
+// ---- HERO ----
+.a-hero {
+  text-align: center;
+  padding: clamp(64px, 11vw, 130px) 0 clamp(48px, 7vw, 84px);
+
+  h1 {
+    font-weight: 800;
+    font-size: clamp(2.6rem, 6vw, 4.6rem);
+    line-height: 1.02;
+    letter-spacing: -0.035em;
+    margin: 22px auto 0;
+    max-width: 16ch;
+    text-wrap: balance;
+
+    em {
+      font-style: normal;
+      color: var(--brand-deep);
+    }
+  }
+
+  p {
+    margin: 24px auto 0;
+    max-width: 52ch;
+    font-size: clamp(1.05rem, 2vw, 1.28rem);
+    color: var(--ink-2);
+  }
+
+  &__cta {
+    margin-top: 36px;
+    display: flex;
+    gap: 14px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  &__stats {
+    margin: 52px auto 0;
+    max-width: 760px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+
+    div {
+      padding: 26px 16px;
+      border-right: 1px solid var(--border);
+
+      &:last-child {
+        border-right: none;
+      }
+    }
+
+    b {
+      display: block;
+      font-family: "Archivo";
+      font-weight: 800;
+      font-size: 2rem;
+      letter-spacing: -0.02em;
+    }
+
+    span {
+      font-size: 0.88rem;
+      color: var(--ink-2);
+    }
+  }
+}
+
+// ---- SECTION scaffolding ----
+.a-section {
+  padding: clamp(56px, 8vw, 96px) 0;
+
+  &--tint {
+    background: var(--brand-tint);
+  }
+}
+
+.a-head {
+  max-width: 640px;
+  margin-bottom: 44px;
+
+  h2 {
+    font-weight: 800;
+    font-size: clamp(1.8rem, 3.6vw, 2.7rem);
+    letter-spacing: -0.025em;
+    margin: 14px 0 0;
+    line-height: 1.08;
+  }
+
+  p {
+    margin: 14px 0 0;
+    color: var(--ink-2);
+    font-size: 1.08rem;
+  }
+}
+
+// ---- PRODUCT GROUPS ----
+.a-groups {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+}
+
+.a-group {
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  overflow: hidden;
+  background: var(--surface);
+  text-decoration: none;
+  color: inherit;
+  display: flex;
+  flex-direction: column;
+  transition: border-color 0.18s, box-shadow 0.18s, transform 0.18s;
+
+  &:hover {
+    border-color: var(--brand);
+    box-shadow: 0 16px 40px -24px rgba(95, 132, 32, 0.5);
+    transform: translateY(-3px);
+
+    .ln-arrow {
+      transform: translateX(4px);
+    }
+  }
+
+  .a-thumb {
+    width: 100%;
+    height: 168px;
+  }
+
+  &__body {
+    padding: 22px 22px 24px;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+
+    h3 {
+      font-weight: 700;
+      font-size: 1.18rem;
+      letter-spacing: -0.01em;
+      margin: 0;
+    }
+  }
+
+  &__cats {
+    margin: 12px 0 0;
+    color: var(--ink-2);
+    font-size: 0.92rem;
+    line-height: 1.55;
+    flex: 1;
+  }
+
+  &__foot {
+    margin-top: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    .ln-arrow {
+      color: var(--brand-deep);
+      transition: transform 0.18s;
+    }
+  }
+
+  &__count {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--brand-deep);
+    background: var(--brand-tint);
+    padding: 5px 11px;
+    border-radius: 999px;
+  }
+
+  &--cta {
+    background: var(--ink);
+    border-color: var(--ink);
+
+    h3 {
+      color: #fff;
+    }
+
+    .a-group__cats {
+      color: #b9c0ad;
+    }
+
+    .a-group__count {
+      background: rgba(154, 203, 52, 0.2);
+      color: var(--brand);
+    }
+
+    .ln-arrow {
+      color: var(--brand);
+    }
+  }
+}
+
+// ---- FEATURED BANNERS ----
+.a-banners {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+}
+
+.a-banner {
+  &__ico {
+    width: 54px;
+    height: 54px;
+    border-radius: 13px;
+    background: var(--brand-tint);
+    color: var(--brand-deep);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 20px;
+
+    svg {
+      width: 26px;
+      height: 26px;
+    }
+  }
+
+  h3 {
+    font-weight: 700;
+    font-size: 1.22rem;
+    margin: 0 0 10px;
+  }
+
+  p {
+    margin: 0;
+    color: var(--ink-2);
+    font-size: 0.96rem;
+    line-height: 1.6;
+  }
+}
+
+// ---- TRUST STRIP ----
+.a-trust {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: clamp(40px, 6vw, 80px);
+  align-items: center;
+
+  h2 {
+    font-weight: 800;
+    font-size: clamp(1.8rem, 3.6vw, 2.7rem);
+    letter-spacing: -0.025em;
+    margin: 14px 0 0;
+    line-height: 1.08;
+  }
+
+  &__list {
+    list-style: none;
+    margin: 28px 0 0;
+    padding: 0;
+    display: grid;
+    gap: 4px;
+
+    li {
+      display: flex;
+      gap: 16px;
+      padding: 18px 0;
+      border-top: 1px solid var(--border);
+
+      &:last-child {
+        border-bottom: 1px solid var(--border);
+      }
+    }
+
+    .n {
+      font-family: "Archivo";
+      font-weight: 800;
+      color: var(--brand-deep);
+      font-size: 1.1rem;
+      min-width: 34px;
+    }
+
+    b {
+      font-family: "Archivo";
+      display: block;
+      font-size: 1.05rem;
+    }
+
+    span {
+      color: var(--ink-2);
+      font-size: 0.95rem;
+    }
+  }
+
+  &__media {
+    border-radius: 20px;
+    overflow: hidden;
+    min-height: 380px;
+
+    .a-thumb {
+      width: 100%;
+      height: 100%;
+      min-height: 380px;
+    }
+  }
+}
+
+// ---- PRODUCTS ----
+.a-products {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 20px;
+}
+
+.a-prod {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+  text-decoration: none;
+  color: inherit;
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  transition: border-color 0.16s, transform 0.16s;
+
+  &:hover {
+    border-color: var(--brand);
+    transform: translateY(-3px);
+  }
+
+  .a-thumb {
+    width: 100%;
+    height: 180px;
+  }
+
+  &__b {
+    padding: 16px 16px 18px;
+
+    h3 {
+      font-family: "Hanken Grotesk";
+      font-weight: 600;
+      font-size: 1.02rem;
+      margin: 6px 0 0;
+    }
+  }
+
+  &__cat {
+    font-size: 0.74rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink-2);
+  }
+
+  &__price {
+    margin-top: 12px;
+    font-family: "Archivo";
+    font-weight: 700;
+    color: var(--brand-deep);
+
+    small {
+      color: var(--ink-2);
+      font-weight: 500;
+      font-size: 0.78rem;
+    }
+
+    &--upit {
+      color: var(--ink-2);
+      font-weight: 600;
+    }
+  }
+}
+
+// ---- CONTACT BAND ----
+.a-contact {
+  background: var(--brand-tint);
+  border-radius: 24px;
+  padding: clamp(40px, 6vw, 72px);
+  text-align: center;
+
+  h2 {
+    font-weight: 800;
+    font-size: clamp(1.8rem, 4vw, 2.8rem);
+    letter-spacing: -0.025em;
+    margin: 0;
+  }
+
+  p {
+    margin: 16px auto 0;
+    max-width: 50ch;
+    color: var(--ink-2);
+    font-size: 1.1rem;
+  }
+
+  &__cta {
+    margin-top: 30px;
+    display: flex;
+    gap: 14px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+}
+
+@include mq(900px) {
+  .a-groups,
+  .a-banners,
+  .a-products {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .a-trust {
+    grid-template-columns: 1fr;
+  }
+
+  .a-trust__media {
+    order: -1;
+  }
+
+  .a-hero__stats {
+    max-width: 100%;
+  }
+}
+
+@include mq(560px) {
+  .a-groups,
+  .a-banners,
+  .a-products {
+    grid-template-columns: 1fr;
+  }
+
+  .a-hero__stats {
+    grid-template-columns: 1fr;
+
+    div {
+      border-right: none;
+      border-bottom: 1px solid var(--border);
+
+      &:last-child {
+        border-bottom: none;
+      }
+    }
+  }
+}
