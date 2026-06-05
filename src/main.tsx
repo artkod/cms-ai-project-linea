@@ -5,6 +5,7 @@ import { Notifications } from "@mantine/notifications";
 import "@mantine/core/styles.css";
 import "@mantine/notifications/styles.css";
 import "./styles/global.scss";
+import "./styles/components/notifications.scss";
 import { CartProvider } from "./lib/cart";
 import App from "./App";
 
