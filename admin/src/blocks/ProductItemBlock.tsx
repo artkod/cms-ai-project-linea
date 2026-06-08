@@ -509,10 +509,10 @@ function AdditionalInfoTabs({
             <Tabs.Panel key={tab.id} value={tab.id} pt="sm">
               <Box
                 style={{
-                  border: "1px solid var(--mantine-color-gray-3, #dee2e6)",
+                  border: "1px solid var(--cms-border, #dee2e6)",
                   borderRadius: 8,
                   padding: 8,
-                  background: "white",
+                  background: "var(--cms-surface, #fff)",
                 }}
               >
                 <RichTextEditor
@@ -857,7 +857,7 @@ function KonfiguratorCijene({
                 <Box
                   key={row.id}
                   style={{
-                    border: "1px solid var(--mantine-color-gray-3, #dee2e6)",
+                    border: "1px solid var(--cms-border, #dee2e6)",
                     borderRadius: 8,
                     padding: 12,
                   }}
