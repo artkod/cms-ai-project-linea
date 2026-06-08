@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActionIcon,
   Accordion,
-  Badge,
   Box,
   Group,
   Image,
@@ -679,12 +678,9 @@ function ProductsTable({
                     {r.subLabel ? <Text size="sm">{r.subLabel}</Text> : <Text size="sm" c="dimmed">{s.none}</Text>}
                   </Table.Td>
                   <Table.Td>
-                    <Badge
-                      color={r.status === "published" ? "teal" : "gray"}
-                      variant={r.status === "published" ? "light" : "outline"}
-                    >
+                    <StatusPill published={r.status === "published"}>
                       {r.status === "published" ? s.statusPublished : s.statusDraft}
-                    </Badge>
+                    </StatusPill>
                   </Table.Td>
                   <Table.Td onClick={(e) => e.stopPropagation()}>
                     <Group gap={4} justify="flex-end" wrap="nowrap">
@@ -753,10 +749,25 @@ function ProductsScreen({ openPageEditor, createPage }: NavSectionProps) {
     <Box p="lg" style={{ maxWidth: 1100, margin: "0 auto" }}>
       <Text fw={700} fz={26} mb={4}>{s.title}</Text>
 
-      {/* Lightweight segmented tabs (matches the app's pill style) */}
-      <Group gap={6} mb="lg" mt="sm">
-        <SegBtn active={tab === "products"} icon={<Boxes size={15} />} label={s.tabProducts} onClick={() => setTab("products")} />
-        <SegBtn active={tab === "categories"} icon={<FolderTree size={15} />} label={s.tabCategories} onClick={() => setTab("categories")} />
+      {/* Segmented tabs — canonical Button so shape/colour track the design
+          system's primary button in both light and dark mode. */}
+      <Group gap={8} mb="lg" mt="sm">
+        <Button
+          variant={tab === "products" ? "primary" : "secondary"}
+          size="sm"
+          leftSection={<Boxes size={15} />}
+          onClick={() => setTab("products")}
+        >
+          {s.tabProducts}
+        </Button>
+        <Button
+          variant={tab === "categories" ? "primary" : "secondary"}
+          size="sm"
+          leftSection={<FolderTree size={15} />}
+          onClick={() => setTab("categories")}
+        >
+          {s.tabCategories}
+        </Button>
       </Group>
 
       {tab === "products" ? (
@@ -773,38 +784,31 @@ function ProductsScreen({ openPageEditor, createPage }: NavSectionProps) {
   );
 }
 
-function SegBtn({
-  active,
-  icon,
-  label,
-  onClick,
-}: {
-  active: boolean;
-  icon: React.ReactNode;
-  label: string;
-  onClick: () => void;
-}) {
+// Status pill — token-driven so it reads correctly in both themes (the raw
+// Mantine `light` teal badge looked muddy on the dark canvas). Published uses
+// the success tokens + a tinted border; draft is a neutral muted pill.
+function StatusPill({ published, children }: { published: boolean; children: React.ReactNode }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
+    <span
       style={{
         display: "inline-flex",
         alignItems: "center",
-        gap: 6,
-        padding: "7px 14px",
-        borderRadius: 999,
-        border: "1px solid var(--cms-border, #e3e8ee)",
-        background: active ? "var(--btn-primary-bg, #2dbfa4)" : "transparent",
-        color: active ? "#fff" : "var(--cms-ink-2, #36506a)",
-        fontWeight: 600,
-        fontSize: 13,
-        cursor: "pointer",
+        padding: "3px 9px",
+        borderRadius: 9999,
+        fontSize: 10,
+        fontWeight: 700,
+        letterSpacing: ".05em",
+        textTransform: "uppercase",
+        whiteSpace: "nowrap",
+        background: published ? "var(--success-bg, #d6f0e6)" : "var(--cms-surface, transparent)",
+        color: published ? "var(--success-fg, #146b5c)" : "var(--cms-ink-3, #6c7686)",
+        border: published
+          ? "1px solid color-mix(in srgb, var(--success-fg, #146b5c) 28%, transparent)"
+          : "1px solid var(--cms-border, #e3e8ee)",
       }}
     >
-      {icon}
-      {label}
-    </button>
+      {children}
+    </span>
   );
 }
 
