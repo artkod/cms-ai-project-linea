@@ -148,7 +148,7 @@ export function NewsView({ page, locale }: { page: Page; locale: string }) {
       <section className="nw-body">
         <div className="ln-container">
           {loading ? (
-            <div style={{ padding: "80px 0", textAlign: "center" }}><Loader color="#9acb34" /></div>
+            <div className="ln-loading"><Loader color="var(--brand)" /></div>
           ) : articles.length === 0 ? (
             <div className="nw-empty">
               <div className="nw-empty__ico"><Newspaper aria-hidden="true" /></div>

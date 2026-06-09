@@ -176,8 +176,8 @@ export function HomePage() {
 
   if (loading) {
     return (
-      <div style={{ padding: "96px 0", textAlign: "center" }}>
-        <Loader color="#9acb34" />
+      <div className="ln-loading">
+        <Loader color="var(--brand)" />
       </div>
     );
   }
