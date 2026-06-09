@@ -1180,7 +1180,7 @@ function ArticleView({ page, locale }: { page: Page; locale: string }) {
           <div className="na-head">
             {(articleType || date) && (
               <div className="na-meta">
-                {articleType && <span className="na-badge">{articleType}</span>}
+                {articleType && <span className="na-badge">{tx("article.cat_" + articleType, articleType)}</span>}
                 {date && <span className="na-date">{date}</span>}
               </div>
             )}

@@ -22,3 +22,9 @@
   margin-inline: auto;
   padding-inline: var(--ln-gutter);
 }
+
+// Centered wrapper for full-section loading spinners.
+.ln-loading {
+  padding: 96px 0;
+  text-align: center;
+}

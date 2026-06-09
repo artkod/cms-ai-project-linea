@@ -106,7 +106,7 @@ export function EuProjectsView({ page, locale }: { page: Page; locale: string })
       <section className="eu-body">
         <div className="ln-container">
           {loading ? (
-            <div style={{ padding: "80px 0", textAlign: "center" }}><Loader color="#9acb34" /></div>
+            <div className="ln-loading"><Loader color="var(--brand)" /></div>
           ) : items.length === 0 ? (
             <div className="eu-empty">
               <div className="eu-empty__ico"><FolderOpen aria-hidden="true" /></div>

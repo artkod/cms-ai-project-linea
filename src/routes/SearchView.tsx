@@ -213,8 +213,8 @@ export function SearchView({ page }: { page: Page }) {
   if (loading) {
     return (
       <div className="cat-view">
-        <div className="ln-container" style={{ padding: "96px 0", textAlign: "center" }}>
-          <Loader color="#9acb34" />
+        <div className="ln-container ln-loading">
+          <Loader color="var(--brand)" />
         </div>
       </div>
     );

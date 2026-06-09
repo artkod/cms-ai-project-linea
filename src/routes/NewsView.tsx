@@ -105,6 +105,11 @@ export function NewsView({ page, locale }: { page: Page; locale: string }) {
     return () => { cancelled = true; };
   }, [page.id, locale]);
 
+  // Localized display label for an article-category key (e.g. "investicije").
+  // The stored value is a single cross-locale taxonomy key; the label comes
+  // from editable strings, falling back to the raw key if untranslated.
+  const catLabel = (ty: string) => tx("article.cat_" + ty, ty);
+
   // Distinct article types present in the content drive the filter chips.
   const types = useMemo(() => {
     const set = new Set<string>();
@@ -143,7 +148,7 @@ export function NewsView({ page, locale }: { page: Page; locale: string }) {
       <section className="nw-body">
         <div className="ln-container">
           {loading ? (
-            <div style={{ padding: "80px 0", textAlign: "center" }}><Loader color="#9acb34" /></div>
+            <div className="ln-loading"><Loader color="var(--brand)" /></div>
           ) : articles.length === 0 ? (
             <div className="nw-empty">
               <div className="nw-empty__ico"><Newspaper aria-hidden="true" /></div>
@@ -160,7 +165,7 @@ export function NewsView({ page, locale }: { page: Page; locale: string }) {
                   </div>
                   <div className="nw-feat__b">
                     <div className="nw-feat__meta">
-                      {featured.type && <span className="nw-badge">{featured.type}</span>}
+                      {featured.type && <span className="nw-badge">{catLabel(featured.type)}</span>}
                       {formatDate(featured.date, locale) && <span className="nw-feat__date">{formatDate(featured.date, locale)}</span>}
                     </div>
                     <h2 className="nw-feat__title">{featured.title}</h2>
@@ -190,7 +195,7 @@ export function NewsView({ page, locale }: { page: Page; locale: string }) {
                       className={`nw-chip${filter === ty ? " is-on" : ""}`}
                       onClick={() => setFilter(ty)}
                     >
-                      {ty}
+                      {catLabel(ty)}
                     </button>
                   ))}
                 </div>
@@ -215,7 +220,7 @@ export function NewsView({ page, locale }: { page: Page; locale: string }) {
                     <Link key={a.id} to={articleHref(a.slug)} className="nw-card">
                       <div className="nw-card__media">
                         {a.cardImage && <img className="ln-img" src={a.cardImage} alt={a.title} loading="lazy" />}
-                        {a.type && <span className="nw-badge nw-badge--onmedia">{a.type}</span>}
+                        {a.type && <span className="nw-badge nw-badge--onmedia">{catLabel(a.type)}</span>}
                       </div>
                       <div className="nw-card__b">
                         {formatDate(a.date, locale) && <div className="nw-card__date">{formatDate(a.date, locale)}</div>}
