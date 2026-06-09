@@ -14,9 +14,14 @@ the frontend is a thin React 19 + Vite renderer for the published content.
 
 ```bash
 ./start.sh        # boots Docker DB, runs migrations, seeds the dev user,
+                  # restores the committed content snapshot (db-snapshot.json),
                   # starts API, admin, and the website on free ports
 ./stop.sh         # clean shutdown
 ```
+
+On a fresh clone the committed `db-snapshot.json` is replayed automatically, so
+the admin opens with the real pages/menus/media/settings (not sample pages). See
+CLAUDE.md → "Full content snapshot" for the `db:export` command to refresh it.
 
 By default the website runs on `:3000`, the admin on `:5174`, and the API on
 `:3001` (start.sh picks the next free port when these are taken).
