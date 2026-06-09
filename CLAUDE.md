@@ -416,7 +416,7 @@ full rules.
 
 Per-project bootstrap data — translation strings + runtime page types — lives
 in `project-data.seed.json` at the project root. `start.sh` reads it on every
-run (step "3a") and calls
+run (step "3b") and calls
 `cms-ai-core/apps/api/src/seed-project-data.ts`, which upserts both arrays
 with `ON CONFLICT DO NOTHING`. **Existing rows are never overwritten** so
 editor edits via the admin Strings UI / Pages → Options drawer survive
@@ -435,6 +435,35 @@ Add new keys here whenever you introduce new `t('…')` calls in the frontend or
 new runtime page types — that way a fresh DB has everything wired up after
 one `./start.sh`. The script chunk-inserts strings in a single statement and
 inserts page types one at a time.
+
+## Full content snapshot (`db-snapshot.json`)
+
+A committed `db-snapshot.json` at the project root holds the **entire current
+content state** of the DB — pages, translations, menus, media references,
+project/site settings — so a clone boots with the real catalogue instead of two
+sample pages. `start.sh` step "3a" replays it (before the project-data seed) via
+`cms-ai-core/apps/api/src/seed-db-snapshot.ts`, and sets `SEED_SKIP_SAMPLE_PAGES=1`
+on the user seed so the sample pages don't get in the way.
+
+Restore is **fresh-DB-only** for content tables (pages/translations/media —
+skipped if rows already exist, so it never clobbers a live DB or duplicates) and
+`ON CONFLICT DO NOTHING` for keyed tables; all UUIDs are preserved so embedded
+`pageId`/`mediaId` references keep resolving.
+
+To refresh after editing content in the admin, regenerate and commit it:
+
+```bash
+DATABASE_URL=postgresql://cms:cms_local_password@localhost:<DB_PORT>/project_linea \
+PROJECT_SLUG=project-linea \
+SNAPSHOT_FILE="$PWD/db-snapshot.json" \
+  pnpm --filter @cms/api db:export   # run from cms-ai-core, or use an absolute SNAPSHOT_FILE
+```
+
+Secrets and environment config (`users`, `media_configs` Bunny key, `webhooks`,
+the `site_settings` email block) are excluded/scrubbed, so the file is safe to
+commit publicly. Media **binaries** live in Bunny CDN — only the `media_files`
+rows are seeded, so configure Bunny under Media → Options before uploading new
+media on a clone.
 
 ---
 

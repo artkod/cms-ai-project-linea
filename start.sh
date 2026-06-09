@@ -88,15 +88,38 @@ DATABASE_URL="postgresql://$DB_USER:$DB_PASSWORD@localhost:$PORT_DB/$DB_NAME" \
   npx tsx src/migrate.ts
 
 # ─── 3. Seed default developer user (idempotent) ─────────────────────────────
+# When a full content snapshot (db-snapshot.json) is present, skip seed.ts's
+# sample Home/About pages — they would pre-fill `pages` and trip the snapshot
+# seeder's fresh-only gate, hiding the real content.
+SKIP_SAMPLE_PAGES=""
+if [[ -f "$PROJECT_DIR/db-snapshot.json" ]]; then
+  SKIP_SAMPLE_PAGES="1"
+fi
 echo "Seeding developer user..."
 cd "$CMS_CORE_DIR/apps/api"
 DATABASE_URL="postgresql://$DB_USER:$DB_PASSWORD@localhost:$PORT_DB/$DB_NAME" \
   SEED_ADMIN_EMAIL="developer@artkod.com" \
   SEED_ADMIN_PASSWORD="k0dart" \
   SEED_ADMIN_ROLE="developer" \
+  SEED_SKIP_SAMPLE_PAGES="$SKIP_SAMPLE_PAGES" \
   npx tsx src/seed.ts
 
-# ─── 3a. Seed per-project data (strings + runtime page types) ─────────────────
+# ─── 3a. Seed full content snapshot (current DB state, idempotent) ───────────
+# Restores the author's real pages/translations/menus/media-refs/settings from a
+# committed db-snapshot.json (produced by `pnpm --filter @cms/api db:export`).
+# Fresh-DB-only for the bulky content tables; ON CONFLICT DO NOTHING for keyed
+# tables. Runs BEFORE project-data.seed.json so the snapshot's current values
+# win for the shared keyed tables (strings / page types / project settings).
+if [[ -f "$PROJECT_DIR/db-snapshot.json" ]]; then
+  echo "Seeding DB snapshot (full content state)..."
+  cd "$CMS_CORE_DIR/apps/api"
+  DATABASE_URL="postgresql://$DB_USER:$DB_PASSWORD@localhost:$PORT_DB/$DB_NAME" \
+    PROJECT_SLUG="project-linea" \
+    SNAPSHOT_FILE="$PROJECT_DIR/db-snapshot.json" \
+    npx tsx src/seed-db-snapshot.ts
+fi
+
+# ─── 3b. Seed per-project data (strings + runtime page types) ─────────────────
 # Idempotent: ON CONFLICT DO NOTHING. Existing rows (e.g. editor changes via
 # the admin) are never overwritten — delete in the admin and re-run to refresh.
 if [[ -f "$PROJECT_DIR/project-data.seed.json" ]]; then
