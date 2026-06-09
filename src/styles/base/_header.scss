@@ -178,28 +178,24 @@
   border: 2px solid var(--surface);
 }
 
-.ln-lang {
+.ln-lang-btn {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface);
+  color: var(--ink);
   font-size: 0.8rem;
   font-weight: 600;
-  color: var(--ink-2);
-  padding-left: 6px;
+  cursor: pointer;
+  transition: border-color 0.14s, background 0.14s, color 0.14s;
 
-  a {
-    text-decoration: none;
-    color: var(--ink-2);
-    padding: 2px 4px;
-    border-radius: 4px;
-
-    &.is-active {
-      color: var(--ink);
-    }
-  }
-
-  span {
-    opacity: 0.4;
+  &:hover {
+    border-color: var(--brand);
+    color: var(--brand-deep);
+    background: var(--brand-tint);
   }
 }
 

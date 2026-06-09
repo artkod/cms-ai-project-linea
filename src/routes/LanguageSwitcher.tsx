@@ -42,21 +42,10 @@ export function LanguageSwitcher() {
   return (
     <Menu shadow="md" width={160} position="bottom-end" withArrow>
       <Menu.Target>
-        <UnstyledButton
-          aria-label="Change language"
-          style={{
-            padding: "6px 10px",
-            borderRadius: 6,
-            border: "1px solid #e9ecef",
-            background: "#fff",
-            fontSize: 13,
-            fontWeight: 600,
-            color: "#1f2a40",
-          }}
-        >
+        <UnstyledButton aria-label="Change language" className="ln-lang-btn">
           <Group gap={6} wrap="nowrap">
             <GlobeIcon size={14} />
-            <Text component="span" size="xs" fw={700} style={{ textTransform: "uppercase" }}>
+            <Text component="span" size="xs" fw={700} tt="uppercase">
               {current}
             </Text>
             <ChevronIcon size={12} />
