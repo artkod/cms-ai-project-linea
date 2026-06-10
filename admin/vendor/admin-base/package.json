@@ -1,0 +1,23 @@
+{
+  "name": "@cms/admin-base",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "//": "Vendored prebuilt bundle of cms-ai-core/packages/admin-base, so this admin builds standalone on Vercel (the source repo isn't a sibling there). The dist/ layout mirrors the source package so cms-ai-core's start.sh hot-sync keeps working in local dev. Refresh with `pnpm vendor:admin-base` after any admin-base change. Only react/react-dom/@mantine/core/@mantine/hooks are externalized (everything else is bundled into dist/index.js), so those are the only peers.",
+  "peerDependencies": {
+    "@mantine/core": "^7.0.0",
+    "@mantine/hooks": "^7.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  }
+}

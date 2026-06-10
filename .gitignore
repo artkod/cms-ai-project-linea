@@ -3,3 +3,8 @@ dist
 .env.local
 .DS_Store
 .dev-pids
+
+# Vendored prebuilt @cms/admin-base bundle (committed so the admin builds
+# standalone on Vercel). Re-included despite the blanket `dist` ignore above.
+!/admin/vendor/admin-base/dist/
+!/admin/vendor/admin-base/dist/**
