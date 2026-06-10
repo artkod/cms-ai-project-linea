@@ -736,6 +736,25 @@ cd ../cms-ai-core && pnpm --filter @cms/admin-base build
 # just reload your browser tab when you see "↻ admin-base updated" in the terminal
 ```
 
+### Deployment / vendored admin-base (Vercel)
+
+For **local dev** the admin's `@cms/admin-base` dep is wired through `admin/vendor/admin-base/` (a
+committed prebuilt bundle), but `start.sh` always overwrites it with a fresh `cms-ai-core` build on
+boot — so local hot-reload is unchanged. For a **standalone deploy** (Vercel, where `cms-ai-core`
+isn't a sibling) the committed bundle is what gets built.
+
+- `admin/package.json` → `"@cms/admin-base": "file:./vendor/admin-base"` (in-repo, no sibling needed).
+- The bundle lives at `admin/vendor/admin-base/dist/` — committed despite the blanket `dist`
+  gitignore via a negation. Layout mirrors the source package so `start.sh`'s hot-sync still works.
+- **After any change to `cms-ai-core/packages/admin-base`, re-vendor before deploying:**
+  ```bash
+  pnpm vendor:admin-base    # rebuilds admin-base + copies the bundle into admin/vendor/
+  git add admin/vendor/admin-base && git commit -m "chore: refresh vendored admin-base"
+  ```
+  Forgetting this ships a stale admin to Vercel even though local dev looked correct.
+- `admin/vercel.json` + root `vercel.json` give each SPA a catch-all rewrite to `/index.html`.
+- Full step-by-step (Neon + Render + Vercel, free tier): `cms-ai-core/docs/DEPLOYMENT.md`.
+
 ---
 
 ## Key files

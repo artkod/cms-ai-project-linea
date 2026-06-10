@@ -9,7 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@cms/admin-base": "file:../../cms-ai-core/packages/admin-base",
+    "@cms/admin-base": "file:./vendor/admin-base",
     "@mantine/core": "^7.0.0",
     "@mantine/dates": "^7.17.8",
     "@mantine/hooks": "^7.0.0",
