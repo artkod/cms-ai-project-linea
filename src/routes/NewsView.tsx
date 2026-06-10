@@ -160,7 +160,7 @@ export function NewsView({ page, locale }: { page: Page; locale: string }) {
               {featured && (
                 <Link to={articleHref(featured.slug)} className="nw-feat">
                   <div className="nw-feat__media">
-                    {featured.cardImage && <img className="ln-img" src={featured.cardImage} alt={featured.title} />}
+                    {featured.cardImage && <img className="ln-img" src={featured.cardImage + "?width=600"} alt={featured.title} />}
                     <span className="nw-feat__izd"><Star aria-hidden="true" />{L.featured}</span>
                   </div>
                   <div className="nw-feat__b">
@@ -219,7 +219,7 @@ export function NewsView({ page, locale }: { page: Page; locale: string }) {
                   {pageItems.map((a) => (
                     <Link key={a.id} to={articleHref(a.slug)} className="nw-card">
                       <div className="nw-card__media">
-                        {a.cardImage && <img className="ln-img" src={a.cardImage} alt={a.title} loading="lazy" />}
+                        {a.cardImage && <img className="ln-img" src={a.cardImage + "?width=400"} alt={a.title} loading="lazy" />}
                         {a.type && <span className="nw-badge nw-badge--onmedia">{catLabel(a.type)}</span>}
                       </div>
                       <div className="nw-card__b">

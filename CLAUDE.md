@@ -649,6 +649,20 @@ emphasised phrase stays editable without storing HTML.
   `/sitemap.xml`; `RootLayout` appends one Atom-feed
   `<link rel="alternate" type="application/atom+xml" hreflang="…" href="/feed/{loc}.xml">`
   per available locale.
+- **Per-page document head** — the `useDocumentSeo(page, settings)` hook in
+  `src/lib/seo.ts` owns `document.title`, `<meta name="description">`, Open Graph
+  (`og:title/description/image/url/type/site_name`), Twitter card, `<link rel="canonical">`,
+  and `<meta name="robots">`. Fallback chain per field: title → `page.metaTitle` →
+  `page.title` → `settings.defaultMetaTitle` → `settings.siteTitle`; description →
+  `page.metaDescription` → `settings.defaultMetaDescription`; og:image → `page.ogImageUrl`
+  → `settings.defaultOgImageUrl` (Settings → SEO Defaults). Wired into `PageView`
+  (all content page types — preview mode forces `noindex`) and `HomePage` (passes
+  `null` page → pure site defaults). Managed tags carry `data-cms-seo="1"` and are
+  upserted/removed in place, so `RootLayout` no longer sets `document.title` — the hook does.
+  Canonical strips query/hash unless the editor pinned `page.canonicalUrl`.
+- **Custom head/body HTML** — `RootLayout` injects `settings.customHeadHtml` /
+  `settings.customBodyHtml` (Settings → Advanced) via `injectHtml`, re-creating
+  `<script>` tags so they execute; injected nodes carry `data-cms-injection`.
 
 ## Mixed Content widgets rendered
 

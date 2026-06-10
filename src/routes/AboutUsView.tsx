@@ -378,7 +378,7 @@ export function AboutUsView({ page, locale }: { page: Page; locale: string }) {
             </div>
             <div className="ab-hero__media">
               <div className="ab-hero__frame">
-                {d.heroImage?.cdnUrl && <img className="ln-img" src={d.heroImage.cdnUrl} alt={d.altTitle || page.title} />}
+                {d.heroImage?.cdnUrl && <img className="ln-img" src={d.heroImage.cdnUrl + "?width=800"} alt={d.altTitle || page.title} />}
               </div>
               <div className="ab-hero__tag">
                 <b>{tx("about.hero_stat_value", "1800 m²")}</b>

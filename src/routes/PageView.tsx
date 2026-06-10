@@ -22,6 +22,7 @@ import {
 import { indexCategories, resolveProductCategory, resolveLabel as resolveCatLabel } from "@/lib/productCategories";
 import { tiptapToHtml } from "@/lib/tiptapRenderer";
 import { usePageAlternates, useStrings, useLocaleConfig, usePageLayout } from "@/lib/locale";
+import { useDocumentSeo } from "@/lib/seo";
 import { parsePrice, eur } from "@/lib/pricing";
 import { useCart } from "@/lib/cart";
 import { AllProductsView, computeCardPrice } from "./AllProductsView";
@@ -841,7 +842,7 @@ function ProductItemView({ page }: { page: Page }) {
               <div className="pi-gallery">
                 <div className="pi-gallery__main">
                   {activeImage && (
-                    <img className="ln-img" src={activeImage.cdnUrl} alt={page.title} />
+                    <img className="ln-img" src={activeImage.cdnUrl + "?width=800"} alt={page.title} />
                   )}
                 </div>
                 {allImages.length > 1 && (
@@ -855,7 +856,7 @@ function ProductItemView({ page }: { page: Page }) {
                         aria-label={`${t("product.aria_view_image")} ${i + 1}`}
                         aria-current={i === activeImageIndex}
                       >
-                        <img className="ln-img" src={img.cdnUrl} alt="" loading="lazy" />
+                        <img className="ln-img" src={img.cdnUrl + "?width=200"} alt="" loading="lazy" />
                       </button>
                     ))}
                   </div>
@@ -1060,7 +1061,7 @@ function ProductItemView({ page }: { page: Page }) {
               {related.map((p) => (
                 <Link key={p.id} to={p.url} className="a-prod">
                   <div className="a-thumb">
-                    {p.image && <img className="ln-img" src={p.image} alt={p.title} loading="lazy" />}
+                    {p.image && <img className="ln-img" src={p.image + "?width=300"} alt={p.title} loading="lazy" />}
                   </div>
                   <div className="a-prod__b">
                     {p.categoryTitle && <div className="a-prod__cat">{p.categoryTitle}</div>}
@@ -1276,6 +1277,23 @@ export function PageView() {
   const [notFound, setNotFound] = useState(false);
   const { setAlternates } = usePageAlternates();
   const { setFullBleed } = usePageLayout();
+  const { settings } = useLocaleConfig();
+
+  // Per-page SEO head tags with site-default fallbacks (D3). Preview renders
+  // unpublished content, so force noindex regardless of the page's own flag.
+  useDocumentSeo(
+    page
+      ? {
+          title: page.title,
+          metaTitle: page.metaTitle,
+          metaDescription: page.metaDescription,
+          ogImageUrl: page.ogImageUrl,
+          canonicalUrl: page.canonicalUrl,
+          noindex: page.noindex || !!previewToken,
+        }
+      : null,
+    settings,
+  );
 
   // Some page types own full-bleed bands (e.g. the product page's flush
   // breadcrumb bar + tinted tabs band, the cart's head/body sections), so they
