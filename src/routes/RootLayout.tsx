@@ -361,7 +361,8 @@ export function RootLayout() {
       }
       link.href = settings.faviconUrl;
     }
-    if (settings.siteTitle) document.title = settings.siteTitle;
+    // document.title is owned by useDocumentSeo (per-page title + site-default
+    // fallback) in HomePage/PageView — RootLayout no longer sets it here.
     // Custom HTML is single-injection per mount — re-running with the same marker is a no-op.
     if (settings.customHeadHtml) injectHtml(settings.customHeadHtml, document.head, "head");
     if (settings.customBodyHtml) injectHtml(settings.customBodyHtml, document.body, "body");

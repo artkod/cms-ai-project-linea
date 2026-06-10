@@ -165,7 +165,7 @@ export function CataloguesView({ page, locale }: { page: Page; locale: string })
               {featured && (
                 <article className="ct-featured">
                   <div className="ct-featured__media">
-                    {coverFor(0) && <img className="ln-img" src={coverFor(0)} alt="" loading="lazy" />}
+                    {coverFor(0) && <img className="ln-img" src={coverFor(0) + "?width=600"} alt="" loading="lazy" />}
                     <span className="ct-featured__badge">
                       <Star aria-hidden="true" />
                       {tx("catalogues.featured_badge", "Izdvojeno")}
@@ -193,7 +193,7 @@ export function CataloguesView({ page, locale }: { page: Page; locale: string })
                   {rest.map((doc, i) => (
                     <article className="ct-card" key={doc.id}>
                       <div className="ct-card__media">
-                        {coverFor(i + 1) && <img className="ln-img" src={coverFor(i + 1)} alt="" loading="lazy" />}
+                        {coverFor(i + 1) && <img className="ln-img" src={coverFor(i + 1) + "?width=400"} alt="" loading="lazy" />}
                         <span className="ct-card__fileicon"><FileText aria-hidden="true" /></span>
                       </div>
                       <div className="ct-card__b">

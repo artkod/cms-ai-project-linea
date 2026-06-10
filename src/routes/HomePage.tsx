@@ -15,6 +15,7 @@ import {
 } from "@/lib/api";
 import { indexCategories, resolveProductCategory, resolveLabel as resolveCatLabel } from "@/lib/productCategories";
 import { usePageAlternates, useStrings, useLocaleConfig } from "@/lib/locale";
+import { useDocumentSeo } from "@/lib/seo";
 import { computeCardPrice } from "./AllProductsView";
 
 // Homepage — Direction A ("Clean & Corporate"). Full-bleed alternating bands
@@ -63,10 +64,13 @@ function productData(p: Page): ProductBlockData {
 
 export function HomePage() {
   const { locale } = useParams<{ locale: string }>();
-  const { defaultLocale } = useLocaleConfig();
+  const { defaultLocale, settings } = useLocaleConfig();
   const activeLocale = locale ?? defaultLocale;
   const { setAlternates } = usePageAlternates();
   const { t } = useStrings();
+
+  // Home has no per-page SEO — render the site-wide defaults (D3).
+  useDocumentSeo(null, settings);
 
   const [loading, setLoading] = useState(true);
   const [categories, setCategories] = useState<ProductMainCategory[]>([]);
@@ -231,7 +235,7 @@ export function HomePage() {
             {groupCards.map((g) => (
               <Link key={g.id} to={g.url} className="a-group">
                 <div className="a-thumb">
-                  {g.image && <img className="ln-img" src={g.image} alt={g.title} loading="lazy" />}
+                  {g.image && <img className="ln-img" src={g.image + "?width=400"} alt={g.title} loading="lazy" />}
                 </div>
                 <div className="a-group__body">
                   <h3>{g.title}</h3>
@@ -307,7 +311,7 @@ export function HomePage() {
             </div>
             <div className="a-trust__media">
               <div className="a-thumb">
-                {trustImage && <img className="ln-img" src={trustImage} alt="" loading="lazy" />}
+                {trustImage && <img className="ln-img" src={trustImage + "?width=600"} alt="" loading="lazy" />}
               </div>
             </div>
           </div>
@@ -334,7 +338,7 @@ export function HomePage() {
               {newest.map((p) => (
                 <Link key={p.id} to={p.url} className="a-prod">
                   <div className="a-thumb">
-                    {p.image && <img className="ln-img" src={p.image} alt={p.title} loading="lazy" />}
+                    {p.image && <img className="ln-img" src={p.image + "?width=300"} alt={p.title} loading="lazy" />}
                   </div>
                   <div className="a-prod__b">
                     {p.categoryTitle && <div className="a-prod__cat">{p.categoryTitle}</div>}

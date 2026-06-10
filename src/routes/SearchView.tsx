@@ -262,7 +262,7 @@ export function SearchView({ page }: { page: Page }) {
                 {paged.map((c) => (
                   <Link key={c.id} to={c.url} className="cat-card">
                     <div className="cat-card__media">
-                      {c.image && <img className="ln-img" src={c.image} alt={c.title} loading="lazy" />}
+                      {c.image && <img className="ln-img" src={c.image + "?width=300"} alt={c.title} loading="lazy" />}
                     </div>
                     <div className="cat-card__b">
                       {c.categoryTitle && <div className="cat-card__cat">{c.categoryTitle}</div>}

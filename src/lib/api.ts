@@ -54,6 +54,13 @@ export interface Page {
   createdAt: string;
   updatedAt: string;
   blocks?: Block[];
+  // Per-locale SEO, promoted to the flat object by getPageBySlug for the
+  // requested locale (see useDocumentSeo).
+  metaTitle?: string | null;
+  metaDescription?: string | null;
+  ogImageUrl?: string | null;
+  canonicalUrl?: string | null;
+  noindex?: boolean;
   // Locale-aware fields (present on /by-slug responses)
   locale?: string;
   alternates?: Alternates;
