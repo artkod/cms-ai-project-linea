@@ -14,6 +14,12 @@ name: Deploy (frontend + admin)
 on:
   push:
     branches: [main]
+    # Doc-only commits must not redeploy. A push touching ONLY these paths is
+    # skipped; a mixed push still runs. repository_dispatch (core-updated) and
+    # workflow_dispatch ignore this filter, so core can still rebuild the admin.
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
   repository_dispatch:
     types: [core-updated]
   workflow_dispatch:
