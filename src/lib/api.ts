@@ -224,6 +224,10 @@ export interface SiteSettings {
   defaultMetaDescription: string;
   defaultOgImageUrl: string;
   analyticsId: string;
+  // GA4 measurement id (core `site_settings.ga4_measurement_id`) — drives the
+  // consent-gated gtag loader (src/lib/analytics.ts), gated on the cookie
+  // banner's analytics category. Empty = analytics off.
+  ga4MeasurementId: string;
   customHeadHtml: string;
   customBodyHtml: string;
   robotsTxt: string;
