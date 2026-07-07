@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Cookie, X, Mail, Check } from "lucide-react";
-import { useStrings } from "@/lib/locale";
+import { useStrings, useLocaleConfig } from "@/lib/locale";
+import { initGa4, applyAnalyticsConsent } from "@/lib/analytics";
 import "@/styles/components/modals.scss";
 
 // Global cookie consent + newsletter, mounted once at the site shell.
@@ -55,8 +56,20 @@ function CookieCategory({
   );
 }
 
+// Read the stored analytics-category consent (SiteModals owns the decision).
+function readAnalyticsConsent(): boolean {
+  const raw = readFlag(CONSENT_KEY);
+  if (!raw) return false;
+  try {
+    return !!(JSON.parse(raw) as { analytics?: boolean }).analytics;
+  } catch {
+    return false;
+  }
+}
+
 export function SiteModals() {
   const { t } = useStrings();
+  const { settings } = useLocaleConfig();
   const tx = (key: string, fb: string) => {
     const v = t(key);
     return v === key ? fb : v;
@@ -77,8 +90,18 @@ export function SiteModals() {
     if (!readFlag(CONSENT_KEY)) setBannerOpen(true);
   }, []);
 
+  // Arm GA4 with the shop's measurement id + the visitor's stored analytics
+  // decision. gtag loads only if the analytics category was already granted;
+  // a fresh visitor waits for the banner. Re-runs if the id resolves late.
+  useEffect(() => {
+    initGa4(settings?.ga4MeasurementId);
+    applyAnalyticsConsent(readAnalyticsConsent());
+  }, [settings?.ga4MeasurementId]);
+
   function saveConsent(value: Record<string, boolean>) {
     writeFlag(CONSENT_KEY, JSON.stringify({ ...value, ts: Date.now() }));
+    // Gate GA4 on the analytics category (loads gtag on grant; no-op otherwise).
+    applyAnalyticsConsent(!!value.analytics);
     setBannerOpen(false);
     setPrefsOpen(false);
   }
