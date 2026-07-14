@@ -38,6 +38,7 @@ interface ProductBlockData {
   mainCategoryId?: string | null;
   subcategoryId?: string | null;
   konfiguratorCijene?: Record<string, unknown>;
+  featuredOnHome?: boolean;
 }
 
 interface GroupCard {
@@ -152,11 +153,15 @@ export function HomePage() {
     });
   }, [categories, items, activeLocale, defaultLocale, allProductsSlug]);
 
-  // Newest 4 product-items by createdAt desc. URL is the flat
-  // `/{locale}/{all-products}/{slug}`; category label from the item's own data.
+  // Up to 4 product-items for the homepage: manually pinned
+  // (`featuredOnHome`) first, then the rest filled in by createdAt desc. URL
+  // is the flat `/{locale}/{all-products}/{slug}`; category label from the
+  // item's own data.
   const newest = useMemo<ProductCard[]>(() => {
-    return [...items]
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    const sorted = [...items].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    const featured = sorted.filter((it) => productData(it).featuredOnHome);
+    const rest = sorted.filter((it) => !productData(it).featuredOnHome);
+    return [...featured, ...rest]
       .slice(0, 4)
       .map((it) => {
         const d = productData(it);
@@ -298,7 +303,7 @@ export function HomePage() {
               <span className="a-eyebrow">{t("home.trust_eyebrow")}</span>
               <h2>{t("home.trust_title")}</h2>
               <ul className="a-trust__list">
-                {[1, 2, 3, 4].map((n) => (
+                {[1, 2, 3].map((n) => (
                   <li key={n}>
                     <span className="n">{`0${n}`}</span>
                     <div>
