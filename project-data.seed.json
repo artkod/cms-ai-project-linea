@@ -142,12 +142,12 @@
     { "locale": "hr", "key": "home.trust_4_text",        "value": "Ulaganje u kapacitete uz EU fondove." },
     { "locale": "en", "key": "home.trust_4_text",        "value": "Investing in capacity with EU funds." },
 
-    { "locale": "hr", "key": "home.newest_eyebrow",      "value": "Novo u ponudi" },
-    { "locale": "en", "key": "home.newest_eyebrow",      "value": "New arrivals" },
-    { "locale": "hr", "key": "home.newest_title",        "value": "Najnoviji proizvodi" },
-    { "locale": "en", "key": "home.newest_title",        "value": "Newest products" },
-    { "locale": "hr", "key": "home.newest_all_btn",      "value": "Svi proizvodi" },
-    { "locale": "en", "key": "home.newest_all_btn",      "value": "All products" },
+    { "locale": "hr", "key": "home.featured_eyebrow",    "value": "Novo u ponudi" },
+    { "locale": "en", "key": "home.featured_eyebrow",    "value": "New arrivals" },
+    { "locale": "hr", "key": "home.featured_title",      "value": "Istaknuti proizvodi" },
+    { "locale": "en", "key": "home.featured_title",      "value": "Featured products" },
+    { "locale": "hr", "key": "home.featured_all_btn",    "value": "Svi proizvodi" },
+    { "locale": "en", "key": "home.featured_all_btn",    "value": "All products" },
     { "locale": "hr", "key": "home.price_vat",           "value": "+ PDV" },
     { "locale": "en", "key": "home.price_vat",           "value": "+ VAT" },
 

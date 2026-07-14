@@ -157,11 +157,11 @@ export function HomePage() {
   // (`featuredOnHome`) first, then the rest filled in by createdAt desc. URL
   // is the flat `/{locale}/{all-products}/{slug}`; category label from the
   // item's own data.
-  const newest = useMemo<ProductCard[]>(() => {
+  const featured = useMemo<ProductCard[]>(() => {
     const sorted = [...items].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-    const featured = sorted.filter((it) => productData(it).featuredOnHome);
+    const pinned = sorted.filter((it) => productData(it).featuredOnHome);
     const rest = sorted.filter((it) => !productData(it).featuredOnHome);
-    return [...featured, ...rest]
+    return [...pinned, ...rest]
       .slice(0, 4)
       .map((it) => {
         const d = productData(it);
@@ -180,7 +180,7 @@ export function HomePage() {
       });
   }, [items, catIndex, activeLocale, defaultLocale, allProductsSlug]);
 
-  const trustImage = newest.find((p) => p.image)?.image ?? null;
+  const trustImage = featured.find((p) => p.image)?.image ?? null;
   const phoneTel = contact?.phone ? contact.phone.replace(/[^+\d]/g, "") : "";
 
   if (loading) {
@@ -323,8 +323,8 @@ export function HomePage() {
         </div>
       </section>
 
-      {/* ── NEWEST PRODUCTS ───────────────────────────────────── */}
-      {newest.length > 0 && (
+      {/* ── FEATURED PRODUCTS ─────────────────────────────────── */}
+      {featured.length > 0 && (
         <section className="a-section a-section--tint">
           <div className="ln-container">
             <div
@@ -332,15 +332,15 @@ export function HomePage() {
               style={{ maxWidth: "none", display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 24 }}
             >
               <div>
-                <span className="a-eyebrow">{t("home.newest_eyebrow")}</span>
-                <h2>{t("home.newest_title")}</h2>
+                <span className="a-eyebrow">{t("home.featured_eyebrow")}</span>
+                <h2>{t("home.featured_title")}</h2>
               </div>
               <Link to={allProductsUrl} className="ln-btn ln-btn--ghost">
-                {t("home.newest_all_btn")}
+                {t("home.featured_all_btn")}
               </Link>
             </div>
             <div className="a-products">
-              {newest.map((p) => (
+              {featured.map((p) => (
                 <Link key={p.id} to={p.url} className="a-prod">
                   <div className="a-thumb">
                     {p.image && <img className="ln-img" src={p.image + "?width=300"} alt={p.title} loading="lazy" />}
