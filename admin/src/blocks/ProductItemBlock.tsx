@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import {
   Accordion,
   ActionIcon,
@@ -34,6 +34,7 @@ import {
   findMain,
   type ProductCategoriesValue,
 } from "../products/categoryModel";
+import { listAllPagesByType, type AdminPage } from "../lib/adminApi";
 import {
   Pencil,
   Plus,
@@ -103,6 +104,7 @@ interface ProductItemData {
     tabs: AdditionalInfoTab[];
   };
   konfiguratorCijene: KonfiguratorData;
+  featuredOnHome: boolean;
 }
 
 const PREDEFINED_TABS: Array<{ id: string; title: string }> = [
@@ -133,9 +135,26 @@ const DEFAULT_DATA: ProductItemData = {
     grafika: [],
     baza: [],
   },
+  featuredOnHome: false,
 };
 
 const PRICE_HINT = "Format: do dvije decimale (npr. 12.34)";
+
+// Homepage "featured products" section has 4 card slots — once 4 products are
+// pinned, the checkbox locks on every other product.
+const MAX_FEATURED_ON_HOME = 4;
+
+// featuredOnHome is per-locale block data (like the category ids); treat the
+// page as featured when ANY locale's product-item block carries the flag.
+function pageIsFeaturedOnHome(p: AdminPage): boolean {
+  const blockLists = [
+    p.blocks ?? [],
+    ...Object.values(p.translations ?? {}).map((t) => t.blocks ?? []),
+  ];
+  return blockLists.some((blocks) =>
+    blocks.some((b) => b.type === "product-item" && b.data?.featuredOnHome === true)
+  );
+}
 
 function uid(): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -186,6 +205,7 @@ function normalize(raw: Record<string, unknown>): ProductItemData {
         baza,
       };
     })(),
+    featuredOnHome: typeof r.featuredOnHome === "boolean" ? r.featuredOnHome : false,
   };
 }
 
@@ -1049,6 +1069,40 @@ function CategorySection({
 function ProductItemEditor({ data, onChange }: BlockEditorProps) {
   const d = useMemo(() => normalize(data), [data]);
 
+  // Global featured cap. The block editor doesn't know its own page id, so we
+  // count featured products across ALL saved product-items and subtract this
+  // product's own saved flag (captured on first render, before any edits).
+  // Best-effort, like the group-title validation: the count is a snapshot from
+  // editor-open, so two editors saving simultaneously can still exceed the cap
+  // — the homepage then shows the 4 newest featured items and ignores the rest.
+  const wasFeaturedOnLoad = useRef<boolean | null>(null);
+  if (wasFeaturedOnLoad.current === null) wasFeaturedOnLoad.current = d.featuredOnHome;
+  // "loading" keeps the checkbox locked from the first render (no unlocked→
+  // locked flash while the count is in flight); a fetch failure unlocks it
+  // (fail-open) rather than falsely blocking the editor.
+  const [featuredTotal, setFeaturedTotal] = useState<number | "loading" | "error">("loading");
+  useEffect(() => {
+    let cancelled = false;
+    listAllPagesByType("product-item")
+      .then((pages) => {
+        if (!cancelled) setFeaturedTotal(pages.filter(pageIsFeaturedOnHome).length);
+      })
+      .catch(() => {
+        if (!cancelled) setFeaturedTotal("error");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  const othersFeatured =
+    typeof featuredTotal === "number"
+      ? featuredTotal - (wasFeaturedOnLoad.current ? 1 : 0)
+      : null;
+  const featuredCountLoading = featuredTotal === "loading";
+  const featuredLocked =
+    !d.featuredOnHome &&
+    (featuredCountLoading || (othersFeatured !== null && othersFeatured >= MAX_FEATURED_ON_HOME));
+
   function patch(p: Partial<ProductItemData>) {
     onChange({ ...d, ...p } as unknown as Record<string, unknown>);
   }
@@ -1065,6 +1119,19 @@ function ProductItemEditor({ data, onChange }: BlockEditorProps) {
       {/* Basics */}
       <Stack gap={10}>
         <SectionHeader title="Osnovni podaci" />
+        <Checkbox
+          label="Istaknuto na naslovnici"
+          description={
+            featuredCountLoading
+              ? "Provjera broja istaknutih proizvoda…"
+              : featuredLocked
+                ? `Već je odabrano ${MAX_FEATURED_ON_HOME} istaknutih proizvoda — odznačite jedan od postojećih da biste mogli istaknuti ovaj.`
+                : "Prikaži ovaj proizvod među istaknutima na početnoj stranici."
+          }
+          checked={d.featuredOnHome}
+          disabled={featuredLocked}
+          onChange={(e) => patch({ featuredOnHome: e.currentTarget.checked })}
+        />
         <TextInput
           label="Alternativni naslov"
           placeholder="Alternativni naslov (opcionalno)"
