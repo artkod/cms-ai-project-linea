@@ -27,16 +27,9 @@ export declare interface AdminConfig {
     settingsSections?: SettingsSectionDef[];
     /** Project-specific top-level sidebar screens, appended after the built-in nav items. */
     navSections?: NavSectionDef[];
-    /**
-     * Opt-in commerce/webshop module (design §3). Defaults `false`. Must match the
-     * API-side `COMMERCE_ENABLED` flag. When on, later phases lazy-load the
-     * commerce admin (Products/Orders/Customers/… nav + settings tabs); off =
-     * zero behavioural change for content-only projects.
-     */
-    commerce?: boolean;
 }
 
-export declare function AppDrawer({ title, description, children, footer, onConfirm, confirmLabel, confirmDisabled, destructive, loading, cancelLabel, dirty, onClose, size, ...rest }: AppDrawerProps): JSX.Element;
+export declare function AppDrawer({ title, description, children, footer, onConfirm, confirmLabel, confirmDisabled, destructive, loading, cancelLabel, onClose, size, ...rest }: AppDrawerProps): JSX.Element;
 
 export declare interface AppDrawerProps extends Omit<DrawerProps, "title" | "position" | "withCloseButton"> {
     title: ReactNode;
@@ -49,12 +42,6 @@ export declare interface AppDrawerProps extends Omit<DrawerProps, "title" | "pos
     destructive?: boolean;
     loading?: boolean;
     cancelLabel?: ReactNode;
-    /**
-     * When true, closing the drawer (Esc, overlay click, X, Cancel) first asks
-     * "Discard unsaved changes?" instead of silently dropping the edits. The
-     * caller owns the dirty computation.
-     */
-    dirty?: boolean;
 }
 
 export declare function AppModal({ title, subject, description, intent, icon, children, footer, footerHint, onConfirm, confirmLabel, destructive, confirmDisabled, loading, cancelLabel, onClose, size, centered, lockBackdrop, opened, ...rest }: AppModalProps): JSX.Element;
@@ -613,7 +600,7 @@ export declare interface RichTextEditorProps {
     fillParent?: boolean;
 }
 
-declare type Role = "developer" | "owner" | "admin" | "content_admin" | "shop_admin" | "shop_manager" | "editor" | "viewer";
+declare type Role = "developer" | "admin" | "editor" | "viewer";
 
 export declare function saveProjectSettings<T = Record<string, unknown>>(key: string, value: T, version: number): Promise<ProjectSettings<T>>;
 
@@ -631,8 +618,7 @@ export declare interface SettingsSectionDef {
     label: string | Record<string, string>;
     /** lucide-react icon name (PascalCase), resolved via getLucideIcon. */
     icon?: string;
-    /** Roles allowed to see this tab. Default: content managers
-     *  (owner / admin / content_admin / developer). */
+    /** Roles allowed to see this tab. Default: ["admin", "developer"]. */
     roles?: Role[];
     /** The section UI. Mounted when its tab is active. */
     component: ComponentType;
