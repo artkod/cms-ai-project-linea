@@ -1,0 +1,9 @@
+#!/bin/bash
+# Stops the shared private nginx (cms5-frontend + cms5-admin static hosting).
+PREFIX="$HOME/apps/cms5-frontend/nginx"
+if [ -s "$PREFIX/run/nginx.pid" ] && kill -0 "$(cat "$PREFIX/run/nginx.pid")" 2>/dev/null; then
+    kill "$(cat "$PREFIX/run/nginx.pid")"
+    echo "static nginx stopped"
+else
+    echo "static nginx not running"
+fi
