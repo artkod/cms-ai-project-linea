@@ -1,0 +1,12 @@
+#!/bin/bash
+# Starts the shared private nginx that serves cms5-frontend (/) and cms5-admin
+# (/admin). Installed to ~/apps/cms5-frontend/start by the static-nginx
+# workflow (the original serve-based script is kept as start.pre-nginx.bak).
+# Idempotent: exits 0 if nginx is already running.
+PREFIX="$HOME/apps/cms5-frontend/nginx"
+mkdir -p "$PREFIX/run" "$PREFIX/log" "$PREFIX/tmp"
+if [ -s "$PREFIX/run/nginx.pid" ] && kill -0 "$(cat "$PREFIX/run/nginx.pid")" 2>/dev/null; then
+    echo "static nginx already running (pid $(cat "$PREFIX/run/nginx.pid"))"
+    exit 0
+fi
+exec /usr/sbin/nginx -c "$PREFIX/nginx.conf" -p "$PREFIX" -e "$PREFIX/log/error.log"

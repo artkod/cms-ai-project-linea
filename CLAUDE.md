@@ -755,6 +755,18 @@ isn't a sibling) the committed bundle is what gets built.
 - `admin/vercel.json` + root `vercel.json` give each SPA a catch-all rewrite to `/index.html`.
 - Full step-by-step (Neon + Render + Vercel, free tier): `cms-ai-core/docs/DEPLOYMENT.md`.
 
+### Opalstack static hosting (prod) — private nginx, NOT `serve`
+
+Both static apps (`cms5-frontend` at `/`, `cms5-admin` at `/admin`) are served by **one
+private nginx** (`~/apps/cms5-frontend/nginx/`, config source `deploy/nginx/`, migrated via
+the `static-nginx.yml` workflow) — replaced the two `serve` Node processes (~42 MB → ~8 MB)
+on the memory-tight 512 MB shared account (cms-ai-core DECISIONS #143 is the API half).
+Opalstack "Static Only" apps were ruled out: **no custom-404/rewrite support**, so SPA deep
+links (`/admin/activate/:token`, every frontend route) would hard-404. nginx `try_files`
+reproduces `serve -s` 200-fallback semantics. `deploy.yml` rsyncs the same `public/` dirs
+(nginx picks up new files with no reload) and self-heals nginx if down. Do NOT reintroduce
+`serve`/Node static hosts; port changes only via re-running the migration workflow.
+
 ---
 
 ## Key files

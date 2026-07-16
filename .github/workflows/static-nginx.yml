@@ -1,0 +1,163 @@
+name: Migrate static hosting to private nginx
+
+# One-time (idempotent) migration of the two static apps off their `serve`
+# Node processes (~42 MB combined) onto ONE private nginx (~8 MB) serving
+# both ports — part of getting the shared 512 MB Opalstack account back under
+# budget (see cms-ai-core DECISIONS #143 for the API half).
+#
+# Why not Opalstack "Static Only" apps: no custom-404 / rewrite support
+# (confirmed by Opalstack staff), so SPA deep links would hard-404 — breaking
+# /admin/activate/:token + /admin/reset/:token email links and every public
+# frontend route. The private nginx reproduces `serve -s` fallback semantics
+# with try_files (200 + index.html), so UX/SEO are unchanged.
+#
+# Safety: everything is guarded — port detection failure, nginx -t failure,
+# or missing listeners abort BEFORE any process is killed or file swapped.
+# Originals are kept as start.pre-nginx.bak in both app dirs. Run with
+# mode=inspect first to see the current server state without changing it.
+#
+# Rollback (manual, via a re-run of this workflow is NOT needed):
+#   cp ~/apps/cms5-frontend/start.pre-nginx.bak ~/apps/cms5-frontend/start
+#   cp ~/apps/cms5-admin/start.pre-nginx.bak ~/apps/cms5-admin/start
+#   ~/apps/cms5-frontend/nginx-src/stop; setsid ~/apps/cms5-frontend/start; setsid ~/apps/cms5-admin/start
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "inspect = dump server state only (no changes); apply = migrate"
+        type: choice
+        options: [inspect, apply]
+        default: apply
+      frontend_port:
+        description: "cms5-frontend app port (blank = autodetect from the running serve process)"
+        required: false
+        default: ""
+      admin_port:
+        description: "cms5-admin app port (blank = autodetect)"
+        required: false
+        default: ""
+
+concurrency:
+  group: deploy-linea
+  cancel-in-progress: false
+
+env:
+  FRONTEND_URL: https://cms5.artkod.opalstacked.com
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Load deploy SSH key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
+
+      - name: Trust server host key
+        run: ssh-keyscan -H "${{ secrets.DEPLOY_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Upload nginx config sources
+        run: |
+          rsync -az --delete deploy/nginx/ \
+            "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:apps/cms5-frontend/nginx-src/"
+
+      - name: Migrate serve -> nginx
+        env:
+          MODE: ${{ inputs.mode }}
+          FRONTEND_PORT_IN: ${{ inputs.frontend_port }}
+          ADMIN_PORT_IN: ${{ inputs.admin_port }}
+        run: |
+          ssh "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" \
+            "MODE='${MODE}' FRONTEND_PORT_IN='${FRONTEND_PORT_IN}' ADMIN_PORT_IN='${ADMIN_PORT_IN}' bash -s" <<'REMOTE'
+          set -eo pipefail
+
+          # ---- inspect current state (always printed for the CI log) ----
+          echo "=== ~/apps/cms5-frontend/start ==="; cat ~/apps/cms5-frontend/start || true
+          echo "=== ~/apps/cms5-admin/start ==="; cat ~/apps/cms5-admin/start || true
+          echo "=== crontab ==="; crontab -l 2>/dev/null || echo "(no crontab)"
+          echo "=== listening node/serve processes (this user) ==="
+          ss -tlnp 2>/dev/null | grep -E 'node|serve' || true
+
+          # ---- port detection: workflow input wins, else match a listening
+          # process whose cwd is inside the app dir (never touches the OTHER
+          # tenant's serve on this shared account) ----
+          detect_port() { # $1 = app dir fragment, e.g. apps/cms5-frontend
+            local pid cwd
+            for pid in $(pgrep -u "$(whoami)" node 2>/dev/null; pgrep -u "$(whoami)" -f serve 2>/dev/null); do
+              cwd=$(readlink "/proc/$pid/cwd" 2>/dev/null) || continue
+              case "$cwd" in
+                *"$1"*)
+                  ss -tlnp 2>/dev/null | grep "pid=$pid," | head -1 \
+                    | awk '{sub(/.*:/,"",$4); print $4}'
+                  return 0;;
+              esac
+            done
+            return 1
+          }
+          FRONTEND_PORT="${FRONTEND_PORT_IN:-$(detect_port apps/cms5-frontend || true)}"
+          ADMIN_PORT="${ADMIN_PORT_IN:-$(detect_port apps/cms5-admin || true)}"
+          echo "frontend port: '${FRONTEND_PORT}'  admin port: '${ADMIN_PORT}'"
+
+          if [ "$MODE" = "inspect" ]; then
+            echo "inspect mode — no changes made"; exit 0
+          fi
+
+          case "$FRONTEND_PORT" in (*[!0-9]*|"") echo "ERROR: frontend port not detected — re-run with frontend_port input (see dump above). Nothing changed."; exit 1;; esac
+          case "$ADMIN_PORT"    in (*[!0-9]*|"") echo "ERROR: admin port not detected — re-run with admin_port input (see dump above). Nothing changed.";    exit 1;; esac
+          if [ "$FRONTEND_PORT" = "$ADMIN_PORT" ]; then echo "ERROR: identical ports. Nothing changed."; exit 1; fi
+
+          # ---- render config + validate BEFORE touching anything ----
+          PREFIX="$HOME/apps/cms5-frontend/nginx"
+          mkdir -p "$PREFIX/run" "$PREFIX/log" "$PREFIX/tmp"
+          sed -e "s|__HOME__|$HOME|g" \
+              -e "s|__FRONTEND_PORT__|$FRONTEND_PORT|g" \
+              -e "s|__ADMIN_PORT__|$ADMIN_PORT|g" \
+              "$HOME/apps/cms5-frontend/nginx-src/nginx.conf.template" > "$PREFIX/nginx.conf"
+          /usr/sbin/nginx -t -c "$PREFIX/nginx.conf" -p "$PREFIX" -e "$PREFIX/log/error.log"
+
+          # ---- swap start scripts (originals backed up once) ----
+          [ -f ~/apps/cms5-frontend/start.pre-nginx.bak ] || cp ~/apps/cms5-frontend/start ~/apps/cms5-frontend/start.pre-nginx.bak
+          [ -f ~/apps/cms5-admin/start.pre-nginx.bak ]    || cp ~/apps/cms5-admin/start    ~/apps/cms5-admin/start.pre-nginx.bak
+          install -m 755 "$HOME/apps/cms5-frontend/nginx-src/start"            ~/apps/cms5-frontend/start
+          install -m 755 "$HOME/apps/cms5-frontend/nginx-src/stop"             ~/apps/cms5-frontend/stop
+          install -m 755 "$HOME/apps/cms5-frontend/nginx-src/admin-start-stub" ~/apps/cms5-admin/start
+
+          # ---- cut over: stop any old watchdog loops (scoped to OUR app paths;
+          # the other tenant's processes never match), free the two ports
+          # (kills only OUR serves), start nginx ----
+          pkill -f 'apps/cms5-frontend/start' 2>/dev/null || true
+          pkill -f 'apps/cms5-admin/start' 2>/dev/null || true
+          fuser -k "${FRONTEND_PORT}/tcp" 2>/dev/null || true
+          fuser -k "${ADMIN_PORT}/tcp" 2>/dev/null || true
+          sleep 1
+          ~/apps/cms5-frontend/start
+          sleep 1
+
+          # ---- verify from inside: shell 200s, SPA fallbacks, asset MIME ----
+          curl -fsS "http://127.0.0.1:${FRONTEND_PORT}/" | grep -qi '<html' && echo "frontend / OK"
+          curl -fsS "http://127.0.0.1:${FRONTEND_PORT}/hr/spa-fallback-check" | grep -qi '<html' && echo "frontend SPA fallback OK"
+          FE_ASSET=$(grep -oE 'assets/[^"]+\.js' ~/apps/cms5-frontend/public/index.html | head -1)
+          [ -n "$FE_ASSET" ] && { CT=$(curl -fsS -o /dev/null -w '%{content_type}' "http://127.0.0.1:${FRONTEND_PORT}/${FE_ASSET}"); echo "frontend asset content-type: $CT"; case "$CT" in *javascript*) ;; *) echo "ERROR: wrong asset MIME"; exit 1;; esac; }
+          curl -fsS "http://127.0.0.1:${ADMIN_PORT}/admin/" | grep -qi '<html' && echo "admin /admin/ OK"
+          curl -fsS "http://127.0.0.1:${ADMIN_PORT}/admin/activate/spa-fallback-check" | grep -qi '<html' && echo "admin SPA fallback OK"
+          AD_ASSET=$(grep -oE 'assets/[^"]+\.js' ~/apps/cms5-admin/public/index.html | head -1)
+          [ -n "$AD_ASSET" ] && { CT=$(curl -fsS -o /dev/null -w '%{content_type}' "http://127.0.0.1:${ADMIN_PORT}/admin/${AD_ASSET}"); echo "admin asset content-type: $CT"; case "$CT" in *javascript*) ;; *) echo "ERROR: wrong asset MIME"; exit 1;; esac; }
+
+          echo "=== nginx memory (PSS) ==="
+          for pid in $(pgrep -u "$(whoami)" nginx); do
+            awk -v p="$pid" '/^Pss:/{s+=$2} END{if(s)printf "pid %s: %.1f MB\n", p, s/1024}' "/proc/$pid/smaps_rollup" 2>/dev/null
+          done
+          echo "migration complete"
+          REMOTE
+
+      - name: External smoke check
+        if: inputs.mode == 'apply'
+        run: |
+          curl -fsS -o /dev/null "${FRONTEND_URL}/" && echo "frontend OK"
+          curl -fsS -o /dev/null "${FRONTEND_URL}/admin/" && echo "admin OK"
+          curl -fsS -o /dev/null "${FRONTEND_URL}/hr/spa-fallback-check" && echo "frontend deep link OK"
+          curl -fsS -o /dev/null "${FRONTEND_URL}/admin/activate/spa-fallback-check" && echo "admin deep link OK"

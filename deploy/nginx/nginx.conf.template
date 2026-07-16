@@ -1,0 +1,88 @@
+# Private nginx serving BOTH static apps (cms5-frontend at / and cms5-admin at
+# /admin) as ONE ~8 MB process, replacing the two `serve` Node processes
+# (~42 MB combined) on the memory-tight 512 MB shared Opalstack account.
+#
+# Why not Opalstack "Static Only" apps: they have NO custom-404 / rewrite
+# support (confirmed by Opalstack staff on the community forum), so an SPA's
+# deep links would hard-404 — that would break /admin/activate/:token +
+# /admin/reset/:token email links and every public frontend route. This nginx
+# reproduces `serve -s` behavior (200-status index.html fallback) with
+# try_files, so UX + SEO are unchanged.
+#
+# Placeholders (__HOME__, __FRONTEND_PORT__, __ADMIN_PORT__) are rendered on
+# the server by .github/workflows/static-nginx.yml. Opalstack's front nginx
+# proxies site routes WITHOUT stripping the path prefix, so the admin server
+# block sees /admin/... URIs verbatim.
+
+worker_processes 1;
+pid __HOME__/apps/cms5-frontend/nginx/run/nginx.pid;
+error_log __HOME__/apps/cms5-frontend/nginx/log/error.log warn;
+
+events {
+    worker_connections 256;
+}
+
+http {
+    include /etc/nginx/mime.types;
+    default_type application/octet-stream;
+    access_log off;
+    sendfile on;
+    absolute_redirect off;
+
+    gzip on;
+    gzip_types text/css application/javascript application/json image/svg+xml text/plain;
+
+    client_body_temp_path __HOME__/apps/cms5-frontend/nginx/tmp/client_body;
+    proxy_temp_path       __HOME__/apps/cms5-frontend/nginx/tmp/proxy;
+    fastcgi_temp_path     __HOME__/apps/cms5-frontend/nginx/tmp/fastcgi;
+    uwsgi_temp_path       __HOME__/apps/cms5-frontend/nginx/tmp/uwsgi;
+    scgi_temp_path        __HOME__/apps/cms5-frontend/nginx/tmp/scgi;
+
+    # ---- public frontend (site route: /) ----
+    server {
+        listen 127.0.0.1:__FRONTEND_PORT__;
+        root __HOME__/apps/cms5-frontend/public;
+
+        # Vite content-hashed bundles: cache forever, 404 when genuinely missing
+        # (never fall back to index.html for assets — a stale HTML shell must
+        # fail loudly, not receive text/html JS).
+        location /assets/ {
+            expires 1y;
+            add_header Cache-Control "public, immutable";
+            try_files $uri =404;
+        }
+
+        location = /index.html {
+            add_header Cache-Control "no-cache";
+        }
+
+        # SPA fallback — same 200-status rewrite `serve -s` did.
+        location / {
+            try_files $uri $uri/ /index.html;
+        }
+    }
+
+    # ---- admin SPA (site route: /admin; built with --base=/admin/) ----
+    server {
+        listen 127.0.0.1:__ADMIN_PORT__;
+
+        location = /admin {
+            return 301 /admin/;
+        }
+
+        location /admin/assets/ {
+            alias __HOME__/apps/cms5-admin/public/assets/;
+            expires 1y;
+            add_header Cache-Control "public, immutable";
+            try_files $uri =404;
+        }
+
+        # try_files' final URI re-enters this location, so /admin/index.html
+        # resolves through the alias to public/index.html.
+        location /admin/ {
+            alias __HOME__/apps/cms5-admin/public/;
+            add_header Cache-Control "no-cache";
+            try_files $uri $uri/ /admin/index.html;
+        }
+    }
+}

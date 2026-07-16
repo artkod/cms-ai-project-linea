@@ -126,5 +126,26 @@ jobs:
             cms-ai-project-linea/dist/ \
             "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:${FRONTEND_DEST}/"
 
+      # Static hosting runs on a private nginx (one process for frontend +
+      # admin; see .github/workflows/static-nginx.yml). rsync above already
+      # swapped the files nginx serves; this only (re)starts nginx if it is
+      # down (e.g. after a server reboot). No-op on servers not yet migrated.
+      - name: Ensure static nginx running
+        run: |
+          ssh "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" 'bash -s' <<'REMOTE'
+          set -eo pipefail
+          PREFIX="$HOME/apps/cms5-frontend/nginx"
+          if [ ! -f "$PREFIX/nginx.conf" ]; then
+            echo "static nginx not configured yet (still on serve); skipping"; exit 0
+          fi
+          if [ -s "$PREFIX/run/nginx.pid" ] && kill -0 "$(cat "$PREFIX/run/nginx.pid")" 2>/dev/null; then
+            echo "static nginx up"
+          else
+            "$HOME/apps/cms5-frontend/start"
+            sleep 1
+            echo "static nginx (re)started"
+          fi
+          REMOTE
+
       - name: Smoke check (admin reachable)
         run: curl -fsS -o /dev/null "${PROD_FRONTEND_URL}/admin/" && echo "admin OK"

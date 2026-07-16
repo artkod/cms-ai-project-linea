@@ -1,0 +1,7 @@
+#!/bin/bash
+# cms5-admin's static files are served by the shared private nginx owned by
+# the cms5-frontend app (~/apps/cms5-frontend/nginx) — see the static-nginx
+# workflow in cms-ai-project-linea. Nothing to start here; this stub exists so
+# an accidental run of ~/apps/cms5-admin/start can't respawn the old `serve`
+# process. The original script is kept as start.pre-nginx.bak.
+echo "cms5-admin is served by cms5-frontend's nginx; run ~/apps/cms5-frontend/start instead."
