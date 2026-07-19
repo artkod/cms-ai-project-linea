@@ -60,6 +60,9 @@ The legacy page-based product system (a `product-item` page type + block, the
 - **Product content** in the admin is name/SEO/short description + gallery +
   a Mixed Content body; the old info tabs live as ONE accordion widget (the
   storefront renders its items as tabs).
+- **Prod cutover runbook: `docs/COMMERCE-CUTOVER.md`** (ordered steps: core
+  merge → enable env on the API → migrate prod DB → linea merge → verify →
+  cleanup → admin config; incl. rollback + the legacy-pages transition window).
 - **Migration scripts** (one-shot, kept for prod cutover): `pnpm
   migrate:products-to-commerce` (pages → catalog; `--dry-run` supported) then,
   after verification, `node scripts/cleanup-legacy-products.mjs` (deletes the
