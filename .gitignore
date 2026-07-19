@@ -8,3 +8,5 @@ dist
 # standalone on Vercel). Re-included despite the blanket `dist` ignore above.
 !/admin/vendor/admin-base/dist/
 !/admin/vendor/admin-base/dist/**
+!/vendor/storefront/dist/
+!/vendor/storefront/dist/**
