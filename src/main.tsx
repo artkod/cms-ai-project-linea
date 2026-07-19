@@ -6,7 +6,6 @@ import "@mantine/core/styles.css";
 import "@mantine/notifications/styles.css";
 import "./styles/global.scss";
 import "./styles/components/notifications.scss";
-import { CartProvider } from "./lib/cart";
 import App from "./App";
 
 const theme = createTheme({
@@ -21,9 +20,7 @@ createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <MantineProvider theme={theme}>
       <Notifications position="bottom-right" />
-      <CartProvider>
-        <App />
-      </CartProvider>
+      <App />
     </MantineProvider>
   </StrictMode>
 );

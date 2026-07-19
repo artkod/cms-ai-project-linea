@@ -20,6 +20,11 @@ export function eur(n: number): string {
   return "€" + n.toLocaleString("hr-HR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+/** Same formatter for integer EUR cents (the commerce API's money unit). */
+export function eurCents(cents: number): string {
+  return eur(cents / 100);
+}
+
 /** Currency-style formatter ("1.234,56 €", symbol last). Kept for callers that
  *  still render the Intl currency form. New design surfaces use `eur()`. */
 export const eurFmt = new Intl.NumberFormat("hr-HR", {

@@ -2,81 +2,18 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
 import { Loader } from "@mantine/core";
 import { Search, Check, SlidersHorizontal, X, ChevronLeft, ChevronRight } from "lucide-react";
-import { getAllPages, getProductCategories, type Page, type ProductMainCategory } from "@/lib/api";
-import { indexCategories, resolveProductCategory, resolveLabel } from "@/lib/productCategories";
+import type { CategoryNode, ProductCard } from "@cms/storefront";
+import { storefront } from "@/lib/storefront";
+import { type Page } from "@/lib/api";
 import { useStrings, useLocaleConfig } from "@/lib/locale";
-import { eur } from "@/lib/pricing";
+import { eurCents } from "@/lib/pricing";
 import "@/styles/pages/catalog.scss";
 
-// ─── Pricing ──────────────────────────────────────────────────────────────────
-// Mirrors the per-product pricing rules in PageView.tsx so cards agree with the
-// product page: a fixed `priceEur`, or a `konfiguratorCijene` whose cheapest
-// build is shown as a "Već od …" starting price, or nothing (inquiry-only).
-
-interface KonstrukcijaRow { id: string; naziv: string; cijena: string }
-interface GrafikaRow { id: string; naziv: string; cijene: Record<string, string> }
-interface BazaRow { id: string; naziv: string; cijena: string }
-
-interface ProductBlockData {
-  altTitle?: string;
-  mainPhoto?: { mediaId: string; cdnUrl: string } | null;
-  description?: string;
-  priceEur?: string;
-  mainCategoryId?: string | null;
-  subcategoryId?: string | null;
-  konfiguratorCijene?: {
-    enabled?: boolean;
-    konstrukcija?: KonstrukcijaRow[];
-    grafika?: GrafikaRow[];
-    baza?: BazaRow[];
-  };
-}
-
-/** Parse "12,34" / "12.34" → number; empty / invalid / non-positive → 0. */
-function parsePrice(v: unknown): number {
-  if (typeof v !== "string") return 0;
-  const s = v.replace(",", ".").trim();
-  if (!s) return 0;
-  const n = parseFloat(s);
-  return Number.isFinite(n) && n > 0 ? n : 0;
-}
-
-/** Cheapest full build: one option from each group that has rows. Grafika is
- *  matrix-priced (keyed by konstrukcija id) so it's minimised per-konstrukcija.
- *  Returns null when no positive build exists. */
-function cheapestBuild(k: KonstrukcijaRow[], g: GrafikaRow[], b: BazaRow[]): number | null {
-  const minBaza = b.length ? Math.min(...b.map((r) => parsePrice(r.cijena))) : 0;
-  let best = Infinity;
-  if (k.length) {
-    for (const kr of k) {
-      const kp = parsePrice(kr.cijena);
-      const minGrafika = g.length ? Math.min(...g.map((gr) => parsePrice(gr.cijene?.[kr.id] ?? ""))) : 0;
-      best = Math.min(best, kp + minGrafika + minBaza);
-    }
-  } else if (b.length) {
-    best = minBaza;
-  }
-  if (!Number.isFinite(best) || best <= 0) return null;
-  return best;
-}
-
-/** The price to show on a product card, or null for inquiry-only products.
- *  `from` marks a configurator's cheapest-build estimate ("Već od …"). */
-export function computeCardPrice(d: ProductBlockData): { amount: number; from: boolean } | null {
-  const fixed = parsePrice(d.priceEur);
-  const konf = d.konfiguratorCijene;
-  const k = konf?.konstrukcija ?? [];
-  const g = konf?.grafika ?? [];
-  const b = konf?.baza ?? [];
-  const enabled = typeof konf?.enabled === "boolean" ? konf.enabled : k.length + g.length + b.length > 0;
-
-  if (enabled) {
-    const cheapest = cheapestBuild(k, g, b);
-    return cheapest != null ? { amount: cheapest, from: true } : null;
-  }
-  if (fixed > 0) return { amount: fixed, from: false };
-  return null;
-}
+// Catalogue listing — the `all-products` page, now backed by the commerce
+// catalog API instead of product-item pages. The whole (small, <100 products)
+// catalog is fetched once and filtered/sorted client-side, exactly like the
+// legacy view, so the filter UX is unchanged: search, main-category checkboxes,
+// subcategory chips, price range, sort, pagination.
 
 // ─── Card model ─────────────────────────────────────────────────────────────
 
@@ -89,13 +26,15 @@ interface ProductCardData {
   categoryId: string; // subcategory id — drives the subcategory filter
   productsId: string; // main category id — drives the category filter
   categoryTitle: string; // subcategory label (shown on the card)
-  createdAt: string;
-  price: { amount: number; from: boolean } | null;
+  /** Fetch-order index (server sort = newest) — drives newest/oldest sorting. */
+  fetchIndex: number;
+  price: { amount: number; from: boolean } | null; // amount in EUR cents
 }
 
 type SortKey = "newest" | "oldest" | "name" | "price_asc" | "price_desc";
 
 const PAGE_SIZE_OPTIONS = [12, 24, 48];
+const FETCH_LIMIT = 100; // the catalog API's max page size
 
 /** Page-number list with ellipsis gaps: always first/last + current ±1. */
 function pageList(current: number, total: number): (number | "gap")[] {
@@ -126,22 +65,32 @@ export function AllProductsView({ page }: { page: Page }) {
   };
 
   const [loading, setLoading] = useState(true);
-  const [categories, setCategories] = useState<ProductMainCategory[]>([]);
-  const [itemPages, setItemPages] = useState<Page[]>([]);
+  const [categories, setCategories] = useState<CategoryNode[]>([]);
+  const [products, setProducts] = useState<ProductCard[]>([]);
 
   useEffect(() => {
     let alive = true;
     setLoading(true);
-    Promise.all([getProductCategories(), getAllPages("product-item", locale)])
+    const loadAll = async (): Promise<ProductCard[]> => {
+      const out: ProductCard[] = [];
+      let offset = 0;
+      for (;;) {
+        const res = await storefront.listProducts({ locale, sort: "newest", limit: FETCH_LIMIT, offset });
+        out.push(...res.data);
+        offset += res.data.length;
+        if (out.length >= res.total || res.data.length === 0) return out;
+      }
+    };
+    Promise.all([storefront.listCategories({ locale }), loadAll()])
       .then(([cats, items]) => {
         if (!alive) return;
         setCategories(cats);
-        setItemPages(items);
+        setProducts(items);
       })
       .catch(() => {
         if (!alive) return;
         setCategories([]);
-        setItemPages([]);
+        setProducts([]);
       })
       .finally(() => {
         if (alive) setLoading(false);
@@ -151,32 +100,33 @@ export function AllProductsView({ page }: { page: Page }) {
     };
   }, [locale]);
 
-  const catIndex = useMemo(() => indexCategories(categories), [categories]);
+  const mains = useMemo(() => categories.filter((c) => !c.parentId), [categories]);
+  const catById = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories]);
 
-  // Build the card list: each item reads its main/sub category from its own
-  // block data (no more parent-chain join). Items live under the all-products
-  // landing page, so the URL is `/{locale}/{all-products-slug}/{item-slug}`.
+  // Build the card list. The migration made the SUBCATEGORY primary (main-only
+  // products fall back to their main category), so the card's sub/main ids come
+  // from the primary category node + its parent.
   const cards = useMemo<ProductCardData[]>(() => {
-    const out: ProductCardData[] = [];
-    for (const item of itemPages) {
-      const block = item.blocks?.find((b) => b.type === "product-item");
-      const d = (block?.data ?? {}) as ProductBlockData;
-      const { main, sub } = resolveProductCategory(catIndex, d.mainCategoryId, d.subcategoryId);
-      out.push({
-        id: item.id,
-        title: item.title,
-        description: d.description?.trim() || "",
-        image: d.mainPhoto?.cdnUrl ?? null,
-        url: `/${locale}/${page.slug}/${item.slug}`,
+    return products.map((p, i) => {
+      const primary = p.primaryCategoryId ? catById.get(p.primaryCategoryId) : null;
+      const sub = primary?.parentId ? primary : null;
+      const main = sub ? catById.get(sub.parentId!) ?? null : primary;
+      return {
+        id: p.id,
+        title: p.name,
+        description: p.shortDescription ?? "",
+        image: p.image?.cdnUrl ?? null,
+        url: `/${locale}/${page.slug}/${p.slug}`,
         categoryId: sub?.id ?? "",
         productsId: main?.id ?? "",
-        categoryTitle: sub ? resolveLabel(sub.label, locale, defaultLocale) : "",
-        createdAt: item.createdAt,
-        price: computeCardPrice(d),
-      });
-    }
-    return out;
-  }, [itemPages, catIndex, locale, defaultLocale, page.slug]);
+        categoryTitle: sub?.label ?? "",
+        fetchIndex: i,
+        // price = the cheapest variant's gross (cents); 0 → inquiry-only card.
+        // Multiple price points → the "Već od …" starting-price form.
+        price: p.price > 0 ? { amount: p.price, from: p.variantCount > 1 && p.priceMax > p.price } : null,
+      };
+    });
+  }, [products, catById, locale, page.slug]);
 
   // Product count per main category (shown next to each category checkbox).
   const groupCounts = useMemo(() => {
@@ -186,15 +136,12 @@ export function AllProductsView({ page }: { page: Page }) {
   }, [cards]);
 
   // ─── Live filters ────────────────────────────────────────────────────────────
-  // Every control writes straight into these and the grid re-filters as you
-  // type / tick — there's no "Apply filters" step.
   const [search, setSearch] = useState("");
   const [catIds, setCatIds] = useState<string[]>([]);
   const [subIds, setSubIds] = useState<string[]>([]);
   const [minStr, setMinStr] = useState<string>("");
   const [maxStr, setMaxStr] = useState<string>("");
 
-  // Display controls apply immediately (they're not part of the filter form).
   const [sort, setSort] = useState<SortKey>("newest");
   const [pageSize, setPageSize] = useState(12);
   const [pageNum, setPageNum] = useState(1);
@@ -209,15 +156,15 @@ export function AllProductsView({ page }: { page: Page }) {
     };
   }, [filtersOpen]);
 
-  // Subcategory options narrow to the picked main categories (if any). Drop
-  // selected subcategory ids that fall outside the current category selection.
+  // Subcategory options narrow to the picked main categories (if any).
   const visibleSubs = useMemo(() => {
-    const mains = catIds.length ? categories.filter((c) => catIds.includes(c.id)) : categories;
-    const subs = mains.flatMap((c) =>
-      (c.subcategories ?? []).map((sub) => ({ id: sub.id, title: resolveLabel(sub.label, locale, defaultLocale) })),
-    );
-    return subs.sort((a, b) => a.title.localeCompare(b.title));
-  }, [categories, catIds, locale, defaultLocale]);
+    const parents = catIds.length ? mains.filter((c) => catIds.includes(c.id)) : mains;
+    const parentIds = new Set(parents.map((c) => c.id));
+    return categories
+      .filter((c) => c.parentId && parentIds.has(c.parentId))
+      .map((c) => ({ id: c.id, title: c.label ?? "" }))
+      .sort((a, b) => a.title.localeCompare(b.title));
+  }, [categories, mains, catIds]);
 
   useEffect(() => {
     const valid = new Set(visibleSubs.map((s) => s.id));
@@ -229,8 +176,9 @@ export function AllProductsView({ page }: { page: Page }) {
     setPageNum(1);
   }, [search, catIds, subIds, minStr, maxStr]);
 
-  // Deep-link from the homepage's "Naš asortiman" cards:
-  // `?kategorija=<main-category-slug>` pre-checks that category once data loads.
+  // Deep-link (`?kategorija=<category-slug>`) — from the homepage cards AND the
+  // commerce category URLs (PageView redirects them here). Matches a MAIN
+  // category (pre-checks it) or a SUBCATEGORY (pre-checks its parent + itself).
   const [searchParams] = useSearchParams();
   const catParam = searchParams.get("kategorija");
   const seededRef = useRef(false);
@@ -239,16 +187,21 @@ export function AllProductsView({ page }: { page: Page }) {
     if (!catParam) { seededRef.current = true; return; }
     if (!categories.length) return; // wait for the taxonomy to load
     const match = categories.find((c) => c.slug === catParam);
-    if (match) setCatIds([match.id]);
+    if (match && !match.parentId) {
+      setCatIds([match.id]);
+    } else if (match?.parentId) {
+      setCatIds([match.parentId]);
+      setSubIds([match.id]);
+    }
     seededRef.current = true;
   }, [catParam, categories]);
 
   const categoryOptions = useMemo(
     () =>
-      categories
-        .map((c) => ({ id: c.id, title: resolveLabel(c.label, locale, defaultLocale) }))
+      mains
+        .map((c) => ({ id: c.id, title: c.label ?? "" }))
         .sort((a, b) => a.title.localeCompare(b.title)),
-    [categories, locale, defaultLocale],
+    [mains],
   );
 
   function toBound(v: string): number | null {
@@ -273,6 +226,7 @@ export function AllProductsView({ page }: { page: Page }) {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
+    // Price bounds are entered in EUR; card prices are cents.
     const min = toBound(minStr);
     const max = toBound(maxStr);
     return cards.filter((c) => {
@@ -282,8 +236,8 @@ export function AllProductsView({ page }: { page: Page }) {
       // A price bound excludes inquiry-only products (no comparable price).
       if (min != null || max != null) {
         if (!c.price) return false;
-        if (min != null && c.price.amount < min) return false;
-        if (max != null && c.price.amount > max) return false;
+        if (min != null && c.price.amount < min * 100) return false;
+        if (max != null && c.price.amount > max * 100) return false;
       }
       return true;
     });
@@ -303,7 +257,7 @@ export function AllProductsView({ page }: { page: Page }) {
         arr.sort((a, b) => a.title.localeCompare(b.title));
         break;
       case "oldest":
-        arr.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+        arr.sort((a, b) => b.fetchIndex - a.fetchIndex);
         break;
       case "price_asc":
         arr.sort(byPriceAsc);
@@ -318,7 +272,7 @@ export function AllProductsView({ page }: { page: Page }) {
         break;
       case "newest":
       default:
-        arr.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+        arr.sort((a, b) => a.fetchIndex - b.fetchIndex); // server sort = newest first
         break;
     }
     return arr;
@@ -343,7 +297,7 @@ export function AllProductsView({ page }: { page: Page }) {
     return (
       <div className="cat-card__price">
         {price.from && <span className="vec">{t("allproducts.price_from")} </span>}
-        {eur(price.amount)} <small>{t("product.price_vat_suffix")}</small>
+        {eurCents(price.amount)} <small>{t("product.price_vat_suffix")}</small>
       </div>
     );
   }

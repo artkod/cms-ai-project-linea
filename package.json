@@ -8,9 +8,12 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "vendor:admin-base": "bash scripts/vendor-admin-base.sh",
-    "migrate:flatten-products": "node scripts/migrate-flatten-products.mjs"
+    "vendor:storefront": "bash scripts/vendor-storefront.sh",
+    "migrate:flatten-products": "node scripts/migrate-flatten-products.mjs",
+    "migrate:products-to-commerce": "node scripts/migrate-products-to-commerce.mjs"
   },
   "dependencies": {
+    "@cms/storefront": "file:./vendor/storefront",
     "@mantine/core": "^7.0.0",
     "@mantine/hooks": "^7.0.0",
     "@mantine/notifications": "^7.17.8",

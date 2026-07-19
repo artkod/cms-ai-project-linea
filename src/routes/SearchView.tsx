@@ -2,33 +2,18 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
 import { Loader } from "@mantine/core";
 import { Search, ChevronLeft, ChevronRight } from "lucide-react";
-import { getAllPages, getProductCategories, getSystemPageSlug, type Page, type ProductMainCategory } from "@/lib/api";
-import { indexCategories, resolveProductCategory, resolveLabel as resolveCatLabel } from "@/lib/productCategories";
+import { getSystemPageSlug, type Page } from "@/lib/api";
+import type { CategoryNode, ProductCard } from "@cms/storefront";
+import { storefront } from "@/lib/storefront";
 import { useStrings, useLocaleConfig } from "@/lib/locale";
-import { eur } from "@/lib/pricing";
-import { computeCardPrice } from "./AllProductsView";
+import { eurCents } from "@/lib/pricing";
 import "@/styles/pages/catalog.scss";
 
-// The search page renders product-item results that match the `?q=` query
-// submitted from the navbar search form. The query is read straight from the
-// URL. The layout reuses the catalog's `.cat-*` design (cards, sort bar, pager,
-// empty state) — same as AllProductsView's results column, minus the filter
-// sidebar — so search looks identical to the rest of the catalog.
-
-interface ProductBlockData {
-  altTitle?: string;
-  mainPhoto?: { mediaId: string; cdnUrl: string } | null;
-  description?: string;
-  priceEur?: string;
-  mainCategoryId?: string | null;
-  subcategoryId?: string | null;
-  konfiguratorCijene?: {
-    enabled?: boolean;
-    konstrukcija?: { id: string; naziv: string; cijena: string }[];
-    grafika?: { id: string; naziv: string; cijene: Record<string, string> }[];
-    baza?: { id: string; naziv: string; cijena: string }[];
-  };
-}
+// The search page renders commerce catalog results that match the `?q=` query
+// submitted from the navbar search form (server-side full-text relevance). The
+// query is read straight from the URL. The layout reuses the catalog's `.cat-*`
+// design (cards, sort bar, pager, empty state) — same as AllProductsView's
+// results column, minus the filter sidebar.
 
 interface ProductCardData {
   id: string;
@@ -37,8 +22,9 @@ interface ProductCardData {
   image: string | null;
   url: string;
   categoryTitle: string;
-  createdAt: string;
-  price: { amount: number; from: boolean } | null;
+  /** Fetch-order index (FTS relevance) — the default "newest" sort keeps it. */
+  fetchIndex: number;
+  price: { amount: number; from: boolean } | null; // amount in EUR cents
 }
 
 type SortKey = "newest" | "oldest" | "name" | "price_asc" | "price_desc";
@@ -75,28 +61,28 @@ export function SearchView({ page }: { page: Page }) {
   const query = (searchParams.get("q") ?? "").trim();
 
   const [loading, setLoading] = useState(true);
-  const [categories, setCategories] = useState<ProductMainCategory[]>([]);
-  const [itemPages, setItemPages] = useState<Page[]>([]);
+  const [categories, setCategories] = useState<CategoryNode[]>([]);
+  const [results, setResults] = useState<ProductCard[]>([]);
   const [allProductsSlug, setAllProductsSlug] = useState("svi-proizvodi");
 
   useEffect(() => {
     let alive = true;
     setLoading(true);
     Promise.all([
-      getProductCategories(),
-      getAllPages("product-item", locale),
+      storefront.listCategories({ locale }),
+      query ? storefront.listProducts({ locale, q: query, limit: 100 }).then((r) => r.data) : Promise.resolve([]),
       getSystemPageSlug("all-products", locale),
     ])
       .then(([cats, items, allSlug]) => {
         if (!alive) return;
         setCategories(cats);
-        setItemPages(items);
+        setResults(items);
         setAllProductsSlug(allSlug);
       })
       .catch(() => {
         if (!alive) return;
         setCategories([]);
-        setItemPages([]);
+        setResults([]);
       })
       .finally(() => {
         if (alive) setLoading(false);
@@ -104,42 +90,23 @@ export function SearchView({ page }: { page: Page }) {
     return () => {
       alive = false;
     };
-  }, [locale]);
+  }, [locale, query]);
 
-  const catIndex = useMemo(() => indexCategories(categories), [categories]);
+  const catById = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories]);
 
-  // Each product-item reads its category from its own block data; the URL is the
-  // flat `/{locale}/{all-products}/{slug}`.
-  const cards = useMemo<ProductCardData[]>(() => {
-    const out: ProductCardData[] = [];
-    for (const item of itemPages) {
-      const block = item.blocks?.find((b) => b.type === "product-item");
-      const d = (block?.data ?? {}) as ProductBlockData;
-      const { main, sub } = resolveProductCategory(catIndex, d.mainCategoryId, d.subcategoryId);
-      out.push({
-        id: item.id,
-        title: item.title,
-        description: d.description?.trim() || "",
-        image: d.mainPhoto?.cdnUrl ?? null,
-        url: `/${locale}/${allProductsSlug}/${item.slug}`,
-        categoryTitle:
-          (sub ? resolveCatLabel(sub.label, locale, defaultLocale) : "") ||
-          (main ? resolveCatLabel(main.label, locale, defaultLocale) : ""),
-        createdAt: item.createdAt,
-        price: computeCardPrice(d),
-      });
-    }
-    return out;
-  }, [itemPages, catIndex, locale, defaultLocale, allProductsSlug]);
-
-  // Free-text match over title + description (case-insensitive).
-  const matched = useMemo(() => {
-    if (!query) return [];
-    const q = query.toLowerCase();
-    return cards.filter(
-      (c) => c.title.toLowerCase().includes(q) || c.description.toLowerCase().includes(q),
-    );
-  }, [cards, query]);
+  // Server-side FTS relevance order; URL is the flat `/{locale}/{all-products}/{slug}`.
+  const matched = useMemo<ProductCardData[]>(() => {
+    return results.map((p, i) => ({
+      id: p.id,
+      title: p.name,
+      description: p.shortDescription ?? "",
+      image: p.image?.cdnUrl ?? null,
+      url: `/${locale}/${allProductsSlug}/${p.slug}`,
+      categoryTitle: (p.primaryCategoryId ? catById.get(p.primaryCategoryId)?.label : "") ?? "",
+      fetchIndex: i,
+      price: p.price > 0 ? { amount: p.price, from: p.variantCount > 1 && p.priceMax > p.price } : null,
+    }));
+  }, [results, catById, locale, allProductsSlug]);
 
   const [sort, setSort] = useState<SortKey>("newest");
   const [pageSize, setPageSize] = useState(12);
@@ -163,7 +130,7 @@ export function SearchView({ page }: { page: Page }) {
         arr.sort((a, b) => a.title.localeCompare(b.title));
         break;
       case "oldest":
-        arr.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+        arr.sort((a, b) => b.fetchIndex - a.fetchIndex);
         break;
       case "price_asc":
         arr.sort(byPriceAsc);
@@ -178,7 +145,7 @@ export function SearchView({ page }: { page: Page }) {
         break;
       case "newest":
       default:
-        arr.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+        arr.sort((a, b) => a.fetchIndex - b.fetchIndex); // server relevance order
         break;
     }
     return arr;
@@ -205,7 +172,7 @@ export function SearchView({ page }: { page: Page }) {
     return (
       <div className="cat-card__price">
         {price.from && <span className="vec">{t("allproducts.price_from")} </span>}
-        {eur(price.amount)} <small>{t("product.price_vat_suffix")}</small>
+        {eurCents(price.amount)} <small>{t("product.price_vat_suffix")}</small>
       </div>
     );
   }
