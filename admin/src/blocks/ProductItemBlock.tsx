@@ -479,7 +479,11 @@ function AdditionalInfoTabs({
                     }}
                     rightSection={
                       <Group gap={2} wrap="nowrap" style={{ flexShrink: 0 }}>
+                        {/* component="div" — Tabs.Tab is already a <button>;
+                            a nested <button> is invalid HTML (React DOM warning) */}
                         <ActionIcon
+                          component="div"
+                          role="button"
                           size="xs"
                           variant="subtle"
                           onPointerDown={(e) => e.stopPropagation()}
@@ -493,6 +497,8 @@ function AdditionalInfoTabs({
                           <Pencil size={12} />
                         </ActionIcon>
                         <ActionIcon
+                          component="div"
+                          role="button"
                           size="xs"
                           variant="subtle"
                           color="red"
