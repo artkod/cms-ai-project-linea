@@ -116,6 +116,7 @@ if [[ -f "$PROJECT_DIR/db-snapshot.json" ]]; then
   DATABASE_URL="postgresql://$DB_USER:$DB_PASSWORD@localhost:$PORT_DB/$DB_NAME" \
     PROJECT_SLUG="project-linea" \
     SNAPSHOT_FILE="$PROJECT_DIR/db-snapshot.json" \
+    COMMERCE_ENABLED="true" \
     npx tsx src/seed-db-snapshot.ts
 fi
 
@@ -174,6 +175,8 @@ echo "Starting CMS API..."
 cd "$CMS_CORE_DIR"
 DATABASE_URL="postgresql://$DB_USER:$DB_PASSWORD@localhost:$PORT_DB/$DB_NAME" \
   PORT="$PORT_API" \
+  COMMERCE_ENABLED="true" \
+  STOREFRONT_BASE_URL="http://localhost:$PORT_WEB" \
   pnpm --filter @cms/api dev &
 API_PID=$!
 echo "$API_PID" > "$PID_FILE"

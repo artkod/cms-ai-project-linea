@@ -213,6 +213,10 @@ createAdmin({
   apiUrl: import.meta.env.VITE_API_URL,
   frontendUrl: import.meta.env.VITE_FRONTEND_URL,
   projectSlug: "project-linea",
+  // Commerce module ON (must match the API's COMMERCE_ENABLED — start.sh sets it).
+  // The legacy Products nav section / product-item page type are being migrated
+  // into the commerce catalog (feat/commerce-migration) and removed afterwards.
+  commerce: true,
   pageTypes: [aboutUsPageType, cataloguesPageType, allProductsPageType, productItemPageType, newsPageType, articlePageType, euProjectsPageType, euProjectItemPageType, searchPageType, cartPageType, notFoundPageType],
   blockTypes: [productItemBlock, aboutUsBlock, cataloguesBlock],
   settingsSections: [featuredBannersSection, contactSection, articleSection],
