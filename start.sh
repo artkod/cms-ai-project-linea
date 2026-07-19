@@ -23,12 +23,25 @@ find_free_port() {
   echo "$port"
 }
 
+# Kill a process and all its descendants. Killing only the recorded PID leaves
+# the pnpm→pnpm→tsx/vite node children alive (pnpm doesn't forward signals down
+# the tree); those orphans keep holding the dev ports while the exit trap's
+# `docker compose down` removes the DB they depend on → every request 500s
+# with ECONNREFUSED, and the next start.sh run drifts to new ports.
+kill_tree() {
+  local pid="$1" child
+  for child in $(pgrep -P "$pid" 2>/dev/null); do
+    kill_tree "$child"
+  done
+  kill "$pid" 2>/dev/null || true
+}
+
 cleanup() {
   echo ""
   echo "Shutting down..."
   if [[ -f "$PID_FILE" ]]; then
     while read -r pid; do
-      kill "$pid" 2>/dev/null || true
+      [[ -n "$pid" ]] && kill_tree "$pid"
     done < "$PID_FILE"
     rm -f "$PID_FILE"
   fi
@@ -52,6 +65,19 @@ if [[ ! -d "$CMS_CORE_DIR" ]]; then
   echo "Error: cms-ai-core not found at $CMS_CORE_DIR" >&2
   echo "Set CMS_CORE_DIR env var to the correct path." >&2
   exit 1
+fi
+
+# ─── 0. Sweep leftovers from a previous run ──────────────────────────────────
+# A previous run that died without a clean shutdown leaves orphaned node
+# processes holding the dev ports. Kill them BEFORE picking ports so ports
+# never drift between runs.
+if [[ -f "$PID_FILE" ]]; then
+  echo "Cleaning up leftover processes from a previous run..."
+  while read -r pid; do
+    [[ -n "$pid" ]] && kill_tree "$pid"
+  done < "$PID_FILE"
+  rm -f "$PID_FILE"
+  sleep 1
 fi
 
 # ─── Find free ports ────────────────────────────────────────────────────────
@@ -226,6 +252,7 @@ echo "$ADMIN_PID" >> "$PID_FILE"
         ADMIN_PORT="$PORT_ADMIN" \
         pnpm dev &
       ADMIN_PID=$!
+      echo "$ADMIN_PID" >> "$PID_FILE"
       echo "  ↻  admin-base updated — admin server restarted (reload your browser tab)"
     fi
     last_mtime="$current_mtime"
