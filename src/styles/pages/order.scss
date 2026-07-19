@@ -1,0 +1,122 @@
+// ============================================================
+// Order / inquiry status page (/{locale}/order/{token})
+// ------------------------------------------------------------
+// Shares the cart page's shell (.cr-page / .cr-head / .cr-body /
+// .cr-grid / .cr-summary come from cart.scss) — this file styles
+// the LEFT column: the status banner + the order lines (which
+// have no image, unlike cart items, so they get their own .op-*
+// cards instead of the 88px-media .cr-item grid).
+// ============================================================
+
+@use "../abstracts/breakpoints" as *;
+
+.op-status {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface);
+  padding: 18px 20px;
+  margin-bottom: 16px;
+
+  &__ico {
+    flex-shrink: 0;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: var(--brand-tint);
+    border: 1px solid var(--border);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--brand-deep);
+
+    svg {
+      width: 26px;
+      height: 26px;
+    }
+  }
+
+  &__text {
+    min-width: 0;
+
+    p {
+      margin: 0;
+      font-size: 1.02rem;
+      line-height: 1.5;
+    }
+  }
+
+  &__meta {
+    margin-top: 6px !important;
+    font-size: 0.92rem !important;
+    color: var(--ink-2);
+  }
+}
+
+.op-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.op-line {
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface);
+  padding: 16px 20px;
+
+  &__top {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 14px;
+  }
+
+  &__name {
+    font-family: "Archivo", system-ui, sans-serif;
+    font-weight: 700;
+    font-size: 1.08rem;
+    letter-spacing: -0.01em;
+    margin: 0;
+    line-height: 1.3;
+    min-width: 0;
+  }
+
+  &__total {
+    font-family: "Archivo", system-ui, sans-serif;
+    font-weight: 800;
+    font-size: 1.05rem;
+    white-space: nowrap;
+  }
+
+  &__config {
+    margin-top: 6px;
+    font-size: 0.92rem;
+    color: var(--ink-2);
+    line-height: 1.45;
+  }
+
+  &__qty {
+    margin-top: 8px;
+    font-size: 0.95rem;
+    color: var(--ink-2);
+  }
+}
+
+@include mq(760px) {
+  .op-status {
+    align-items: flex-start;
+
+    &__ico {
+      width: 44px;
+      height: 44px;
+
+      svg {
+        width: 20px;
+        height: 20px;
+      }
+    }
+  }
+}

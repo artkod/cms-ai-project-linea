@@ -46,12 +46,14 @@ CLAUDE.md              Project guide for Claude Code (kept current)
 
 ## Customising
 
-This project ships a **flat** product catalogue: `product-item` pages live under
-the `all-products` landing page and carry their main/sub category as data (stored
-in the `product_categories` project-setting, edited in the **Products** sidebar
-screen). The old `products`/`product-category` folder page types were removed —
-run `pnpm migrate:flatten-products` to migrate an existing DB. To add a
-project-specific page type, see the
+The product catalogue runs on the **cms-ai-core commerce module in
+inquiry-only mode**: products/categories are managed under the admin's shop nav,
+every product is inquiry-only (checkout creates a quote — no payments), the
+storefront reads the catalog via the vendored `@cms/storefront` SDK, and the
+listing anchors on the kept `all-products` page (flat URLs preserved). Migrating
+an existing legacy DB: `pnpm migrate:products-to-commerce` (then, once verified,
+`node scripts/cleanup-legacy-products.mjs`). Full detail in the "Webshop"
+section of `CLAUDE.md`. To add a project-specific page type, see the
 "Page types" section of `CLAUDE.md` (and the matching block in
 `cms-ai-core/docs/project-CLAUDE-template.md`).
 
@@ -66,11 +68,6 @@ details — phone/fax/email/address/maps link, key `contact`). Both live in
 `admin/src/settings/` and are saved to the generic `project_settings` store; a
 frontend renderer can read each via `GET /api/project-settings/:key`. See the
 "Project-only Settings tabs" section of `CLAUDE.md`.
-
-The admin also adds a top-level **Products** sidebar screen via
-`createAdmin({ navSections })` (`admin/src/products/ProductsScreen.tsx`) — a table
-of all products with category filters + a category-taxonomy editor. See the "Flat
-product taxonomy & the Products screen" section of `CLAUDE.md`.
 
 See [`cms-ai-core/CLAUDE.md`](../cms-ai-core/CLAUDE.md) and
 [`cms-ai-core/docs/DECISIONS.md`](../cms-ai-core/docs/DECISIONS.md) for the

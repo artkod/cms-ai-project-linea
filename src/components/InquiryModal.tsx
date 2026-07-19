@@ -1,23 +1,25 @@
 import { useEffect, useState } from "react";
+import { Link, useParams } from "react-router";
 import { Check, X } from "lucide-react";
-import { useStrings } from "@/lib/locale";
-import { eur } from "@/lib/pricing";
+import type { Order } from "@cms/storefront";
+import { storefront } from "@/lib/storefront";
+import { useStrings, useLocaleConfig } from "@/lib/locale";
+import { eurCents } from "@/lib/pricing";
 import "@/styles/components/modals.scss";
 
-// Shared order / inquiry modal — built on the site's `.lm-*` modal shell (same
-// chrome as the cookie + newsletter modals). Two contexts:
-//  • cart checkout  — every cart line + a delivery form ("Dovrši narudžbu")
-//  • product inquiry — a single no-price product sends itself ("Pošaljite upit")
-// Left column captures delivery/contact details; the right column is a live
-// order summary. This is an inquiry model — no payment, no real submission: the
-// email/order backend isn't built yet, so submit runs a frontend-only success
-// (clears the cart via onSuccess) with a TODO hook for the real send.
+// Cart checkout modal — built on the site's `.lm-*` modal shell (same chrome as
+// the cookie + newsletter modals). Left column captures delivery/contact
+// details; the right column is a live order summary of the SERVER cart lines.
+// Submitting POSTs the real commerce checkout: every product in this shop is
+// inquiry-only, so the checkout lands as a QUOTE (inquiry) — no payment. The
+// success screen links to the order/inquiry status page (/{locale}/order/{token}),
+// the same URL the quote email later points at.
 
 export interface InquiryItem {
   title: string;
   qty: number;
-  /** null = "price on request" (no-price product). */
-  unitPrice: number | null;
+  /** null = "price on request" (0-cent line). */
+  unitPrice: number | null; // EUR cents
   configLabel?: string;
   image?: string | null;
 }
@@ -28,6 +30,8 @@ interface FormState {
   email: string;
   phone: string;
   address: string;
+  city: string;
+  postalCode: string;
   company: string;
   note: string;
 }
@@ -38,6 +42,8 @@ const EMPTY: FormState = {
   email: "",
   phone: "",
   address: "",
+  city: "",
+  postalCode: "",
   company: "",
   note: "",
 };
@@ -45,17 +51,18 @@ const EMPTY: FormState = {
 export function InquiryModal({
   opened,
   onClose,
-  mode,
   items,
   onSuccess,
 }: {
   opened: boolean;
   onClose: () => void;
-  mode: "cart" | "inquiry";
   items: InquiryItem[];
   onSuccess?: () => void;
 }) {
   const { t } = useStrings();
+  const { locale: localeParam } = useParams<{ locale: string }>();
+  const { defaultLocale } = useLocaleConfig();
+  const locale = localeParam ?? defaultLocale;
   const tx = (key: string, fb: string) => {
     const v = t(key);
     return v === key ? fb : v;
@@ -63,10 +70,17 @@ export function InquiryModal({
 
   const [form, setForm] = useState<FormState>(EMPTY);
   const [errors, setErrors] = useState<Partial<Record<keyof FormState, string>>>({});
-  const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState(false);
+  const [order, setOrder] = useState<Order | null>(null);
 
-  const set = (k: keyof FormState) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
-    setForm((p) => ({ ...p, [k]: e.currentTarget.value }));
+  // Read the value BEFORE queueing the state update — React nulls
+  // `e.currentTarget` once the event dispatch finishes, and functional updaters
+  // run later (at render), so reading it inside the updater crashes the tree.
+  const set = (k: keyof FormState) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const value = e.currentTarget.value;
+    setForm((p) => ({ ...p, [k]: value }));
+  };
 
   const anyPriced = items.some((i) => i.unitPrice != null);
   const anyUnpriced = items.some((i) => i.unitPrice == null);
@@ -75,9 +89,11 @@ export function InquiryModal({
   // Reset to a fresh form + form view each time the modal opens.
   useEffect(() => {
     if (!opened) return;
-    setSubmitted(false);
+    setOrder(null);
     setErrors({});
     setForm(EMPTY);
+    setSubmitError(false);
+    setSubmitting(false);
   }, [opened]);
 
   // Body scroll-lock + Esc while open (same pattern as the other site modals).
@@ -106,32 +122,51 @@ export function InquiryModal({
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(form.email.trim())) er.email = invalidEmailMsg;
     if (!form.phone.trim()) er.phone = requiredMsg;
     if (!form.address.trim()) er.address = requiredMsg;
+    if (!form.city.trim()) er.city = requiredMsg;
+    if (!form.postalCode.trim()) er.postalCode = requiredMsg;
     setErrors(er);
     return Object.keys(er).length === 0;
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!validate()) return;
-    // TODO: POST { items, total, form } to the order/inquiry email endpoint once
-    // it exists (cart contents + delivery details emailed to Linea). Frontend-only
-    // success for now.
-    setSubmitted(true);
-    onSuccess?.();
+    if (!validate() || submitting) return;
+    setSubmitting(true);
+    setSubmitError(false);
+    // The company name has no dedicated field on the order — fold it into the
+    // note so the merchant still sees it on the inquiry.
+    const note = [form.company.trim() && `${tx("order.company_label", "Naziv tvrtke")}: ${form.company.trim()}`, form.note.trim()]
+      .filter(Boolean)
+      .join("\n");
+    try {
+      const placed = await storefront.startCheckout(
+        {
+          email: form.email.trim(),
+          shippingAddress: {
+            name: `${form.firstName.trim()} ${form.lastName.trim()}`,
+            line1: form.address.trim(),
+            city: form.city.trim(),
+            postalCode: form.postalCode.trim(),
+            country: "HR",
+            phone: form.phone.trim(),
+          },
+          ...(note ? { note } : {}),
+        },
+        { locale },
+      );
+      setOrder(placed);
+      onSuccess?.();
+    } catch {
+      setSubmitError(true);
+    } finally {
+      setSubmitting(false);
+    }
   }
 
-  const title = mode === "cart"
-    ? tx("order.title_cart", "Dovrši narudžbu")
-    : tx("order.title_inquiry", "Pošaljite upit");
-  const lead = mode === "cart"
-    ? tx("order.lead_cart", "Ispunite podatke za dostavu i pošaljite narudžbu — javljamo se s potvrdom i rokom isporuke.")
-    : tx("order.lead_inquiry", "Pošaljite nam upit i javljamo se s ponudom u najkraćem roku.");
-  const summaryTitle = mode === "cart"
-    ? tx("order.summary_cart", "Vaša narudžba")
-    : tx("order.summary_inquiry", "Vaš upit");
-  const submitLabel = mode === "cart"
-    ? tx("order.submit_cart", "Pošalji narudžbu")
-    : tx("order.submit_inquiry", "Pošalji upit");
+  const title = tx("order.title_cart", "Pošaljite upit");
+  const lead = tx("order.lead_cart", "Ispunite podatke i pošaljite upit — javljamo se s ponudom i rokom isporuke.");
+  const summaryTitle = tx("order.summary_cart", "Vaš upit");
+  const submitLabel = tx("order.submit_cart", "Pošalji upit");
 
   return (
     <div className="lm-overlay is-open" role="dialog" aria-modal="true" aria-label={title}>
@@ -141,20 +176,24 @@ export function InquiryModal({
           <X aria-hidden="true" />
         </button>
         <div className="lm-modal__body">
-          {submitted ? (
+          {order ? (
             <div className="om-success">
               <div className="lm-icon"><Check aria-hidden="true" /></div>
-              <h2>
-                {mode === "cart"
-                  ? tx("order.success_title_cart", "Hvala na narudžbi!")
-                  : tx("order.success_title_inquiry", "Hvala na upitu!")}
-              </h2>
+              <h2>{tx("order.success_title_inquiry", "Hvala na upitu!")}</h2>
               <p>
-                {mode === "cart"
-                  ? tx("order.success_text_cart", "Zaprimili smo vašu narudžbu. Naš tim javlja se uskoro s potvrdom i rokom isporuke na navedeni kontakt.")
-                  : tx("order.success_text", "Zaprimili smo vaše podatke i javit ćemo vam se uskoro.")}
+                {tx("order.success_text", "Zaprimili smo vaš upit i javit ćemo vam se s ponudom u najkraćem roku.")}
+                {" "}
+                {tx("order.success_number", "Broj upita")}: <b>#{order.orderNumber}</b>
               </p>
-              <button type="button" className="ln-btn ln-btn--ghost" style={{ marginTop: 24 }} onClick={onClose}>
+              <Link
+                to={`/${locale}/order/${order.token}`}
+                className="ln-btn ln-btn--primary"
+                style={{ marginTop: 24 }}
+                onClick={onClose}
+              >
+                {tx("order.view_inquiry", "Pregledajte svoj upit")}
+              </Link>
+              <button type="button" className="ln-btn ln-btn--ghost" style={{ marginTop: 12 }} onClick={onClose}>
                 {tx("order.close", "Zatvori")}
               </button>
             </div>
@@ -204,6 +243,21 @@ export function InquiryModal({
                       {errors.address && <p className="om-err">{errors.address}</p>}
                     </div>
 
+                    <div className="om-row">
+                      <div className="om-field">
+                        <label htmlFor="omCity">{tx("order.city", "Grad")}</label>
+                        <input id="omCity" className={`om-input${errors.city ? " is-err" : ""}`}
+                          autoComplete="address-level2" value={form.city} onChange={set("city")} />
+                        {errors.city && <p className="om-err">{errors.city}</p>}
+                      </div>
+                      <div className="om-field">
+                        <label htmlFor="omPostal">{tx("order.postal_code", "Poštanski broj")}</label>
+                        <input id="omPostal" className={`om-input${errors.postalCode ? " is-err" : ""}`}
+                          autoComplete="postal-code" inputMode="numeric" value={form.postalCode} onChange={set("postalCode")} />
+                        {errors.postalCode && <p className="om-err">{errors.postalCode}</p>}
+                      </div>
+                    </div>
+
                     <div className="om-field">
                       <label htmlFor="omCompany">
                         {tx("order.company_label", "Naziv tvrtke")} <span className="om-opt">({optional})</span>
@@ -235,11 +289,11 @@ export function InquiryModal({
                               {it.title}{it.configLabel ? ` — ${it.configLabel}` : ""}
                             </div>
                             <div className="om-line__meta">
-                              {it.qty} × {it.unitPrice != null ? eur(it.unitPrice) : onRequest}
+                              {it.qty} × {it.unitPrice != null ? eurCents(it.unitPrice) : onRequest}
                             </div>
                           </div>
                           <div className="om-line__total">
-                            {it.unitPrice != null ? eur(it.unitPrice * it.qty) : onRequest}
+                            {it.unitPrice != null ? eurCents(it.unitPrice * it.qty) : onRequest}
                           </div>
                         </div>
                       ))}
@@ -252,7 +306,7 @@ export function InquiryModal({
                           <span className="om-total__k">
                             {anyUnpriced ? tx("order.total_min", "Ukupna minimalna cijena") : tx("order.total", "Ukupno")}
                           </span>
-                          <span className="om-total__v">{eur(total)}</span>
+                          <span className="om-total__v">{eurCents(total)}</span>
                         </div>
                       </>
                     )}
@@ -263,8 +317,14 @@ export function InquiryModal({
                         : tx("order.vat_note", "Cijene uključuju PDV. Dostava se obračunava naknadno.")}
                     </p>
 
-                    <button type="submit" className="ln-btn ln-btn--primary ln-btn--lg om-submit">
-                      {submitLabel}
+                    {submitError && (
+                      <p className="om-err" role="alert">
+                        {tx("order.submit_error", "Slanje nije uspjelo. Pokušajte ponovno ili nam se javite izravno.")}
+                      </p>
+                    )}
+
+                    <button type="submit" className="ln-btn ln-btn--primary ln-btn--lg om-submit" disabled={submitting}>
+                      {submitting ? tx("order.submitting", "Slanje…") : submitLabel}
                     </button>
                   </aside>
                 </div>

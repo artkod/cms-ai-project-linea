@@ -2,6 +2,8 @@ import { BrowserRouter, Routes, Route, Navigate, useParams, useLocation } from "
 import { RootLayout } from "./routes/RootLayout";
 import { HomePage } from "./routes/HomePage";
 import { PageView } from "./routes/PageView";
+import { OrderView } from "./routes/OrderView";
+import { CartProvider } from "./lib/cart";
 import { LocaleConfigProvider, isKnownLocale, useLocaleConfig } from "./lib/locale";
 
 // Routes nested under `/:locale/` only render when `:locale` is one of the
@@ -23,7 +25,13 @@ function LocaleGate() {
     const rest = [locale, splat].filter(Boolean).join("/");
     return <Navigate to={`/${defaultLocale}/${rest}${search}`} replace />;
   }
-  return <RootLayout />;
+  // The server cart is locale-aware, so the provider lives inside the locale
+  // gate (it reads :locale via useParams).
+  return (
+    <CartProvider>
+      <RootLayout />
+    </CartProvider>
+  );
 }
 
 function RootRedirect() {
@@ -39,6 +47,10 @@ export default function App() {
           <Route path="/" element={<RootRedirect />} />
           <Route path="/:locale" element={<LocaleGate />}>
             <Route index element={<HomePage />} />
+            {/* Inquiry/order status page — the target of the checkout confirmation
+                + the quote_ready email link (/{locale}/order/{token}). Registered
+                BEFORE the splat so PageView never tries to resolve it as a page. */}
+            <Route path="order/:token" element={<OrderView />} />
             {/* Splat captures the full hierarchical path (e.g. proizvodi/busilice/x).
                 PageView resolves it and redirects home when unmatched. */}
             <Route path="*" element={<PageView />} />

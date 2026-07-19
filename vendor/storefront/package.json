@@ -1,0 +1,17 @@
+{
+  "name": "@cms/storefront",
+  "version": "0.0.1",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "//": "Vendored prebuilt bundle of cms-ai-core/packages/storefront, so this frontend builds standalone on Vercel (the source repo isn't a sibling there). The dist/ layout mirrors the source package so cms-ai-core's start.sh hot-sync keeps working in local dev. Refresh with `pnpm vendor:storefront` after any storefront change. The SDK has NO runtime dependencies (it uses the global fetch), so the whole client ships in dist/index.js — no peers."
+}
