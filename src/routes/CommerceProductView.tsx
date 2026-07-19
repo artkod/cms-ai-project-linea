@@ -26,24 +26,36 @@ interface TabItem {
   content: Record<string, unknown> | null;
 }
 
-// The product body is Mixed Content; the migration stored the legacy info tabs
-// as ONE accordion widget — unpack every accordion item across all sections.
-function extractTabs(blocks: CatalogProduct["blocks"]): TabItem[] {
-  const out: TabItem[] = [];
+// The product body is Mixed Content; the migration stored the plain-text
+// description as TEXT widget(s) and the legacy info tabs as ONE accordion
+// widget — unpack both across all sections.
+interface ProductBody {
+  /** TipTap docs of the description text widgets (the "O proizvodu" section). */
+  about: Record<string, unknown>[];
+  tabs: TabItem[];
+}
+
+function extractBody(blocks: CatalogProduct["blocks"]): ProductBody {
+  const about: Record<string, unknown>[] = [];
+  const tabs: TabItem[] = [];
   for (const block of blocks ?? []) {
     if (block.type !== "mixed-content") continue;
-    const columns = (block.data?.columns ?? []) as Array<{ widgets?: Array<{ type: string; data?: { items?: TabItem[] } }> }>;
+    const columns = (block.data?.columns ?? []) as Array<{
+      widgets?: Array<{ type: string; data?: { items?: TabItem[]; json?: Record<string, unknown> } }>;
+    }>;
     for (const col of columns) {
       for (const w of col.widgets ?? []) {
         if (w.type === "accordion") {
           for (const item of w.data?.items ?? []) {
-            if (item && item.id) out.push(item);
+            if (item && item.id) tabs.push(item);
           }
+        } else if (w.type === "text" && w.data?.json) {
+          about.push(w.data.json);
         }
       }
     }
   }
-  return out;
+  return { about, tabs };
 }
 
 interface SelectOption {
@@ -57,19 +69,24 @@ function ConfigField({
   value,
   onChange,
   placeholder,
+  disabled,
+  helper,
 }: {
   label: string;
   options: SelectOption[];
   value: string | null;
   onChange: (v: string | null) => void;
   placeholder: string;
+  disabled?: boolean;
+  helper?: string;
 }) {
   return (
-    <div className="pi-field">
+    <div className={`pi-field${disabled ? " is-locked" : ""}`}>
       <label className="pi-field__lab">{label}</label>
       <select
         className="pi-select"
         value={value ?? ""}
+        disabled={disabled}
         onChange={(e) => onChange(e.currentTarget.value || null)}
       >
         <option value="">{placeholder}</option>
@@ -79,6 +96,7 @@ function ConfigField({
           </option>
         ))}
       </select>
+      {disabled && helper && <p className="pi-field__help">{helper}</p>}
     </div>
   );
 }
@@ -124,18 +142,45 @@ export function CommerceProductView({ product }: { product: CatalogProduct }) {
   const price = matchedVariant?.effectivePrice ?? 0;
   const effectiveInquiry = !matchedVariant || price <= 0;
 
-  // Per-value price hints: once the OTHER axes are chosen, each candidate value
-  // resolves to a concrete variant → label it with that combination's total.
-  const optionFields = options.map((o) => {
-    const othersSelected = options.every((x) => x.id === o.id || selection[x.id]);
+  // Per-value prices in the selects (the legacy configurator look):
+  //  • values with a STATIC display hint (option_values.price — flat-priced
+  //    legacy rows like Konstrukcija/Baza) always show it, never changing;
+  //  • hint-less values (the matrix-priced axis, legacy Grafika, whose price
+  //    depends on the FIRST axis) derive their price from any variant matching
+  //    (first-axis selection + this value): variant total − the hinted
+  //    contributions of its other coordinates. Recomputed only when the first
+  //    axis changes — exactly the legacy behaviour.
+  // The first axis is the driver: later axes stay LOCKED until it's chosen.
+  const firstAxis = options[0] ?? null;
+  const firstSelected = !!(firstAxis && selection[firstAxis.id]);
+
+  const hintOf = (axisId: string, valueId: string | undefined): number | null => {
+    if (!valueId) return null;
+    const axis = options.find((o) => o.id === axisId);
+    return axis?.values.find((v) => v.id === valueId)?.price ?? null;
+  };
+
+  const derivedPrice = (axis: (typeof options)[number], valueId: string): number | null => {
+    if (!firstAxis || axis.id === firstAxis.id || !firstSelected) return null;
+    const candidate = variants.find(
+      (v) => v.optionValues[axis.id] === valueId && v.optionValues[firstAxis.id] === selection[firstAxis.id],
+    );
+    if (!candidate) return null;
+    let derived = candidate.effectivePrice;
+    for (const other of options) {
+      if (other.id === axis.id) continue;
+      derived -= hintOf(other.id, candidate.optionValues[other.id]) ?? 0;
+    }
+    return derived >= 0 ? derived : null;
+  };
+
+  const optionFields = options.map((o, idx) => {
+    const locked = idx > 0 && !firstSelected;
     const values = [...o.values].sort((a, b) => a.position - b.position);
     const opts: SelectOption[] = values.map((val) => {
-      let label = val.label || val.value;
-      if (othersSelected) {
-        const candidate = variants.find((v) => matchesSelection(v, { ...selection, [o.id]: val.id }));
-        if (candidate && candidate.effectivePrice > 0) label = `${label} — ${eurCents(candidate.effectivePrice)}`;
-      }
-      return { value: val.id, label };
+      const base = val.label || val.value;
+      const cents = val.price ?? derivedPrice(o, val.id);
+      return { value: val.id, label: cents != null && cents > 0 ? `${base} — ${eurCents(cents)}` : base };
     });
     return (
       <ConfigField
@@ -143,8 +188,19 @@ export function CommerceProductView({ product }: { product: CatalogProduct }) {
         label={o.label || o.name}
         options={opts}
         value={selection[o.id] ?? null}
-        onChange={(v) => setSelection((prev) => ({ ...prev, [o.id]: v }))}
+        onChange={(v) =>
+          setSelection((prev) => {
+            const next = { ...prev, [o.id]: v };
+            // Clearing the driver resets the dependent axes (their prices key off it).
+            if (firstAxis && o.id === firstAxis.id && !v) {
+              for (const other of options) if (other.id !== o.id) next[other.id] = null;
+            }
+            return next;
+          })
+        }
         placeholder={t("product.option_placeholder")}
+        disabled={locked}
+        helper={t("product.option_locked")}
       />
     );
   });
@@ -154,8 +210,8 @@ export function CommerceProductView({ product }: { product: CatalogProduct }) {
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const activeImage = allImages[activeImageIndex] ?? null;
 
-  // ── Info tabs (from the Mixed Content accordion) ────────────────────────────
-  const tabs = useMemo(() => extractTabs(product.blocks), [product.blocks]);
+  // ── Body: description text + info tabs (from the Mixed Content sections) ────
+  const { about, tabs } = useMemo(() => extractBody(product.blocks), [product.blocks]);
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
   const isMobileInfo = useMediaQuery("(max-width: 760px)", false, { getInitialValueInEffect: false });
   const [openInfoItem, setOpenInfoItem] = useState<string | null>(null);
@@ -305,10 +361,12 @@ export function CommerceProductView({ product }: { product: CatalogProduct }) {
                 )}
               </div>
 
-              {product.shortDescription && (
+              {about.length > 0 && (
                 <section className="pi-about">
                   <h2>{t("product.about_heading")}</h2>
-                  <p>{product.shortDescription}</p>
+                  {about.map((doc, i) => (
+                    <div key={i} className="pi-rich" dangerouslySetInnerHTML={{ __html: tiptapToHtml(doc) }} />
+                  ))}
                 </section>
               )}
             </div>
@@ -317,6 +375,7 @@ export function CommerceProductView({ product }: { product: CatalogProduct }) {
             <aside className="pi-buy">
               {categoryTitle && <span className="pi-eyebrow pi-buy__cat">{categoryTitle}</span>}
               <h1>{product.name}</h1>
+              {product.shortDescription && <p className="pi-buy__sub">{product.shortDescription}</p>}
 
               <div className="pi-badges">
                 <span className="pi-badge">

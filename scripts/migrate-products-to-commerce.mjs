@@ -4,13 +4,18 @@
 //         per locale) + a 2-level taxonomy in the `product_categories`
 //         project-setting + the "Products" admin nav section.
 // AFTER:  commerce `categories` (main → sub) + `products` with per-locale
-//         content (name/slug/SEO/short description + info tabs as a Mixed
-//         Content accordion) + a shared gallery + option axes / variants:
+//         content (name = page TITLE, shortDescription = altTitle SUBTITLE,
+//         SEO, the plain-text description as a Mixed Content TEXT section +
+//         the info tabs as a Mixed Content ACCORDION) + a shared gallery +
+//         option axes / variants:
 //
 //   • fixed price      → one default variant, price = priceEur (cents)
 //   • inquiry-only     → one default variant, price = 0 (storefront: "Na upit")
 //   • configurator     → up to 3 option axes (konstrukcija / grafika / baza,
-//     labelled per locale from group1..3Label) and one variant per combination,
+//     labelled per locale from group1..3Label; flat-priced rows keep their
+//     per-row price as a DISPLAY HINT on option_values.price — core #150 —
+//     so the storefront picker shows the legacy per-element prices; grafika's
+//     matrix prices derive at render time) and one variant per combination,
 //     price = konstrukcija.cijena + grafika.cijene[konstrukcijaId] + baza.cijena.
 //     An empty flat price contributes 0 (e.g. Roll Up pregrada, where the real
 //     money sits on the grafika matrix); a MISSING grafika matrix cell means the
@@ -43,16 +48,23 @@
 //   DATABASE_URL=postgres://… node scripts/migrate-products-to-commerce.mjs --dry-run
 //   DATABASE_URL=postgres://… node scripts/migrate-products-to-commerce.mjs
 //
+// SOURCE: reads the legacy pages + taxonomy from the LIVE DB by default. Set
+// SNAPSHOT_FILE=/path/to/db-snapshot.json to read them from a committed
+// snapshot instead — for re-running after cleanup-legacy-products.mjs already
+// deleted the pages (writes still go to DATABASE_URL).
+//
 // --dry-run prints the full plan + warnings and rolls back without writing.
 // After a real run, restart the API (its boot pass rebuilds the product_search
 // FTS index for the new catalog).
 
 import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
 import pg from "pg";
 
 const { Client } = pg;
 const DATABASE_URL = process.env.DATABASE_URL;
 const PROJECT_SLUG = process.env.PROJECT_SLUG || "project-linea";
+const SNAPSHOT_FILE = process.env.SNAPSHOT_FILE || "";
 const DRY = process.argv.includes("--dry-run");
 
 if (!DATABASE_URL) {
@@ -77,6 +89,29 @@ const eur = (cents) => (cents / 100).toFixed(2).replace(".", ",") + " €";
 // Cartesian product of value arrays: [[a,b],[x]] → [[a,x],[b,x]].
 function cartesian(axes) {
   return axes.reduce((acc, vals) => acc.flatMap((combo) => vals.map((v) => [...combo, v])), [[]]);
+}
+
+// One Mixed Content section holding a single TEXT widget — the legacy
+// plain-text product description, one paragraph per line.
+function textSection(text) {
+  const paragraphs = String(text)
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => ({ type: "paragraph", content: [{ type: "text", text: line }] }));
+  return {
+    type: "mixed-content",
+    data: {
+      layout: [12],
+      columns: [
+        {
+          id: randomUUID(),
+          width: 12,
+          widgets: [{ id: randomUUID(), type: "text", data: { json: { type: "doc", content: paragraphs } } }],
+        },
+      ],
+    },
+  };
 }
 
 // One Mixed Content section holding a single accordion widget (the admin's
@@ -118,11 +153,18 @@ async function main() {
     }
 
     // ── 1. Taxonomy → commerce categories ────────────────────────────────────
-    const { rows: psRows } = await client.query(
-      `select value from project_settings where project_slug = $1 and key = 'product_categories'`,
-      [PROJECT_SLUG]
-    );
-    const taxonomy = psRows[0]?.value?.categories ?? [];
+    const snapshot = SNAPSHOT_FILE ? JSON.parse(readFileSync(SNAPSHOT_FILE, "utf8")) : null;
+    let taxonomy;
+    if (snapshot) {
+      const ps = (snapshot.projectSettings ?? []).find((r) => r.key === "product_categories");
+      taxonomy = ps?.value?.categories ?? [];
+    } else {
+      const { rows: psRows } = await client.query(
+        `select value from project_settings where project_slug = $1 and key = 'product_categories'`,
+        [PROJECT_SLUG]
+      );
+      taxonomy = psRows[0]?.value?.categories ?? [];
+    }
     if (!taxonomy.length) throw new Error("project_settings.product_categories is empty — nothing to migrate.");
 
     const isUuid = (s) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(s));
@@ -158,14 +200,38 @@ async function main() {
     }
 
     // ── 2. Load the product pages ─────────────────────────────────────────────
-    const { rows: pageRows } = await client.query(
-      `select p.id, p.status,
-              t.locale, t.title, t.slug, t.active, t.meta_title, t.meta_description, t.blocks
-         from pages p
-         join page_translations t on t.page_id = p.id and t.deleted_at is null
-        where p.type = 'product-item' and p.deleted_at is null
-        order by p.created_at asc, t.locale asc`
-    );
+    let pageRows;
+    if (snapshot) {
+      const pagesById = new Map(
+        (snapshot.pages ?? []).filter((p) => p.type === "product-item" && !p.deletedAt).map((p) => [p.id, p])
+      );
+      pageRows = (snapshot.pageTranslations ?? [])
+        .filter((t) => pagesById.has(t.pageId) && !t.deletedAt)
+        .map((t) => ({
+          id: t.pageId,
+          status: pagesById.get(t.pageId).status,
+          created_at: pagesById.get(t.pageId).createdAt,
+          locale: t.locale,
+          title: t.title,
+          slug: t.slug,
+          active: t.active,
+          meta_title: t.metaTitle ?? null,
+          meta_description: t.metaDescription ?? null,
+          blocks: t.blocks ?? [],
+        }))
+        .sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)) || a.locale.localeCompare(b.locale));
+    } else {
+      pageRows = (
+        await client.query(
+          `select p.id, p.status,
+                  t.locale, t.title, t.slug, t.active, t.meta_title, t.meta_description, t.blocks
+             from pages p
+             join page_translations t on t.page_id = p.id and t.deleted_at is null
+            where p.type = 'product-item' and p.deleted_at is null
+            order by p.created_at asc, t.locale asc`
+        )
+      ).rows;
+    }
     const byPage = new Map();
     for (const r of pageRows) {
       if (!byPage.has(r.id)) byPage.set(r.id, { id: r.id, status: r.status, locales: {} });
@@ -201,22 +267,27 @@ async function main() {
         if (!t.active) continue;
         const ld = blockOf(locale) ?? d;
         const tabs = (ld.additionalInfo?.tabs ?? []).filter((tab) => tab.content != null);
+        const description = String(ld.description ?? "").trim();
+        const blocks = [];
+        // Description first (rendered as the "O proizvodu" section), tabs after.
+        if (description) blocks.push(textSection(description));
+        if (tabs.length) blocks.push(accordionSection(tabs.map((tab) => ({ id: tab.id, title: tab.title, content: tab.content }))));
         translations[locale] = {
-          name: (ld.altTitle ?? "").trim() || t.title,
+          name: t.title, // the display H1 — the legacy page title
           slug: t.slug, // verbatim — keeps /{locale}/svi-proizvodi/{slug} resolving
-          ...(String(ld.description ?? "").trim() ? { shortDescription: String(ld.description).trim() } : {}),
+          // The legacy altTitle was the SUBTITLE under the H1 — shortDescription
+          // carries it (also shown as the card byline on the listing).
+          ...((ld.altTitle ?? "").trim() ? { shortDescription: (ld.altTitle ?? "").trim() } : {}),
           ...(t.meta_title ? { metaTitle: t.meta_title } : {}),
           ...(t.meta_description ? { metaDescription: t.meta_description } : {}),
-          blocks: tabs.length
-            ? [accordionSection(tabs.map((tab) => ({ id: tab.id, title: tab.title, content: tab.content })))]
-            : [],
+          blocks,
         };
       }
       if (!Object.keys(translations).length) {
         warn(`"${base.title}" (${page.id}): no ACTIVE translation — created as draft with all locales`);
         for (const [locale, t] of Object.entries(page.locales)) {
           const ld = blockOf(locale) ?? d;
-          translations[locale] = { name: (ld.altTitle ?? "").trim() || t.title, slug: t.slug, blocks: [] };
+          translations[locale] = { name: t.title, slug: t.slug, blocks: [] };
         }
       }
       const status = page.status === "published" && Object.values(page.locales).some((t) => t.active) ? "active" : "draft";
@@ -309,7 +380,12 @@ async function main() {
             if (lv && lv !== candidate) valueI18n[locale] = lv;
           }
           const valueId = isUuid(row.id) ? row.id : randomUUID();
-          valueInserts.push({ id: valueId, optionId, value: candidate, valueI18n, position: i });
+          // Display-only per-value price hint (core #150): flat-priced rows
+          // (konstrukcija/baza) keep their legacy per-row price; grafika is
+          // matrix-priced (per konstrukcija) → no static hint, the storefront
+          // derives it from the variant totals.
+          const priceHint = g.key === "grafika" ? null : parseCents(row.cijena);
+          valueInserts.push({ id: valueId, optionId, value: candidate, valueI18n, price: priceHint, position: i });
           return { valueId, row, group: g.key };
         });
         axes.push({ optionId, key: g.key, values });
@@ -413,8 +489,8 @@ async function main() {
     }
     for (const v of valueInserts) {
       await client.query(
-        `insert into option_values (id, option_id, value, value_i18n, position) values ($1, $2, $3, $4, $5)`,
-        [v.id, v.optionId, v.value, JSON.stringify(v.valueI18n), v.position]
+        `insert into option_values (id, option_id, value, value_i18n, price, position) values ($1, $2, $3, $4, $5, $6)`,
+        [v.id, v.optionId, v.value, JSON.stringify(v.valueI18n), v.price, v.position]
       );
     }
     for (const v of variantInserts) {
