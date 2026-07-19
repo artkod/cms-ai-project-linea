@@ -8,6 +8,7 @@ import { useStrings, useLocaleConfig, usePageLayout } from "@/lib/locale";
 import { eurCents } from "@/lib/pricing";
 import { NotFound } from "./NotFound";
 import "@/styles/pages/cart.scss";
+import "@/styles/pages/order.scss";
 
 // Inquiry / order status page — /{locale}/order/{token}. The checkout success
 // screen and the quote email both land here. States (inquiry-only shop):
@@ -15,7 +16,8 @@ import "@/styles/pages/cart.scss";
 //   • quote sent    — the offer with real prices + Accept / Decline actions
 //   • accepted      — (isQuote flips off) merchant follows up with payment/delivery
 //   • declined/expired — closed
-// Reuses the cart page's `.cr-*` layout so it needs no stylesheet of its own.
+// Shares the cart page's shell (.cr-head/.cr-body/.cr-grid/.cr-summary); the
+// status banner + image-less order lines have their own .op-* styles (order.scss).
 
 type QuoteState = "draft" | "sent" | "accepted" | "declined" | "expired" | "order";
 
@@ -134,14 +136,14 @@ export function OrderView() {
       <section className="cr-body">
         <div className="ln-container">
           <div className="cr-grid">
-            <div className="cr-list">
+            <div>
               {/* Status banner */}
-              <div className="cr-item" style={{ alignItems: "center" }}>
-                <div className="cr-empty__ico" style={{ margin: 0 }}>{stateChip.icon}</div>
-                <div className="cr-item__main">
-                  <p style={{ margin: 0 }}>{stateChip.text}</p>
+              <div className="op-status">
+                <div className="op-status__ico">{stateChip.icon}</div>
+                <div className="op-status__text">
+                  <p>{stateChip.text}</p>
                   {state === "sent" && validUntil && (
-                    <p style={{ margin: "6px 0 0", opacity: 0.7 }}>
+                    <p className="op-status__meta">
                       {tx("orderpage.valid_until", "Ponuda vrijedi do")}: <b>{validUntil}</b>
                     </p>
                   )}
@@ -149,22 +151,22 @@ export function OrderView() {
               </div>
 
               {/* Lines */}
-              {order.items.map((it) => (
-                <div className="cr-item" key={it.id}>
-                  <div className="cr-item__main">
-                    <div className="cr-item__top">
-                      <h3 className="cr-item__name">{it.name}</h3>
-                      <div className="cr-item__total">
+              <div className="op-lines">
+                {order.items.map((it) => (
+                  <div className="op-line" key={it.id}>
+                    <div className="op-line__top">
+                      <h3 className="op-line__name">{it.name}</h3>
+                      <div className="op-line__total">
                         {it.unitPrice > 0 ? eurCents(it.gross) : onRequest}
                       </div>
                     </div>
-                    {it.optionsLabel && <div className="cr-item__config">{it.optionsLabel}</div>}
-                    <div className="cr-item__price">
+                    {it.optionsLabel && <div className="op-line__config">{it.optionsLabel}</div>}
+                    <div className="op-line__qty">
                       {it.quantity} × {it.unitPrice > 0 ? eurCents(it.unitPrice) : onRequest}
                     </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
 
             <aside className="cr-summary">
