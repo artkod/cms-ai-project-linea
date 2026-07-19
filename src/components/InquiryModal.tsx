@@ -74,8 +74,13 @@ export function InquiryModal({
   const [submitError, setSubmitError] = useState(false);
   const [order, setOrder] = useState<Order | null>(null);
 
-  const set = (k: keyof FormState) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
-    setForm((p) => ({ ...p, [k]: e.currentTarget.value }));
+  // Read the value BEFORE queueing the state update — React nulls
+  // `e.currentTarget` once the event dispatch finishes, and functional updaters
+  // run later (at render), so reading it inside the updater crashes the tree.
+  const set = (k: keyof FormState) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const value = e.currentTarget.value;
+    setForm((p) => ({ ...p, [k]: value }));
+  };
 
   const anyPriced = items.some((i) => i.unitPrice != null);
   const anyUnpriced = items.some((i) => i.unitPrice == null);
