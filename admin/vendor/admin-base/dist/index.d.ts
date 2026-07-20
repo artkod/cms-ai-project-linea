@@ -34,6 +34,16 @@ export declare interface AdminConfig {
      * zero behavioural change for content-only projects.
      */
     commerce?: boolean;
+    /**
+     * Commerce nav keys to HIDE from this project's admin (sidebar sections + rail
+     * tabs). UI-only — the screens stay mounted, this just removes their nav
+     * entries; role gating still applies. Section keys: `commerce:sales`,
+     * `commerce:catalog`, `commerce:reports`, `commerce:settings`. Tab keys:
+     * `commerce:orders`, `commerce:quotes`, `commerce:customers`,
+     * `commerce:reviews`, `commerce:products`, `commerce:categories`,
+     * `commerce:price-lists`, `commerce:discounts`. Empty/omitted = show all.
+     */
+    hiddenCommerceNav?: string[];
 }
 
 export declare function AppDrawer({ title, description, children, footer, onConfirm, confirmLabel, confirmDisabled, destructive, loading, cancelLabel, dirty, onClose, size, ...rest }: AppDrawerProps): JSX.Element;
