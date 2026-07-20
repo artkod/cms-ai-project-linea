@@ -203,6 +203,7 @@ DATABASE_URL="postgresql://$DB_USER:$DB_PASSWORD@localhost:$PORT_DB/$DB_NAME" \
   PORT="$PORT_API" \
   COMMERCE_ENABLED="true" \
   STOREFRONT_BASE_URL="http://localhost:$PORT_WEB" \
+  AUTH_COOKIE_NAME="cms_token_project_linea" \
   pnpm --filter @cms/api dev &
 API_PID=$!
 echo "$API_PID" > "$PID_FILE"
