@@ -7,119 +7,103 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { useParams } from "react-router";
+import type { Cart, CartLine } from "@cms/storefront";
+import { storefront } from "./storefront";
+import { useLocaleConfig } from "./locale";
 
-// Client-side shopping cart, persisted in localStorage (no server cart — the
-// project has no orders backend yet; checkout collects details in a modal and
-// the cart contents are emailed later). One line per `key`: a fixed-price
-// product keys on its id; a configurator build keys on id + selected options so
-// two different builds of the same product are distinct lines.
+// Server-side shopping cart (commerce module). The cart lives in the API keyed
+// by the httpOnly `cms_cart` cookie — this context only sends intent (variant id
+// + quantity) and stores the full recomputed cart the server returns. All money
+// is integer EUR cents and comes from the server; nothing is computed locally.
+//
+// Every product in this shop is inquiry-only (`purchasable=false`), so checkout
+// always creates a QUOTE (inquiry) — but prices stay visible where they exist:
+// a 0-cent line renders as "Na upit" (see `lineIsOnRequest`).
 
-export interface CartItem {
-  key: string;
-  productId: string;
-  title: string;
-  image: string | null;
-  /** Product page URL (for the line-item link). */
-  url: string;
-  /**
-   * Price at add time — fixed price, or a configurator's computed total.
-   * `null` = "price on request" (a no-price product added for inquiry); such
-   * lines are excluded from `subtotal` and shown as "Na upit".
-   */
-  unitPrice: number | null;
-  qty: number;
-  /** Human-readable selected-options summary (configurator builds only). */
-  configLabel?: string;
+export type { Cart, CartLine };
+
+/** A 0-cent line is "price on request" — excluded from the money total display. */
+export function lineIsOnRequest(line: CartLine): boolean {
+  return line.unitPrice <= 0;
 }
 
 interface CartValue {
-  items: CartItem[];
+  cart: Cart | null;
+  loading: boolean;
   count: number;
-  subtotal: number;
-  addItem: (item: Omit<CartItem, "qty">, qty?: number) => void;
-  removeItem: (key: string) => void;
-  setQty: (key: string, qty: number) => void;
-  clear: () => void;
+  /** Sum of the PRICED lines (cents) — 0-cent "Na upit" lines contribute nothing. */
+  pricedSubtotal: number;
+  /** true when any line is "Na upit" (total becomes a stated minimum). */
+  anyOnRequest: boolean;
+  add: (variantId: string, qty?: number) => Promise<boolean>;
+  setQty: (variantId: string, qty: number) => Promise<boolean>;
+  remove: (variantId: string) => Promise<boolean>;
+  refresh: () => Promise<void>;
 }
 
-const STORAGE_KEY = "linea.cart";
 const CartContext = createContext<CartValue | null>(null);
 
-function isCartItem(x: unknown): x is CartItem {
-  if (!x || typeof x !== "object") return false;
-  const o = x as Record<string, unknown>;
-  return (
-    typeof o.key === "string" &&
-    typeof o.productId === "string" &&
-    typeof o.title === "string" &&
-    (typeof o.unitPrice === "number" || o.unitPrice === null) &&
-    typeof o.qty === "number"
-  );
-}
-
-function loadCart(): CartItem[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed.filter(isCartItem) : [];
-  } catch {
-    return [];
-  }
-}
-
 export function CartProvider({ children }: { children: ReactNode }) {
-  const [items, setItems] = useState<CartItem[]>(loadCart);
+  const params = useParams();
+  const { defaultLocale } = useLocaleConfig();
+  const locale = params.locale ?? defaultLocale;
 
-  // Persist on every change.
-  useEffect(() => {
+  const [cart, setCart] = useState<Cart | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const refresh = useCallback(async () => {
     try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+      setCart(await storefront.getCart({ locale }));
     } catch {
-      /* storage full / unavailable — ignore */
+      /* API unreachable — keep whatever we had */
+    } finally {
+      setLoading(false);
     }
-  }, [items]);
+  }, [locale]);
 
-  // Keep other tabs/windows in sync.
   useEffect(() => {
-    const onStorage = (e: StorageEvent) => {
-      if (e.key === STORAGE_KEY) setItems(loadCart());
-    };
-    window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
-  }, []);
+    void refresh();
+  }, [refresh]);
 
-  const addItem = useCallback((item: Omit<CartItem, "qty">, qty = 1) => {
-    setItems((prev) => {
-      const idx = prev.findIndex((p) => p.key === item.key);
-      if (idx >= 0) {
-        const next = [...prev];
-        next[idx] = { ...next[idx], qty: next[idx].qty + qty };
-        return next;
+  const mutate = useCallback(
+    async (op: () => Promise<Cart>): Promise<boolean> => {
+      try {
+        setCart(await op());
+        return true;
+      } catch {
+        // Refresh so the UI never shows a stale cart after a failed mutation.
+        void refresh();
+        return false;
       }
-      return [...prev, { ...item, qty }];
-    });
-  }, []);
+    },
+    [refresh],
+  );
 
-  const removeItem = useCallback((key: string) => {
-    setItems((prev) => prev.filter((p) => p.key !== key));
-  }, []);
+  const add = useCallback(
+    (variantId: string, qty = 1) => mutate(() => storefront.addCartItem(variantId, qty, { locale })),
+    [mutate, locale],
+  );
+  const setQty = useCallback(
+    (variantId: string, qty: number) =>
+      mutate(() => storefront.setCartItemQuantity(variantId, Math.max(1, Math.floor(qty) || 1), { locale })),
+    [mutate, locale],
+  );
+  const remove = useCallback(
+    (variantId: string) => mutate(() => storefront.removeCartItem(variantId, { locale })),
+    [mutate, locale],
+  );
 
-  const setQty = useCallback((key: string, qty: number) => {
-    const q = Math.max(1, Math.floor(qty) || 1);
-    setItems((prev) => prev.map((p) => (p.key === key ? { ...p, qty: q } : p)));
-  }, []);
-
-  const clear = useCallback(() => setItems([]), []);
-
-  const count = items.reduce((s, p) => s + p.qty, 0);
-  // On-request (null-price) lines don't contribute to the money total.
-  const subtotal = items.reduce((s, p) => s + (p.unitPrice ?? 0) * p.qty, 0);
+  const count = cart?.itemCount ?? 0;
+  const pricedSubtotal = useMemo(
+    () => (cart?.items ?? []).reduce((s, l) => s + (lineIsOnRequest(l) ? 0 : l.lineTotal), 0),
+    [cart],
+  );
+  const anyOnRequest = useMemo(() => (cart?.items ?? []).some(lineIsOnRequest), [cart]);
 
   const value = useMemo<CartValue>(
-    () => ({ items, count, subtotal, addItem, removeItem, setQty, clear }),
-    [items, count, subtotal, addItem, removeItem, setQty, clear],
+    () => ({ cart, loading, count, pricedSubtotal, anyOnRequest, add, setQty, remove, refresh }),
+    [cart, loading, count, pricedSubtotal, anyOnRequest, add, setQty, remove, refresh],
   );
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;

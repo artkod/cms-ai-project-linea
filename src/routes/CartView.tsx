@@ -3,8 +3,8 @@ import { Link, useParams } from "react-router";
 import { Minus, Plus, ShoppingCart, Trash2, ArrowLeft } from "lucide-react";
 import { getSystemPageSlug, type Page } from "@/lib/api";
 import { useStrings, useLocaleConfig } from "@/lib/locale";
-import { useCart } from "@/lib/cart";
-import { eur } from "@/lib/pricing";
+import { useCart, lineIsOnRequest } from "@/lib/cart";
+import { eurCents } from "@/lib/pricing";
 import { InquiryModal, type InquiryItem } from "@/components/InquiryModal";
 import "@/styles/pages/cart.scss";
 
@@ -26,10 +26,8 @@ export function CartView({ page }: { page: Page }) {
     const v = t(key);
     return v === key ? fb : v;
   };
-  const { items, count, subtotal, removeItem, setQty, clear } = useCart();
-  // A cart is "mixed" once any line has no price — the money total then becomes
-  // a stated minimum and carries the extra caveat below.
-  const anyUnpriced = items.some((it) => it.unitPrice == null);
+  const { cart, count, pricedSubtotal, anyOnRequest, remove: removeItem, setQty, refresh } = useCart();
+  const items = cart?.items ?? [];
   const onRequest = tx("order.on_request", "Na upit");
 
   const home = `/${locale}/`;
@@ -41,11 +39,11 @@ export function CartView({ page }: { page: Page }) {
 
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const inquiryItems: InquiryItem[] = items.map((it) => ({
-    title: it.title,
-    qty: it.qty,
-    unitPrice: it.unitPrice,
-    configLabel: it.configLabel,
-    image: it.image,
+    title: it.name,
+    qty: it.quantity,
+    unitPrice: lineIsOnRequest(it) ? null : it.unitPrice,
+    configLabel: it.optionsLabel ?? undefined,
+    image: it.image?.cdnUrl ?? null,
   }));
   const openCheckout = () => {
     if (count > 0) setCheckoutOpen(true);
@@ -72,69 +70,73 @@ export function CartView({ page }: { page: Page }) {
             <div className="cr-grid">
               {/* Line items */}
               <div className="cr-list">
-                {items.map((l) => (
-                  <div className="cr-item" key={l.key}>
-                    <div className="cr-item__media">
-                      {l.image && <img className="ln-img" src={l.image} alt={l.title} loading="lazy" />}
-                    </div>
-                    <div className="cr-item__main">
-                      <div className="cr-item__top">
-                        <h3 className="cr-item__name">
-                          {l.url ? <Link to={l.url}>{l.title}</Link> : l.title}
-                        </h3>
-                        <button
-                          type="button"
-                          className="cr-item__rm"
-                          aria-label={t("cart.remove")}
-                          onClick={() => removeItem(l.key)}
-                        >
-                          <Trash2 aria-hidden="true" />
-                          <span className="cr-tip">{t("cart.remove")}</span>
-                        </button>
+                {items.map((l) => {
+                  const priced = !lineIsOnRequest(l);
+                  const url = l.slug ? `/${locale}/${allProductsSlug}/${l.slug}` : null;
+                  return (
+                    <div className="cr-item" key={l.variantId}>
+                      <div className="cr-item__media">
+                        {l.image && <img className="ln-img" src={l.image.cdnUrl} alt={l.name} loading="lazy" />}
                       </div>
-
-                      <div className="cr-item__price">
-                        <span className="cr-k">{t("cart.unit_price")}: </span>
-                        {l.unitPrice != null ? eur(l.unitPrice) : onRequest}
-                      </div>
-                      {l.configLabel && <div className="cr-item__config">{l.configLabel}</div>}
-
-                      <div className="cr-item__bottom">
-                        <div className="cr-qty">
-                          <span className="cr-qty__lbl">{t("cart.quantity")}</span>
-                          <div className="cr-stepper">
-                            <button
-                              type="button"
-                              className="cr-step"
-                              aria-label="-"
-                              disabled={l.qty <= 1}
-                              onClick={() => setQty(l.key, l.qty - 1)}
-                            >
-                              <Minus aria-hidden="true" />
-                            </button>
-                            <input
-                              className="cr-num"
-                              type="number"
-                              min={1}
-                              value={l.qty}
-                              aria-label={t("cart.quantity")}
-                              onChange={(e) => setQty(l.key, Number(e.currentTarget.value) || 1)}
-                            />
-                            <button
-                              type="button"
-                              className="cr-step"
-                              aria-label="+"
-                              onClick={() => setQty(l.key, l.qty + 1)}
-                            >
-                              <Plus aria-hidden="true" />
-                            </button>
-                          </div>
+                      <div className="cr-item__main">
+                        <div className="cr-item__top">
+                          <h3 className="cr-item__name">
+                            {url ? <Link to={url}>{l.name}</Link> : l.name}
+                          </h3>
+                          <button
+                            type="button"
+                            className="cr-item__rm"
+                            aria-label={t("cart.remove")}
+                            onClick={() => void removeItem(l.variantId)}
+                          >
+                            <Trash2 aria-hidden="true" />
+                            <span className="cr-tip">{t("cart.remove")}</span>
+                          </button>
                         </div>
-                        <div className="cr-item__total">{l.unitPrice != null ? eur(l.unitPrice * l.qty) : onRequest}</div>
+
+                        <div className="cr-item__price">
+                          <span className="cr-k">{t("cart.unit_price")}: </span>
+                          {priced ? eurCents(l.unitPrice) : onRequest}
+                        </div>
+                        {l.optionsLabel && <div className="cr-item__config">{l.optionsLabel}</div>}
+
+                        <div className="cr-item__bottom">
+                          <div className="cr-qty">
+                            <span className="cr-qty__lbl">{t("cart.quantity")}</span>
+                            <div className="cr-stepper">
+                              <button
+                                type="button"
+                                className="cr-step"
+                                aria-label="-"
+                                disabled={l.quantity <= 1}
+                                onClick={() => void setQty(l.variantId, l.quantity - 1)}
+                              >
+                                <Minus aria-hidden="true" />
+                              </button>
+                              <input
+                                className="cr-num"
+                                type="number"
+                                min={1}
+                                value={l.quantity}
+                                aria-label={t("cart.quantity")}
+                                onChange={(e) => void setQty(l.variantId, Number(e.currentTarget.value) || 1)}
+                              />
+                              <button
+                                type="button"
+                                className="cr-step"
+                                aria-label="+"
+                                onClick={() => void setQty(l.variantId, l.quantity + 1)}
+                              >
+                                <Plus aria-hidden="true" />
+                              </button>
+                            </div>
+                          </div>
+                          <div className="cr-item__total">{priced ? eurCents(l.lineTotal) : onRequest}</div>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               {/* Order summary */}
@@ -142,7 +144,7 @@ export function CartView({ page }: { page: Page }) {
                 <h2>{t("cart.summary_title")}</h2>
                 <div className="cr-sumrow">
                   <span className="k">{t("cart.subtotal")}</span>
-                  <span className="v">{eur(subtotal)}</span>
+                  <span className="v">{eurCents(pricedSubtotal)}</span>
                 </div>
                 <div className="cr-sumrow">
                   <span className="k">{t("cart.shipping")}</span>
@@ -151,23 +153,23 @@ export function CartView({ page }: { page: Page }) {
                 <hr className="cr-sumdiv" />
                 <div className="cr-sumtotal">
                   <span className="k">
-                    {anyUnpriced ? tx("order.total_min", "Ukupna minimalna cijena") : t("cart.total")}
+                    {anyOnRequest ? tx("order.total_min", "Ukupna minimalna cijena") : t("cart.total")}
                   </span>
-                  <span className="v">{eur(subtotal)}</span>
+                  <span className="v">{eurCents(pricedSubtotal)}</span>
                 </div>
                 <button
                   type="button"
                   className="ln-btn ln-btn--primary ln-btn--lg cr-checkout"
                   onClick={openCheckout}
                 >
-                  {tx("cart.finish_order", "Dovrši narudžbu")}
+                  {tx("cart.finish_order", "Pošalji upit")}
                 </button>
                 <Link to={home} className="cr-continue">
                   <ArrowLeft aria-hidden="true" />
                   {t("cart.continue_shopping")}
                 </Link>
                 <p className="cr-vat">
-                  {anyUnpriced
+                  {anyOnRequest
                     ? tx("order.vat_note_mixed", "Cijene uključuju PDV. Dostava se obračunava naknadno. Proizvodi koji nemaju istaknutu cijenu nisu uključeni u ukupni zbroj te konačna cijena može biti veća od navedene.")
                     : t("cart.vat_note")}
                 </p>
@@ -191,9 +193,8 @@ export function CartView({ page }: { page: Page }) {
       <InquiryModal
         opened={checkoutOpen}
         onClose={() => setCheckoutOpen(false)}
-        mode="cart"
         items={inquiryItems}
-        onSuccess={clear}
+        onSuccess={() => void refresh()}
       />
     </div>
   );

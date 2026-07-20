@@ -9,142 +9,69 @@ This file is auto-loaded by Claude Code at the start of every session.
 Minimal, content-managed light-theme website powered by `cms-ai-core`.
 Mantine UI (light, `primaryColor: "teal"`), system-ui font, centered layout.
 Ships with code-defined page types registered in `admin/src/main.tsx`. The
-catalogue uses a **flat product model**: a single **`product-item`** type whose
-instances live directly under the **`all-products`** landing page and carry their
-category as data. The old `products` → `product-category` folder pages were
-**removed** (see "Flat product taxonomy" below). Everything else uses the
+catalogue runs on the **cms-ai-core COMMERCE MODULE in inquiry-only mode** (see
+"Webshop (commerce module, inquiry-only)" below); everything else uses the
 built-in `default` type (or runtime types).
 
-### `product-item` page type (flat)
+## Webshop (commerce module, inquiry-only)
 
-- Code-defined in `admin/src/main.tsx` as `productItemPageType`:
-  `label: { en: "Product", hr: "Proizvod" }`, `canBeRoot: false`,
-  `allowedParentTypes: ["all-products"]`, **`hideFromTree: true`**,
-  `allowBlocks: true`, `allowedBlockTypes: ["product-item"]`. Because there's
-  exactly one allowed block type, the framework treats this as a
-  **singleton-block page type** (see cms-ai-core CLAUDE.md): on create the admin
-  auto-seeds one `product-item` block, and the "+ Add new section" and per-block
-  Remove buttons are hidden. **`hideFromTree` keeps the ~100 items out of the
-  Pages tree entirely** — they're created/edited/deleted from the dedicated
-  **Products** sidebar screen (`admin/src/products/ProductsScreen.tsx`), not the
-  tree. The public URL is therefore flat: `/{locale}/{all-products-slug}/{item-slug}`.
-- **Category**: the block carries `mainCategoryId` + `subcategoryId` (cascading
-  dropdowns at the top of `ProductItemBlock`, sub disabled until a main is
-  picked). They reference entries in the `product_categories` project-setting
-  (see below). The category is **per-locale block data**; the migration writes it
-  to every locale and the public catalogue reads it per-locale.
-- The block (`admin/src/blocks/ProductItemBlock.tsx`) holds all authored
-  product content: alternative title, main photo, gallery, plain-text
-  description, EUR price, an "Additional info" section with real Mantine
-  `Tabs` (each tab has its own RTE panel — five predefined Croatian
-  titles backed by stable internal IDs: `vise-informacija`, `nasi-radovi`,
-  `tehnika-tiska`, `upute-graficka-priprema`, `upute-slaganje`; editors
-  can rename/add/remove tabs through small Mantine modals), and a
-  "Konfigurator cijene" section with three Mantine `Accordion` panels
-  acting as three **groups** (internal keys stay `konstrukcija` / `grafika`
-  / `baza`; the customer-facing **titles are editable per group** and
-  **required** when the configurator is enabled — empty by default,
-  default-titled "1./2./3. grupa" in the accordion header until filled).
-  Each group-2 (`grafika`) row exposes one EUR cijena input per group-1
-  (`konstrukcija`) row, prefixed with that group-1 row's `naziv`, and
-  **group 2 is locked (greyed via a nested `<fieldset disabled>`) until
-  group 1 has at least one item**. Group 3 (`baza`) is independent. Every
-  price input has a `do dvije decimale` format hint; prices are stored as
-  free-text strings and are all optional.
-- **Enable toggle (`konfiguratorCijene.enabled`)**: a checkbox on the
-  "Konfigurator cijene" header gates the whole section. **Unchecked by
-  default** — a native `<fieldset disabled>` greys out and disables every
-  configurator input. When **checked**, the standalone **price field
-  (`priceEur`) is disabled** (the two pricing inputs are mutually
-  exclusive). Legacy rows saved before the toggle existed have no `enabled`
-  flag; `normalize()` (admin) and `ProductItemView` (frontend) both default
-  it to "on iff the row already carries configurator data" so fixed-price
-  products keep their price field active. Required group-title validation
-  is best-effort (asterisk + inline error) — the block API has no
-  save-blocking hook, so an editor can still save with empty titles.
-- A frontend renderer **is** wired up in `src/routes/PageView.tsx` via the
-  `ProductItemView` component (selected by `page.type === "product-item"`).
-  It implements the **"Industrial Clarity"** product-detail design — lime-
-  green palette (`#496800` primary / `#9acb34` accent, scoped via a `D` const
-  inside `PageView.tsx`, the rest of the site keeps Mantine teal), Inter
-  (loaded in `index.html`), 4px radii, `#c3c9b1` outlines. Responsive 7/5
-  grid: image gallery + description + social share on the left, sticky
-  configurator card on the right (`top: 96px` at ≥lg, full-width above the
-  image on mobile). The card holds the three `Select`s + price row +
-  `Pošaljite upit` CTA + "Dostupno" / "Brza dostava" trust row. A sticky
-  bottom bar with price + same CTA mirrors the card on `<lg`.
-- **Info section is tabs-or-accordion by viewport** — at ≥768px the
-  predefined "Additional info" tabs render as a Mantine `Tabs` strip
-  (label-md uppercase, 2px lime underline on active, horizontally
-  scrollable). At <768px the same data renders as a Mantine `Accordion`
-  in **single-open mode** (no `multiple`), controlled via `openInfoItem:
-  string | null`. All items start collapsed (initial state is `null`);
-  the open header's text flips to lime via an inline `style={{ color:
-  isOpen ? D.primary : D.onSurface }}` on the `Accordion.Control`. Swap signal is
-  `useMediaQuery("(max-width: 767.99px)", false, { getInitialValueInEffect:
-  false })` so the first render reads the real viewport and there's no
-  tabs→accordion flicker on hydration.
-- **Price area** has three modes, driven by the `konfiguratorCijene.enabled`
-  toggle:
-  1. **Konfigurator** — when the toggle is **on** AND any `cijena` across
-     the three groups parses to > 0. Renders the group `Select`s (one per
-     non-empty group), each using the editor-set group title (falling back
-     to the `product.option_*` string). Selects are **deselectable/clearable
-     and start empty** — nothing is pre-selected. **Group 2 (`grafika`) stays
-     disabled until something in group 1 is picked**, and clearing group 1
-     also clears group 2 (its price keys off `cijene[selectedKonstrukcija.id]`).
-     Total is the sum of the currently-selected items. **With nothing
-     selected the product is treated exactly like Inquiry** (no price shown,
-     `Pošaljite upit` CTA) — selecting at least one option reveals the total.
-  2. **Fixed price** — when the toggle is **off** AND `priceEur` parses to
-     > 0, display that single value (`Intl.NumberFormat("hr-HR", { style:
-     "currency", currency: "EUR" })`, e.g. `12,34 €`).
-  3. **Inquiry** — everything else, including **toggle off + empty price**:
-     render the `Pošaljite upit` button (no-op for now; wire to a real
-     enquiry-submit flow when needed).
-  All displayed prices are followed by a small dimmed `+ PDV` suffix.
-  Free-text `cijena` strings are parsed with `parsePrice` (handles comma
-  or dot decimal separator); empty / non-positive values resolve to 0.
+The legacy page-based product system (a `product-item` page type + block, the
+"Products" sidebar section, and the `product_categories` project-setting) was
+**migrated into the core commerce module** on 2026-07-19 (branch
+`feat/commerce-migration`). Key facts:
 
-### Flat product taxonomy & the Products screen
-
-The old `products` (main-category folder) and `product-category` (subcategory
-folder) page types were **removed**. They had no frontend view and made the Pages
-tree unwieldy with ~100 leaf items. The taxonomy is now plain data and products
-are managed in a dedicated screen.
-
-- **Taxonomy data** lives in the generic `project_settings` store under key
-  **`product_categories`** (public GET, so the frontend reads it like any other
-  project setting):
-  ```
-  { categories: [ { id, slug, label:{hr,en}, subcategories:[ { id, slug, label:{hr,en} } ] } ] }
-  ```
-  A product references a main + subcategory by `id` (stable across renames);
-  `slug` is used for catalogue deep-links (`?kategorija=<main-slug>`). Shared
-  admin model in `admin/src/products/categoryModel.ts`; frontend resolver in
-  `src/lib/productCategories.ts`.
-- **Products sidebar screen** (`admin/src/products/ProductsScreen.tsx`), injected
-  via **`createAdmin({ navSections: [productsNavSection] })`** (a cms-ai-core
-  capability — see core CLAUDE.md "Project-injected sidebar screens"). Key
-  `products`, icon `Boxes`, roles developer/admin/editor. Two tabs:
-  - **Products** — a searchable, paginated table of every `product-item` (drafts
-    + published) with main/sub **category filters**. Rows show thumbnail, title,
-    main/sub category, status. "New product" calls the injected `createPage(
-    "product-item", <all-products-id>)`; row click / pencil calls `openPageEditor(
-    id)`; trash soft-deletes via the admin API. Returning from the editor remounts
-    the screen so the table refreshes.
-  - **Categories** — the taxonomy editor (add/rename/remove main categories &
-    subcategories, per-locale labels, auto-slug). Saves `product_categories`.
-  - Talks to authenticated admin endpoints through `admin/src/lib/adminApi.ts`
-    (cookie auth + `X-Project-Slug`, paging past the 100-row list cap) since
-    admin-base doesn't re-export page CRUD.
-- **Migration** from the old folder model: `scripts/migrate-flatten-products.mjs`
-  (run `pnpm migrate:flatten-products`, `--dry-run` to preview). Builds
-  `product_categories` from the existing folder pages, writes `mainCategoryId`/
-  `subcategoryId` onto every item's block in all locales, re-parents items to
-  `all-products` (resolving slug collisions), and hard-deletes the folder pages +
-  their runtime `page_types` rows. Needs `DATABASE_URL`; requires the `pg`
-  devDependency (`pnpm install`).
+- **Commerce is ON**: `start.sh` sets `COMMERCE_ENABLED=true` +
+  `STOREFRONT_BASE_URL`; `admin/src/main.tsx` passes `createAdmin({ commerce:
+  true })`. Products/categories are managed in the admin's **shop nav**
+  (developer/owner/shop roles — content editors don't see commerce).
+- **Inquiry-only shop**: every product is `purchasable = false`, so checkout
+  ALWAYS creates a **quote** (inquiry) — no payments, no stock (all variants
+  untracked/unlimited). Prices stay visible where they exist: a variant price
+  of **0 cents renders as "Na upit"** (price on request); > 0 shows the price.
+  The merchant is notified of new inquiries via `shop_settings.inquiry_email`
+  (admin Settings → Commerce → Notifications) + the "Open quotes" dashboard
+  card. **Flipping to real payments later**: set products to "For sale"
+  (`purchasable = true`) + configure Stripe under Settings → Payments — no data
+  migration needed (quotes already become payable orders on acceptance).
+- **The old 3-group price configurator became option axes + variants**: groups
+  (konstrukcija / grafika / baza) → up to 3 product options; every combination
+  is a variant with its own total price (grafika's per-konstrukcija matrix
+  pricing is preserved exactly). Combinations that had no price were NOT
+  created (the storefront shows "kombinacija nije dostupna"). Prices are edited
+  per-variant (variant table or CSV import/export).
+- **URLs stayed flat**: the listing lives on the kept `all-products` page
+  (`/{locale}/svi-proizvodi`, slug/SEO editor-controlled; category deep-links
+  via `?kategorija=<category-slug>`), products at
+  `/{locale}/{all-products-slug}/{product-slug}` — the migration preserved all
+  slugs verbatim and the commerce URL resolver matches products by last path
+  segment. Commerce **category URLs** (`/hr/tisak-velikih-formata/tekstil`)
+  redirect to the pre-filtered listing. `rel=canonical` + sitemap.xml use the
+  canonical category paths.
+- **Frontend** (`src/`): `lib/storefront.ts` (the vendored `@cms/storefront`
+  client — refresh with `pnpm vendor:storefront`), `lib/cart.tsx` (SERVER cart,
+  `cms_cart` cookie; `lineIsOnRequest()` = 0-cent line → "Na upit"),
+  `routes/CommerceProductView.tsx` (product page: option selects → matched
+  variant price, info tabs read from the product's Mixed Content accordion),
+  `routes/AllProductsView.tsx` + `routes/SearchView.tsx` + `routes/HomePage.tsx`
+  (catalog API), `components/InquiryModal.tsx` (real checkout POST → quote;
+  requires name/address/city/postal), `routes/OrderView.tsx` at
+  `/{locale}/order/{token}` (inquiry status + quote accept/decline — the same
+  URL the quote email links to).
+- **Product content** in the admin is name/SEO/short description + gallery +
+  a Mixed Content body; the old info tabs live as ONE accordion widget (the
+  storefront renders its items as tabs).
+- **Prod cutover runbook: `docs/COMMERCE-CUTOVER.md`** (ordered steps: core
+  merge → enable env on the API → migrate prod DB → linea merge → verify →
+  cleanup → admin config; incl. rollback + the legacy-pages transition window).
+- **Migration scripts** (one-shot, kept for prod cutover): `pnpm
+  migrate:products-to-commerce` (pages → catalog; `--dry-run` supported) then,
+  after verification, `node scripts/cleanup-legacy-products.mjs` (deletes the
+  legacy `product-item` pages + the `product_categories` project-setting;
+  legacy pages SHADOW the flat product URLs until this runs). Both need
+  `DATABASE_URL`.
+- **db-snapshot.json** now also carries the commerce catalog (core #148) — the
+  boot seeder replays it on a fresh clone (and applies commerce migrations
+  itself when needed).
 
 ## Related repos
 
@@ -220,13 +147,12 @@ network blocks Google Fonts.
 
 ## Page types
 
-The product catalogue is **flat**: `product-item` pages live under `all-products`
-and carry their category as block data (see "Flat product taxonomy" above).
+The product catalogue lives in the **commerce module** (see "Webshop" above) —
+there is no product page type; `all-products` is the catalogue listing anchor.
 
 | Slug | Label (en / hr) | Source | Parent | Children |
 |---|---|---|---|---|
-| `all-products` | All products / Svi proizvodi | code-defined (`admin/src/main.tsx`) | (root) | `product-item` |
-| `product-item` | Product / Proizvod | code-defined (`admin/src/main.tsx`) | `all-products` | (leaf) |
+| `all-products` | All products / Svi proizvodi | code-defined (`admin/src/main.tsx`) | (root) | (none) |
 | `about-us` | About us / O nama | code-defined (`admin/src/main.tsx`) | (root) | (none) |
 | `catalogues` | Catalogues / Katalozi | code-defined (`admin/src/main.tsx`) | (root) | (none) |
 | `news` | News / Novosti | code-defined (`admin/src/main.tsx`) | (root) | `article` |
@@ -237,39 +163,30 @@ and carry their category as block data (see "Flat product taxonomy" above).
 | `cart` | Cart / Košarica | code-defined (`admin/src/main.tsx`) | (root) | (none) |
 | `404` | 404 / 404 | code-defined (`admin/src/main.tsx`) | (root) | (none) |
 
-`product-item` is a `hideFromTree` singleton-block page type — see the sections
-above. It is managed from the **Products** sidebar screen, not the Pages tree.
-
-`all-products` is the public **catalogue landing page** AND the structural parent
-of every product: `canBeRoot: true`, `deletable: false`, `limit: 1` (singleton),
-`allowedChildTypes: ["product-item"]`, no blocks, no fields beyond the title. It
-is also a **`system: true`** type — developer-only in the admin tree,
-orange-tagged. Its frontend renderer (`AllProductsView` in
+`all-products` is the public **catalogue landing page**: `canBeRoot: true`,
+`deletable: false`, `limit: 1` (singleton), no children, no blocks, no fields
+beyond the title. It is also a **`system: true`** type — developer-only in the
+admin tree, orange-tagged. Its frontend renderer (`AllProductsView` in
 `src/routes/AllProductsView.tsx`, branched on `page.type === "all-products"` in
-`PageView.tsx`) fetches every published `product-item` in the active locale (via
-`getAllPages()` in `lib/api.ts`) plus the `product_categories` taxonomy (via
-`getProductCategories()`), resolves each item's main/sub category from its block
-data, and builds the card URL as `/{locale}/{all-products-slug}/{item-slug}`. It
-renders a left filter sidebar + a sortable, paginated product grid:
-- **Search** (title), **Categories** (main categories from the taxonomy),
-  **Subcategories** (narrow to the picked main categories), and a **price range**.
-  Filters apply live; a price bound excludes inquiry-only products.
+`PageView.tsx`) fetches the whole commerce catalog once
+(`storefront.listProducts` + `listCategories`) and filters client-side; card
+URLs stay flat (`/{locale}/{all-products-slug}/{product-slug}`):
+- **Search** (name), **Categories** (root commerce categories),
+  **Subcategories** (narrow to the picked main categories), and a **price
+  range** (EUR; compared against the card's cents price). Filters apply live; a
+  price bound excludes "Na upit" products.
 - **Sort** (newest / oldest / name / price low→high / price high→low) and
-  **per-page** size (12/24/48) + pagination apply immediately. Inquiry-only
+  **per-page** size (12/24/48) + pagination apply immediately. "Na upit"
   products always sort last under price sorts.
-- **Card price** uses the same rules as `ProductItemView`: a fixed `priceEur`
-  shows bare; a configurator product shows its **cheapest full build**
-  (cheapest Konstrukcija + its cheapest Grafika + cheapest Baza, only groups
-  with rows) prefixed "Već od" (`allproducts.price_from`); products with no
-  usable price show "Cijena na upit". The shared price logic lives in
-  `computeCardPrice()` (exported from `AllProductsView.tsx`).
+- **Card price** = the product's cheapest variant gross price ("Već od" when
+  variants span a range); a 0-cent cheapest price renders "Cijena na upit".
 - All visible copy uses `allproducts.*` string keys (seeded in
   `project-data.seed.json`, EN + HR).
 
 `about-us` is a **singleton root page** (`canBeRoot: true`, `deletable: false`,
 `limit: 1`, no parent, no children). It is a **singleton-block page type**
-(`allowBlocks: true`, `allowedBlockTypes: ["about-us"]`) — same mechanics as
-`product-item`: the framework auto-seeds one `about-us`
+(`allowBlocks: true`, `allowedBlockTypes: ["about-us"]`) — a singleton-block
+type: the framework auto-seeds one `about-us`
 block on create and hides "+ Add new section" + the per-block Remove icon, so the
 editor shows a single fixed Content Section card. Content lives in the block
 (`admin/src/blocks/AboutUsBlock.tsx`, `aboutUsBlock` registered in `main.tsx`),
@@ -377,12 +294,12 @@ later; until then the search view reads its query from `?q=…` on the URL and t
 cart view shows placeholder line items. Rendered by `SearchView` / `CartView` /
 `NotFound` (see "Frontend rendering").
 
-The built-in `default` and the code-defined `product-item` / `all-products` (+
-the others) are registered in code. The old `products` / `product-category`
+The built-in `default` and the code-defined `all-products` (+ the others) are
+registered in code. The old `products` / `product-category`
 runtime seed entries were removed from `project-data.seed.json` (the migration
 deletes any leftover rows). The frontend renders the default view for any
 page type without a `case` branch in `PageView.tsx` — currently
-`product-item`, `all-products`, `about-us`, `catalogues`, `news`, `article`,
+`all-products`, `about-us`, `catalogues`, `news`, `article`,
 `eu-projects`, `eu-project-item`, `search`, `cart`,
 and `404` have custom views (see "Frontend rendering").
 
@@ -475,7 +392,7 @@ media on a clone.
   underline), a **functional product search**, a visual-only cart link, the
   `LanguageSwitcher`, and a hamburger + mobile panel. **Search**: typing + Enter
   navigates to the search page with `?q=` — `SearchView` reads the query from the
-  URL and filters live `product-item`s. The search/cart page slugs are resolved
+  URL and queries the commerce catalog search. The search/cart page slugs are resolved
   per-locale via `getSystemPageSlug("search"|"cart", locale)` (live slug, falling
   back to `pretraga`/`kosarica`) rather than hardcoded.
 - **Footer** (`SiteFooter` in `RootLayout.tsx`) — dark deep-green band: brand +
@@ -486,13 +403,12 @@ media on a clone.
   deep-link), then a copyright bottom bar. Structural labels go through `t()`
   (`footer.*` keys) with Croatian fallbacks.
 - **Homepage** (`HomePage.tsx`) — full-bleed, six sections: typographic **hero**
-  (stat strip = main-category count + subcategory count from the `product_categories`
-  taxonomy), **product groups grid** (one card per **main category** from the
-  taxonomy + a fixed "Cijeli katalog" CTA tile; card links to
-  `?kategorija=<main-slug>`; thumbnail = first product photo in that category),
-  **featured banners** (`getFeaturedBanners()`, icon resolved via lucide's `icons`
-  registry), **"Zašto Linea" trust strip**, **newest 4 `product-item`s** (reuses
-  `computeCardPrice`), and a **contact CTA band** (phone from the `contact`
+  (stat strip = root/child commerce-category counts), **product groups grid**
+  (one card per **root commerce category** + a fixed "Cijeli katalog" CTA tile;
+  card links to `?kategorija=<category-slug>`; thumbnail = first product photo
+  in that category), **featured banners** (`getFeaturedBanners()`, icon resolved
+  via lucide's `icons` registry), **"Zašto Linea" trust strip**, **newest 4
+  commerce products**, and a **contact CTA band** (phone from the `contact`
   setting). The "Browse products"/"Full catalogue"/"Request a quote" CTAs resolve
   `all-products` (`svi-proizvodi`) and `about-us` (`o-nama`) slugs dynamically via
   `getSystemPageSlug`. All non-dynamic copy lives in the strings DB under
@@ -503,7 +419,10 @@ media on a clone.
 ## Frontend rendering (`src/routes/PageView.tsx`)
 
 - `default` (and any unknown type) — `DefaultView`: H1 title + block list.
-- `product-item` — `ProductItemView`; `all-products` — `AllProductsView` (separate file).
+- commerce product (by-slug `kind:"product"`) — `CommerceProductView` (separate file); commerce
+  category (`kind:"category"`) — redirect to the pre-filtered listing; `all-products` — `AllProductsView`
+  (separate file). The inquiry/order status page is a dedicated route (`/{locale}/order/{token}` →
+  `OrderView`), registered before the PageView splat.
 - `catalogues` — **`CataloguesView`** (`src/routes/CataloguesView.tsx`). Plain-Mantine resource-library
   layout: page title + `subtitle` lead, a **featured first document** card (cover + meta + download), then a
   `SimpleGrid` of the remaining document cards, and a "Contact support" CTA card at the bottom. Each card's
@@ -560,18 +479,16 @@ media on a clone.
     (UA-sniffed) click opens a place link built from the address (`maps/search/?api=1&query=…`) so the OS
     hands it to the native maps app.
 - `search` — **`SearchView`** (`src/routes/SearchView.tsx`). Reads the query from `?q=…` (no in-chrome search
-  input yet). Fetches `product-item` via `getAllPages()` + the `product_categories` taxonomy + the
-  `all-products` slug (for flat URLs), builds the same product cards (reuses `computeCardPrice` exported from `AllProductsView`),
-  and free-text-matches title + description. No left sidebar — just a `"Showing N results for 'q'"` headline,
+  input yet). Queries the commerce catalog's server-side full-text search (`storefront.listProducts({ q })`)
+  + categories (for card labels) + the `all-products` slug (for flat URLs). No left sidebar — just a `"Showing N results for 'q'"` headline,
   a sort `Select` (reuses `allproducts.sort_*` keys), the card grid, and pagination (reuses
   `allproducts.per_page_label`). Three states: no query → `search.prompt`; query with no matches → no-results
   template (`search.empty_title` / `search.empty_text` + back-home button); query with matches → results.
-- `cart` — **`CartView`** (`src/routes/CartView.tsx`). **Placeholder** simple-Mantine cart (no cart store /
-  "add to cart" control exists yet). Seeds a few sample line items so the layout is reviewable: a list of
-  item cards (image, name, unit price, quantity stepper via `NumberInput` + `lucide-react` Minus/Plus,
-  remove via `Trash2`) on the left, an order-summary card (subtotal / shipping note / total + checkout +
-  continue-shopping buttons) on the right, and an empty-cart branch (`ShoppingCart` icon + `cart.empty_*`).
-  Swap the `INITIAL` constant for the real cart store when it lands. Copy via `t('cart.*')` (seeded EN+HR).
+- `cart` — **`CartView`** (`src/routes/CartView.tsx`). The **server cart** (commerce module; `useCart()` from
+  `src/lib/cart.tsx`): line cards (image, name, the variant's `optionsLabel`, unit price or "Na upit",
+  quantity stepper, remove) on the left, an order-summary card (priced subtotal / shipping note / total +
+  "Pošalji upit" + continue-shopping) on the right, and an empty-cart branch. Checkout opens `InquiryModal`
+  which POSTs the real commerce checkout → quote. Copy via `t('cart.*')` / `t('order.*')` (seeded EN+HR).
 - `404` — **`NotFound`** (`src/routes/NotFound.tsx`). Simple centered Mantine 404 (big "404" + title + text +
   back-home button); copy via `t('notfound.*')` (seeded EN+HR). Rendered both for the `404` page type AND —
   more importantly — for **any path that doesn't resolve to a published page**: `PageView` now flips a
@@ -596,10 +513,10 @@ also add the keys to that file so a fresh DB has them ready after one
 `./start.sh`. The admin Strings UI is for *editing* what was seeded;
 authoritative source-of-truth for new keys is the seed file.
 
-**`ProductItemView` uses 23 keys under the `product.*` namespace** — all
-already seeded for `hr` and `en`. When adding new visible copy to the
-product view (or any other route), prefer `t("product.<key>")` over
-hardcoded strings and seed both locales:
+**`CommerceProductView` uses the `product.*` namespace; the cart/checkout/order
+pages use `cart.*` / `order.*` / `orderpage.*`** — all seeded for `hr` and `en`.
+When adding new visible copy to the product view (or any other route), prefer
+`t("product.<key>")` over hardcoded strings and seed both locales:
 
 | Group | Keys |
 |---|---|
@@ -784,8 +701,10 @@ reproduces `serve -s` 200-fallback semantics. `deploy.yml` rsyncs the same `publ
 | `src/routes/PageView.tsx` | Renders the `default` page type and its Mixed Content blocks; switches custom views on `page.type` |
 | `src/routes/NewsView.tsx` | `news` page type — journal listing of child `article` pages (featured + type filter + sort + grid + pagination) |
 | `src/routes/EuProjectsView.tsx` | `eu-projects` page type — plain card listing of child `eu-project-item` pages (grid + pagination) |
-| `src/routes/SearchView.tsx` | `search` page type — `?q=`-driven product-item results (cards + sort + pagination, no sidebar) + no-results template |
-| `src/routes/CartView.tsx` | `cart` page type — placeholder simple-Mantine cart (sample line items + summary; empty-cart branch) |
+| `src/routes/SearchView.tsx` | `search` page type — `?q=`-driven commerce catalog search results (cards + sort + pagination, no sidebar) + no-results template |
+| `src/routes/CartView.tsx` | `cart` page type — the server cart (commerce module) + `InquiryModal` checkout → quote; empty-cart branch |
+| `src/routes/CommerceProductView.tsx` | commerce product page (by-slug `kind:"product"`) — gallery, option selects → matched-variant price / "Na upit", info-tab accordion, related rail, add-to-cart |
+| `src/routes/OrderView.tsx` | `/{locale}/order/{token}` — inquiry/quote status page + accept/decline (quote email lands here) |
 | `src/routes/NotFound.tsx` | `404` page type — simple centered Mantine 404; localized via `t('notfound.*')` |
 | `src/routes/LanguageSwitcher.tsx` | Globe-icon dropdown; hidden when only one locale is available |
 | `admin/src/main.tsx` | `createAdmin` config |

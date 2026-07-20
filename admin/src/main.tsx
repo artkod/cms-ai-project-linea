@@ -2,39 +2,24 @@ import "@mantine/core/styles.css";
 import "@mantine/notifications/styles.css";
 import "@mantine/dates/styles.css";
 import { createAdmin, type PageTypeDefinition } from "@cms/admin-base";
-import { productItemBlock } from "./blocks/ProductItemBlock";
 import { aboutUsBlock } from "./blocks/AboutUsBlock";
 import { cataloguesBlock } from "./blocks/CataloguesBlock";
 import { featuredBannersSection } from "./settings/FeaturedBannersSection";
 import { contactSection } from "./settings/ContactSection";
 import { articleSection } from "./settings/ArticleSection";
-import { productsNavSection } from "./products/ProductsScreen";
 
-// product-item is a flat, singleton-block page type. It allows exactly one
-// block of type "product-item" (auto-seeded on create; Add/Remove hidden since
-// allowedBlockTypes.length === 1). The old product → product-category taxonomy
-// pages were removed: items now live directly under the `all-products` landing
-// page (URL `/{locale}/{all-products-slug}/{item-slug}`) and carry their
-// main/sub category as data on the block (see the category dropdowns in
-// ProductItemBlock + the project-settings "product_categories" taxonomy).
-// `hideFromTree` keeps the ~100 items out of the Pages tree entirely — they're
-// created/edited/deleted from the dedicated **Products** sidebar screen.
-const productItemPageType: PageTypeDefinition = {
-  type: "product-item",
-  label: { en: "Product", hr: "Proizvod" },
-  canBeRoot: false,
-  allowedParentTypes: ["all-products"],
-  hideFromTree: true,
-  allowBlocks: true,
-  allowedBlockTypes: ["product-item"],
-};
+// (The legacy page-based product system — `product-item` page type + block +
+// the "Products" sidebar section + the `product_categories` project-setting —
+// was migrated into the COMMERCE MODULE (scripts/migrate-products-to-commerce.mjs
+// + cleanup-legacy-products.mjs). Products/categories are managed under the
+// shop nav; the storefront reads the commerce catalog API.)
 
-// all-products is the public catalogue landing page AND the structural parent
-// of every product-item (so item URLs are `/{locale}/{this.slug}/{item.slug}`).
-// It collects every product-item and renders a filterable/sortable grid on the
-// frontend (see src/routes/AllProductsView.tsx). Singleton root page, no fields
-// beyond the title, no blocks, not deletable. `system: true` hides it from the
-// Pages tree (orange accent for developers).
+// all-products is the public catalogue landing page — the commerce catalog
+// listing anchors on it (URL `/{locale}/{this.slug}` + flat product URLs
+// `/{locale}/{this.slug}/{product-slug}` resolved by the commerce URL resolver).
+// Its slug/SEO stay editor-controlled. Singleton root page, no fields beyond
+// the title, no blocks, not deletable. `system: true` hides it from the Pages
+// tree (orange accent for developers).
 const allProductsPageType: PageTypeDefinition = {
   type: "all-products",
   label: { en: "All products", hr: "Svi proizvodi" },
@@ -42,7 +27,7 @@ const allProductsPageType: PageTypeDefinition = {
   canBeRoot: true,
   limit: 1,
   allowedParentTypes: [],
-  allowedChildTypes: ["product-item"],
+  allowedChildTypes: [],
   allowBlocks: false,
   // Developer-only frontend-route slot — hidden from the Pages tree (orange for devs).
   system: true,
@@ -213,8 +198,10 @@ createAdmin({
   apiUrl: import.meta.env.VITE_API_URL,
   frontendUrl: import.meta.env.VITE_FRONTEND_URL,
   projectSlug: "project-linea",
-  pageTypes: [aboutUsPageType, cataloguesPageType, allProductsPageType, productItemPageType, newsPageType, articlePageType, euProjectsPageType, euProjectItemPageType, searchPageType, cartPageType, notFoundPageType],
-  blockTypes: [productItemBlock, aboutUsBlock, cataloguesBlock],
+  // Commerce module ON (must match the API's COMMERCE_ENABLED — start.sh sets it).
+  // Products/categories live in the commerce catalog (shop nav).
+  commerce: true,
+  pageTypes: [aboutUsPageType, cataloguesPageType, allProductsPageType, newsPageType, articlePageType, euProjectsPageType, euProjectItemPageType, searchPageType, cartPageType, notFoundPageType],
+  blockTypes: [aboutUsBlock, cataloguesBlock],
   settingsSections: [featuredBannersSection, contactSection, articleSection],
-  navSections: [productsNavSection],
 });

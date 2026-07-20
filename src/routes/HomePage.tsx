@@ -3,20 +3,16 @@ import { Loader } from "@mantine/core";
 import { Link, useParams } from "react-router";
 import { icons, ArrowRight } from "lucide-react";
 import {
-  getAllPages,
-  getProductCategories,
   getFeaturedBanners,
   getContactInfo,
   getSystemPageSlug,
-  type Page,
   type FeaturedBanner,
   type ContactInfo,
-  type ProductMainCategory,
 } from "@/lib/api";
-import { indexCategories, resolveProductCategory, resolveLabel as resolveCatLabel } from "@/lib/productCategories";
+import type { CategoryNode, ProductCard as CatalogProductCard } from "@cms/storefront";
+import { storefront } from "@/lib/storefront";
 import { usePageAlternates, useStrings, useLocaleConfig } from "@/lib/locale";
 import { useDocumentSeo } from "@/lib/seo";
-import { computeCardPrice } from "./AllProductsView";
 
 // Homepage — Direction A ("Clean & Corporate"). Full-bleed alternating bands
 // (RootLayout drops its container for the index route); inner content stays
@@ -30,16 +26,6 @@ const eurFmt = new Intl.NumberFormat("hr-HR", {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
 });
-
-interface ProductBlockData {
-  mainPhoto?: { mediaId: string; cdnUrl: string } | null;
-  description?: string;
-  priceEur?: string;
-  mainCategoryId?: string | null;
-  subcategoryId?: string | null;
-  konfiguratorCijene?: Record<string, unknown>;
-  featuredOnHome?: boolean;
-}
 
 interface GroupCard {
   id: string;
@@ -56,11 +42,8 @@ interface ProductCard {
   categoryTitle: string;
   image: string | null;
   url: string;
+  /** amount in EUR (not cents) — feeds the existing eurFmt markup. */
   price: { amount: number; from: boolean } | null;
-}
-
-function productData(p: Page): ProductBlockData {
-  return (p.blocks?.find((b) => b.type === "product-item")?.data ?? {}) as ProductBlockData;
 }
 
 export function HomePage() {
@@ -74,8 +57,8 @@ export function HomePage() {
   useDocumentSeo(null, settings);
 
   const [loading, setLoading] = useState(true);
-  const [categories, setCategories] = useState<ProductMainCategory[]>([]);
-  const [items, setItems] = useState<Page[]>([]);
+  const [categories, setCategories] = useState<CategoryNode[]>([]);
+  const [items, setItems] = useState<CatalogProductCard[]>([]);
   const [banners, setBanners] = useState<FeaturedBanner[]>([]);
   const [contact, setContact] = useState<ContactInfo | null>(null);
   const [allProductsSlug, setAllProductsSlug] = useState("svi-proizvodi");
@@ -91,8 +74,8 @@ export function HomePage() {
     let alive = true;
     setLoading(true);
     Promise.all([
-      getProductCategories(),
-      getAllPages("product-item", activeLocale),
+      storefront.listCategories({ locale: activeLocale }),
+      storefront.listProducts({ locale: activeLocale, sort: "newest", limit: 100 }).then((r) => r.data),
       getFeaturedBanners(),
       getContactInfo(),
       getSystemPageSlug("all-products", activeLocale),
@@ -128,57 +111,50 @@ export function HomePage() {
   const loc = (m: Record<string, string> | undefined): string =>
     (m?.[activeLocale] || m?.[defaultLocale] || "").trim();
 
-  const catIndex = useMemo(() => indexCategories(categories), [categories]);
+  const catById = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories]);
+  const mains = useMemo(() => categories.filter((c) => !c.parentId), [categories]);
+  // A product's MAIN category: its primary's parent (the migration made the
+  // subcategory primary; main-only products keep the main itself as primary).
+  const mainCatOf = (p: CatalogProductCard): CategoryNode | null => {
+    const primary = p.primaryCategoryId ? catById.get(p.primaryCategoryId) : null;
+    if (!primary) return null;
+    return primary.parentId ? catById.get(primary.parentId) ?? null : primary;
+  };
 
   // Group cards: one per main category. Subcategory names list + count; the
   // representative image is the first product photo found in that main category.
   const groupCards = useMemo<GroupCard[]>(() => {
-    return categories.map((main) => {
-      const firstItem = items.find((it) => {
-        const d = productData(it);
-        return d.mainCategoryId === main.id && d.mainPhoto?.cdnUrl;
-      });
+    return mains.map((main) => {
+      const subs = categories.filter((c) => c.parentId === main.id);
+      const firstItem = items.find((it) => mainCatOf(it)?.id === main.id && it.image?.cdnUrl);
       return {
         id: main.id,
-        title: resolveCatLabel(main.label, activeLocale, defaultLocale),
+        title: main.label ?? "",
         // Open the full catalog with this main category's filter pre-applied.
-        url: `/${activeLocale}/${allProductsSlug}?kategorija=${encodeURIComponent(main.slug)}`,
-        catNames: (main.subcategories ?? [])
-          .map((s) => resolveCatLabel(s.label, activeLocale, defaultLocale))
-          .filter(Boolean)
-          .join(" · "),
-        catCount: (main.subcategories ?? []).length,
-        image: firstItem ? productData(firstItem).mainPhoto?.cdnUrl ?? null : null,
+        url: `/${activeLocale}/${allProductsSlug}?kategorija=${encodeURIComponent(main.slug ?? "")}`,
+        catNames: subs.map((s) => s.label ?? "").filter(Boolean).join(" · "),
+        catCount: subs.length,
+        image: firstItem?.image?.cdnUrl ?? null,
       };
     });
-  }, [categories, items, activeLocale, defaultLocale, allProductsSlug]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mains, categories, items, activeLocale, allProductsSlug]);
 
-  // Up to 4 product-items for the homepage: manually pinned
-  // (`featuredOnHome`) first, then the rest filled in by createdAt desc. URL
-  // is the flat `/{locale}/{all-products}/{slug}`; category label from the
-  // item's own data.
+  // Up to 4 newest products for the homepage rail. URL is the flat
+  // `/{locale}/{all-products}/{slug}`; category label = the primary category.
   const featured = useMemo<ProductCard[]>(() => {
-    const sorted = [...items].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-    const pinned = sorted.filter((it) => productData(it).featuredOnHome);
-    const rest = sorted.filter((it) => !productData(it).featuredOnHome);
-    return [...pinned, ...rest]
-      .slice(0, 4)
-      .map((it) => {
-        const d = productData(it);
-        const { main, sub } = resolveProductCategory(catIndex, d.mainCategoryId, d.subcategoryId);
-        const categoryTitle =
-          (sub ? resolveCatLabel(sub.label, activeLocale, defaultLocale) : "") ||
-          (main ? resolveCatLabel(main.label, activeLocale, defaultLocale) : "");
-        return {
-          id: it.id,
-          title: it.title,
-          categoryTitle,
-          image: d.mainPhoto?.cdnUrl ?? null,
-          url: `/${activeLocale}/${allProductsSlug}/${it.slug}`,
-          price: computeCardPrice(d),
-        };
-      });
-  }, [items, catIndex, activeLocale, defaultLocale, allProductsSlug]);
+    return items.slice(0, 4).map((p) => {
+      const primary = p.primaryCategoryId ? catById.get(p.primaryCategoryId) : null;
+      return {
+        id: p.id,
+        title: p.name,
+        categoryTitle: primary?.label ?? "",
+        image: p.image?.cdnUrl ?? null,
+        url: `/${activeLocale}/${allProductsSlug}/${p.slug}`,
+        price: p.price > 0 ? { amount: p.price / 100, from: p.variantCount > 1 && p.priceMax > p.price } : null,
+      };
+    });
+  }, [items, catById, activeLocale, allProductsSlug]);
 
   const trustImage = featured.find((p) => p.image)?.image ?? null;
   const phoneTel = contact?.phone ? contact.phone.replace(/[^+\d]/g, "") : "";
@@ -213,11 +189,11 @@ export function HomePage() {
           </div>
           <div className="a-hero__stats">
             <div>
-              <b>{categories.length}</b>
+              <b>{mains.length}</b>
               <span>{t("home.stat_groups_label")}</span>
             </div>
             <div>
-              <b>{categories.reduce((n, c) => n + (c.subcategories?.length ?? 0), 0)}</b>
+              <b>{categories.filter((c) => c.parentId).length}</b>
               <span>{t("home.stat_categories_label")}</span>
             </div>
             <div>

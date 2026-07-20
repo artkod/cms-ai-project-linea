@@ -1,31 +1,21 @@
 import { createContext, Fragment, useContext, useEffect, useMemo, useState, type CSSProperties } from "react";
-import { useParams, useSearchParams } from "react-router";
+import { Navigate, useParams, useSearchParams } from "react-router";
 import { Loader, Box } from "@mantine/core";
 import { Link } from "react-router";
-import { useMediaQuery } from "@mantine/hooks";
-import {
-  Check, Truck, Share2, Link2, Mail, ArrowLeft, ChevronDown, ShoppingCart,
-  X, ChevronLeft, ChevronRight, ZoomIn,
-} from "lucide-react";
-import { notifications } from "@mantine/notifications";
+import { ArrowLeft, X, ChevronDown, ChevronLeft, ChevronRight, ZoomIn } from "lucide-react";
+import type { CatalogProduct } from "@cms/storefront";
 import {
   getPageBySlug,
-  getAllPages,
   getSystemPageSlug,
-  getProductCategories,
   type Page,
   type Block,
   type LinkPagesMap,
-  type AncestorEntry,
-  type ProductMainCategory,
 } from "@/lib/api";
-import { indexCategories, resolveProductCategory, resolveLabel as resolveCatLabel } from "@/lib/productCategories";
 import { tiptapToHtml } from "@/lib/tiptapRenderer";
 import { usePageAlternates, useStrings, useLocaleConfig, usePageLayout } from "@/lib/locale";
 import { useDocumentSeo } from "@/lib/seo";
-import { parsePrice, eur } from "@/lib/pricing";
-import { useCart } from "@/lib/cart";
-import { AllProductsView, computeCardPrice } from "./AllProductsView";
+import { AllProductsView } from "./AllProductsView";
+import { CommerceProductView } from "./CommerceProductView";
 import "@/styles/pages/product.scss";
 import "@/styles/pages/mixed.scss";
 import "@/styles/pages/detail.scss";
@@ -341,767 +331,6 @@ function BlockRenderer({ block }: { block: Block }) {
   );
 }
 
-// ─── Product item view ────────────────────────────────────────────────────────
-
-interface ProductItemTab {
-  id: string;
-  title: string;
-  content: Record<string, unknown> | null;
-}
-
-interface KonstrukcijaRow {
-  id: string;
-  naziv: string;
-  cijena: string;
-}
-
-interface GrafikaRow {
-  id: string;
-  naziv: string;
-  /** keyed by konstrukcija row id */
-  cijene: Record<string, string>;
-}
-
-interface BazaRow {
-  id: string;
-  naziv: string;
-  cijena: string;
-}
-
-interface ProductItemBlockData {
-  altTitle?: string;
-  mainPhoto?: GalleryImage | null;
-  galleryImages?: GalleryImage[];
-  description?: string;
-  priceEur?: string;
-  mainCategoryId?: string | null;
-  subcategoryId?: string | null;
-  additionalInfo?: { tabs?: ProductItemTab[] };
-  konfiguratorCijene?: {
-    enabled?: boolean;
-    group1Label?: string;
-    group2Label?: string;
-    group3Label?: string;
-    konstrukcija?: KonstrukcijaRow[];
-    grafika?: GrafikaRow[];
-    baza?: BazaRow[];
-  };
-}
-
-interface ConfiguratorState {
-  total: number;
-  hasAnySelection: boolean;
-  controls: React.ReactNode;
-  /** Stable signature of the current selection (for cart line de-duping). */
-  selectionKey: string;
-  /** Human-readable selected-options summary (for the cart line + inquiry). */
-  selectionLabel: string;
-}
-
-interface GroupLabels {
-  group1: string;
-  group2: string;
-  group3: string;
-}
-
-interface SelectOption {
-  value: string;
-  label: string;
-}
-
-// One native `<select class="pi-select">` field (Clean & Corporate spec). The
-// locked variant greys the label + select and shows the helper hint underneath.
-function ConfigField({
-  label,
-  options,
-  value,
-  onChange,
-  placeholder,
-  disabled,
-  helper,
-}: {
-  label: string;
-  options: SelectOption[];
-  value: string | null;
-  onChange: (v: string | null) => void;
-  placeholder: string;
-  disabled?: boolean;
-  helper?: string;
-}) {
-  return (
-    <div className={`pi-field${disabled ? " is-locked" : ""}`}>
-      <label className="pi-field__lab">{label}</label>
-      <select
-        className="pi-select"
-        value={value ?? ""}
-        disabled={disabled}
-        onChange={(e) => onChange(e.currentTarget.value || null)}
-      >
-        <option value="">{placeholder}</option>
-        {options.map((o) => (
-          <option key={o.value} value={o.value}>
-            {o.label}
-          </option>
-        ))}
-      </select>
-      {disabled && helper && <p className="pi-field__help">{helper}</p>}
-    </div>
-  );
-}
-
-function useConfigurator(
-  konstrukcija: KonstrukcijaRow[],
-  grafika: GrafikaRow[],
-  baza: BazaRow[],
-  labels: GroupLabels,
-  t: (key: string) => string
-): ConfiguratorState {
-  const [kId, setKId] = useState<string | null>(null);
-  const [gId, setGId] = useState<string | null>(null);
-  const [bId, setBId] = useState<string | null>(null);
-
-  // Group 2 stays locked until something in group 1 is selected; clearing the
-  // group-1 choice also drops the group-2 choice (its price keys off group 1).
-  const handleK = (v: string | null) => {
-    setKId(v);
-    if (!v) setGId(null);
-  };
-  const group2Disabled = !kId;
-
-  const selectedK = konstrukcija.find((r) => r.id === kId) ?? null;
-  const selectedG = grafika.find((r) => r.id === gId) ?? null;
-  const selectedB = baza.find((r) => r.id === bId) ?? null;
-
-  const grafikaPrice = selectedG && selectedK ? parsePrice(selectedG.cijene[selectedK.id]) : 0;
-  const konstrukcijaPrice = selectedK ? parsePrice(selectedK.cijena) : 0;
-  const bazaPrice = selectedB ? parsePrice(selectedB.cijena) : 0;
-  const total = konstrukcijaPrice + grafikaPrice + bazaPrice;
-
-  const unnamed = t("product.option_unnamed");
-  const placeholder = t("product.option_placeholder");
-
-  const priced = (naziv: string, price: number) =>
-    price > 0 ? `${naziv || unnamed} — ${eur(price)}` : naziv || unnamed;
-
-  const kOptions = konstrukcija.map((r) => ({ value: r.id, label: priced(r.naziv, parsePrice(r.cijena)) }));
-  const gOptions = grafika.map((r) => ({
-    value: r.id,
-    label: priced(r.naziv, selectedK ? parsePrice(r.cijene[selectedK.id]) : 0),
-  }));
-  const bOptions = baza.map((r) => ({ value: r.id, label: priced(r.naziv, parsePrice(r.cijena)) }));
-
-  const g1Label = labels.group1 || t("product.option_konstrukcija");
-  const g2Label = labels.group2 || t("product.option_grafika");
-  const g3Label = labels.group3 || t("product.option_baza");
-
-  const controls = (
-    <>
-      {konstrukcija.length > 0 && (
-        <ConfigField
-          label={g1Label}
-          options={kOptions}
-          value={kId}
-          onChange={handleK}
-          placeholder={placeholder}
-        />
-      )}
-      {grafika.length > 0 && (
-        <ConfigField
-          label={g2Label}
-          options={gOptions}
-          value={gId}
-          onChange={setGId}
-          placeholder={placeholder}
-          disabled={group2Disabled}
-          helper={t("product.option_locked")}
-        />
-      )}
-      {baza.length > 0 && (
-        <ConfigField
-          label={g3Label}
-          options={bOptions}
-          value={bId}
-          onChange={setBId}
-          placeholder={placeholder}
-        />
-      )}
-    </>
-  );
-
-  const selectionParts: string[] = [];
-  if (selectedK) selectionParts.push(`${g1Label}: ${selectedK.naziv || unnamed}`);
-  if (selectedG) selectionParts.push(`${g2Label}: ${selectedG.naziv || unnamed}`);
-  if (selectedB) selectionParts.push(`${g3Label}: ${selectedB.naziv || unnamed}`);
-
-  return {
-    total,
-    hasAnySelection: Boolean(kId || gId || bId),
-    controls,
-    selectionKey: [kId, gId, bId].filter(Boolean).join("|"),
-    selectionLabel: selectionParts.join(" · "),
-  };
-}
-
-// ─── Related product card (siblings under the same category) ─────────────────
-
-interface RelatedCard {
-  id: string;
-  title: string;
-  categoryTitle: string;
-  image: string | null;
-  url: string;
-  price: { amount: number; from: boolean } | null;
-}
-
-function ProductItemView({ page }: { page: Page }) {
-  const { locale } = useRender();
-  const { defaultLocale } = useLocaleConfig();
-  const { t } = useStrings();
-  // Editor-overridable label with a Croatian fallback, for keys that may not be
-  // seeded yet (t() returns the key itself when unset — we don't want that on
-  // chrome copy). Existing keys resolve normally.
-  const tx = (key: string, fallback: string) => {
-    const v = t(key);
-    return v === key ? fallback : v;
-  };
-
-  const block = page.blocks?.find((bl) => bl.type === "product-item");
-  const d = (block?.data ?? {}) as ProductItemBlockData;
-
-  const altTitle = d.altTitle?.trim() || "";
-  const mainPhoto = d.mainPhoto ?? null;
-  const galleryImages = d.galleryImages ?? [];
-  const description = d.description?.trim() || "";
-
-  const fixedPrice = parsePrice(d.priceEur);
-  const konf = d.konfiguratorCijene;
-  const k = konf?.konstrukcija ?? [];
-  const g = konf?.grafika ?? [];
-  const b = konf?.baza ?? [];
-
-  // Master toggle. Legacy rows (no `enabled` flag) fall back to "on iff they
-  // carry configurator data" so fixed-price-only products keep their price.
-  const konfEnabled = typeof konf?.enabled === "boolean"
-    ? konf.enabled
-    : k.length + g.length + b.length > 0;
-
-  const hasKonfiguratorPrices = useMemo(() => {
-    if (k.some((r) => parsePrice(r.cijena) > 0)) return true;
-    if (g.some((r) => Object.values(r.cijene ?? {}).some((c) => parsePrice(c) > 0))) return true;
-    if (b.some((r) => parsePrice(r.cijena) > 0)) return true;
-    return false;
-  }, [k, g, b]);
-
-  // Gallery = main photo + extra gallery images, de-duplicated by mediaId.
-  const allImages = useMemo(() => {
-    const out: GalleryImage[] = [];
-    const seen = new Set<string>();
-    if (mainPhoto?.cdnUrl) { out.push(mainPhoto); seen.add(mainPhoto.mediaId); }
-    for (const img of galleryImages) {
-      if (img?.cdnUrl && !seen.has(img.mediaId)) { out.push(img); seen.add(img.mediaId); }
-    }
-    return out;
-  }, [mainPhoto, galleryImages]);
-
-  const [activeImageIndex, setActiveImageIndex] = useState(0);
-  const activeImage = allImages[activeImageIndex] ?? null;
-
-  const tabs = (d.additionalInfo?.tabs ?? []).filter((tb) => tb && tb.id);
-  const [activeTabId, setActiveTabId] = useState<string | null>(tabs[0]?.id ?? null);
-  // Desktop = horizontal tabs; ≤760px = single-open accordion (spec §3).
-  // `getInitialValueInEffect:false` makes the first render reflect the real
-  // viewport, avoiding a tabs→accordion flicker on hydration.
-  const isMobileInfo = useMediaQuery("(max-width: 760px)", false, { getInitialValueInEffect: false });
-  // Mobile accordion: single-open (opening one closes any other). All items
-  // start collapsed on first render; `null` means none open.
-  const [openInfoItem, setOpenInfoItem] = useState<string | null>(null);
-
-  const configurator = useConfigurator(
-    k,
-    g,
-    b,
-    {
-      group1: konf?.group1Label?.trim() ?? "",
-      group2: konf?.group2Label?.trim() ?? "",
-      group3: konf?.group3Label?.trim() ?? "",
-    },
-    t,
-  );
-
-  // Pricing mode:
-  //  • configurator — toggle on AND at least one priced option exists
-  //  • fixed        — toggle off AND a standalone price is set
-  //  • inquiry      — everything else (incl. toggle off + empty price)
-  let priceMode: "fixed" | "configurator" | "inquiry" = "inquiry";
-  if (konfEnabled && hasKonfiguratorPrices) {
-    priceMode = "configurator";
-  } else if (!konfEnabled && fixedPrice > 0) {
-    priceMode = "fixed";
-  }
-
-  // In configurator mode the customer must pick something before a price shows;
-  // with nothing selected we treat the product exactly like an inquiry.
-  const effectiveInquiry =
-    priceMode === "inquiry" ||
-    (priceMode === "configurator" && !configurator.hasAnySelection);
-
-  const displayPrice =
-    priceMode === "fixed"
-      ? fixedPrice
-      : priceMode === "configurator"
-        ? configurator.total
-        : 0;
-
-  // ── Breadcrumb ancestors (root → parent). After flattening the product
-  // taxonomy this chain is just [all-products] — the catalogue landing is the
-  // product's only ancestor and the breadcrumb renders it generically below.
-  const ancestors = page.ancestors ?? [];
-  const ancTitle = (a: AncestorEntry) =>
-    a.locales[locale]?.title || a.locales[defaultLocale]?.title || a.type;
-  const ancSlug = (a: AncestorEntry) =>
-    a.locales[locale]?.slug || a.locales[defaultLocale]?.slug || "";
-
-  // ── Category — now data on the product block, resolved against the
-  // `product_categories` taxonomy (no more product/product-category pages). The
-  // subcategory label (fallback main) is the buy-card eyebrow.
-  const [categories, setCategories] = useState<ProductMainCategory[]>([]);
-  const catIndex = useMemo(() => indexCategories(categories), [categories]);
-  const { main: mainCat, sub: subCat } = resolveProductCategory(catIndex, d.mainCategoryId, d.subcategoryId);
-  const categoryTitle =
-    (subCat ? resolveCatLabel(subCat.label, locale, defaultLocale) : "") ||
-    (mainCat ? resolveCatLabel(mainCat.label, locale, defaultLocale) : "");
-
-  // all-products landing slug — the product's only ancestor, with a fetched /
-  // conventional fallback so links never dead-end.
-  const allProductsAnc = ancestors[0] ?? null;
-  const [allProductsSlugFetched, setAllProductsSlugFetched] = useState("svi-proizvodi");
-  const allProductsSlug = (allProductsAnc ? ancSlug(allProductsAnc) : "") || allProductsSlugFetched;
-
-  // ── Related rail — other products in the same subcategory (fallback: same
-  // main category). Hidden when there are none. URLs are `/{locale}/{all-products}/{slug}`.
-  const [related, setRelated] = useState<RelatedCard[]>([]);
-  useEffect(() => {
-    let alive = true;
-    Promise.all([
-      getAllPages("product-item", locale),
-      getProductCategories(),
-      getSystemPageSlug("all-products", locale),
-    ])
-      .then(([items, cats, allSlug]) => {
-        if (!alive) return;
-        setCategories(cats);
-        setAllProductsSlugFetched(allSlug);
-        const slug = (allProductsAnc ? ancSlug(allProductsAnc) : "") || allSlug;
-        const idx = indexCategories(cats);
-        const resolved = resolveProductCategory(idx, d.mainCategoryId, d.subcategoryId);
-        const catTitle =
-          (resolved.sub ? resolveCatLabel(resolved.sub.label, locale, defaultLocale) : "") ||
-          (resolved.main ? resolveCatLabel(resolved.main.label, locale, defaultLocale) : "");
-        if (!d.subcategoryId && !d.mainCategoryId) {
-          setRelated([]);
-          return;
-        }
-        setRelated(
-          items
-            .filter((it) => {
-              if (it.id === page.id) return false;
-              const bd = (it.blocks?.find((bl) => bl.type === "product-item")?.data ?? {}) as ProductItemBlockData;
-              return d.subcategoryId
-                ? bd.subcategoryId === d.subcategoryId
-                : bd.mainCategoryId === d.mainCategoryId;
-            })
-            .map((it) => {
-              const bd = (it.blocks?.find((bl) => bl.type === "product-item")?.data ?? {}) as ProductItemBlockData;
-              return {
-                id: it.id,
-                title: it.title,
-                categoryTitle: catTitle,
-                image: bd.mainPhoto?.cdnUrl ?? null,
-                url: `/${locale}/${slug}/${it.slug}`,
-                price: computeCardPrice(bd),
-              };
-            }),
-        );
-      })
-      .catch(() => {
-        if (alive) setRelated([]);
-      });
-    return () => {
-      alive = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page.id, locale, defaultLocale, d.subcategoryId, d.mainCategoryId]);
-
-  const allProductsUrl = `/${locale}/${allProductsSlug}`;
-
-  // ── Share row (optional chrome): native share / copy-link (+"Kopirano" tip)
-  // / mailto.
-  const [copied, setCopied] = useState(false);
-  const pageUrl = () => (typeof window !== "undefined" ? window.location.href : "");
-  const onShareNative = () => {
-    const nav = navigator as Navigator & { share?: (data: ShareData) => Promise<void> };
-    if (typeof navigator !== "undefined" && nav.share) {
-      void nav.share({ title: page.title, url: pageUrl() }).catch(() => {});
-    }
-  };
-  const onCopyLink = () => {
-    if (typeof navigator !== "undefined" && navigator.clipboard) {
-      void navigator.clipboard.writeText(pageUrl()).then(() => {
-        setCopied(true);
-        window.setTimeout(() => setCopied(false), 1600);
-      }).catch(() => {});
-    }
-  };
-  const onEmailShare = () => {
-    window.location.href = `mailto:?subject=${encodeURIComponent(page.title)}&body=${encodeURIComponent(pageUrl())}`;
-  };
-
-  // ── Cart CTA ── Every product gets "Dodaj u košaricu" now, regardless of
-  // price. No-price products (`priceMode === "inquiry"`) go in as an
-  // on-request line (`unitPrice: null`). The one gate is a configurator with
-  // nothing selected yet — the button is disabled until the customer picks an
-  // option, so we never add an unconfigured build.
-  const { addItem, items } = useCart();
-  const [justAdded, setJustAdded] = useState(false);
-  const addAsInquiry = priceMode === "inquiry";
-  const needsSelection = priceMode === "configurator" && !configurator.hasAnySelection;
-
-  // Cart-line key for the current build: a configurator build keys on id +
-  // selection so distinct builds are distinct lines; everything else keys on id.
-  const cartKey = configurator.selectionKey
-    ? `${page.id}#${configurator.selectionKey}`
-    : page.id;
-  // Once this exact line is in the cart we lock the CTA — re-adding would only
-  // bump the qty, which the cart page handles. The customer removes the line to
-  // re-enable adding.
-  const alreadyInCart = items.some((it) => it.key === cartKey);
-
-  const productUrl =
-    allProductsSlug
-      ? `/${locale}/${allProductsSlug}/${page.slug}`
-      : typeof window !== "undefined"
-        ? window.location.pathname
-        : `/${locale}/`;
-
-  const addLabel = tx("product.add_to_cart", "Dodaj u košaricu");
-  const addedLabel = tx("product.added_to_cart", "Dodano u košaricu");
-  const inCartLabel = tx("product.in_cart", "U košarici");
-
-  const handleAddToCart = () => {
-    if (needsSelection || alreadyInCart) return;
-    addItem({
-      key: cartKey,
-      productId: page.id,
-      title: page.title,
-      image: mainPhoto?.cdnUrl ?? activeImage?.cdnUrl ?? null,
-      url: productUrl,
-      unitPrice: addAsInquiry ? null : displayPrice,
-      configLabel: configurator.selectionLabel || undefined,
-    });
-    setJustAdded(true);
-    window.setTimeout(() => setJustAdded(false), 1600);
-    // Accent comes from the brand-green default in notifications.scss — no
-    // off-brand `color: "teal"` override.
-    notifications.show({ title: addedLabel, message: page.title });
-  };
-
-  const activeTab = tabs.find((tb) => tb.id === activeTabId) ?? tabs[0] ?? null;
-
-  return (
-    <div className="pi-page">
-      {/* ── BREADCRUMB ── Home → ancestors (root → parent) → current page.
-          Each ancestor links to its cumulative slug chain, but only when every
-          segment up to it has an active translation in this locale (else the
-          nested URL would 404 — render it as plain text instead). */}
-      <nav className="pi-crumb" aria-label="Staza">
-        <div className="ln-container pi-crumb__in">
-          <Link to={`/${locale}/`}>{t("product.breadcrumb_home")}</Link>
-          {ancestors.map((a, idx) => {
-            const chain = ancestors.slice(0, idx + 1).map((x) => x.locales[locale]);
-            const fullyActive = chain.every((c) => !!(c?.active && c.slug));
-            const href = `/${locale}/${chain.map((c) => c!.slug).join("/")}`;
-            return (
-              <Fragment key={a.id}>
-                <span className="sep">/</span>
-                {fullyActive ? <Link to={href}>{ancTitle(a)}</Link> : <span>{ancTitle(a)}</span>}
-              </Fragment>
-            );
-          })}
-          <span className="sep">/</span>
-          <span className="cur">{page.title}</span>
-        </div>
-      </nav>
-
-      {/* ── HERO ── gallery + description (left) · buy/configure card (right) */}
-      <section className="pi-hero">
-        <div className="ln-container">
-          <div className="pi-grid">
-
-            {/* LEFT */}
-            <div className="pi-main">
-              <div className="pi-gallery">
-                <div className="pi-gallery__main">
-                  {activeImage && (
-                    <img className="ln-img" src={activeImage.cdnUrl + "?width=800"} alt={page.title} />
-                  )}
-                </div>
-                {allImages.length > 1 && (
-                  <div className="pi-thumbs">
-                    {allImages.slice(0, 10).map((img, i) => (
-                      <button
-                        type="button"
-                        key={img.mediaId}
-                        className={`pi-thumb${i === activeImageIndex ? " is-active" : ""}`}
-                        onClick={() => setActiveImageIndex(i)}
-                        aria-label={`${t("product.aria_view_image")} ${i + 1}`}
-                        aria-current={i === activeImageIndex}
-                      >
-                        <img className="ln-img" src={img.cdnUrl + "?width=200"} alt="" loading="lazy" />
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {description && (
-                <section className="pi-about">
-                  <h2>{t("product.about_heading")}</h2>
-                  <p>{description}</p>
-                </section>
-              )}
-            </div>
-
-            {/* RIGHT — sticky buy / configure */}
-            <aside className="pi-buy">
-              {categoryTitle && <span className="pi-eyebrow pi-buy__cat">{categoryTitle}</span>}
-              <h1>{page.title}</h1>
-              {altTitle && <p className="pi-buy__sub">{altTitle}</p>}
-
-              <div className="pi-badges">
-                <span className="pi-badge">
-                  <Check aria-hidden="true" />
-                  {t("product.trust_available")}
-                </span>
-                <span className="pi-badge">
-                  <Truck aria-hidden="true" />
-                  {t("product.trust_fast_delivery")}
-                </span>
-              </div>
-
-              <div className="pi-price">
-                {!effectiveInquiry && (
-                  <p className="pi-price__lbl">
-                    {priceMode === "fixed"
-                      ? tx("product.price_fixed_label", "Cijena")
-                      : t("product.price_estimated_label")}
-                  </p>
-                )}
-                <div className="pi-price__row">
-                  {effectiveInquiry ? (
-                    <span className="pi-price__big is-inquiry">{t("product.price_inquiry_label")}</span>
-                  ) : (
-                    <>
-                      <span className="pi-price__big">{eur(displayPrice)}</span>
-                      <span className="pi-price__vat">{t("product.price_vat_suffix")}</span>
-                    </>
-                  )}
-                </div>
-
-                {priceMode === "configurator" && (
-                  <div className="pi-config">
-                    <h3 className="pi-config__h">{t("product.configurator_heading")}</h3>
-                    {configurator.controls}
-                  </div>
-                )}
-
-                {/* CTA — every product adds to cart; a configurator with no
-                    selection yet is disabled until the customer picks an option. */}
-                <button
-                  type="button"
-                  className="ln-btn ln-btn--primary ln-btn--lg pi-cta"
-                  onClick={handleAddToCart}
-                  disabled={needsSelection || alreadyInCart}
-                >
-                  {justAdded || alreadyInCart ? (
-                    <>
-                      <Check size={18} aria-hidden="true" />
-                      {alreadyInCart && !justAdded ? inCartLabel : addedLabel}
-                    </>
-                  ) : (
-                    <>
-                      <ShoppingCart size={18} aria-hidden="true" />
-                      {addLabel}
-                    </>
-                  )}
-                </button>
-                {needsSelection && (
-                  <p className="pi-cta-hint">
-                    {tx("product.select_option_hint", "Odaberite opciju za nastavak.")}
-                  </p>
-                )}
-
-                <div className="pi-share">
-                  <span className="pi-share__lbl">{t("product.share_label")}</span>
-                  <button
-                    type="button"
-                    className="pi-share__btn"
-                    aria-label={t("product.share_native")}
-                    onClick={onShareNative}
-                  >
-                    <Share2 aria-hidden="true" />
-                  </button>
-                  <button
-                    type="button"
-                    className="pi-share__btn"
-                    aria-label={t("product.share_copy_link")}
-                    onClick={onCopyLink}
-                  >
-                    <Link2 aria-hidden="true" />
-                    <span className={`pi-share__tip${copied ? " show" : ""}`}>
-                      {tx("product.share_copied", "Kopirano")}
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    className="pi-share__btn"
-                    aria-label={t("product.share_email")}
-                    onClick={onEmailShare}
-                  >
-                    <Mail aria-hidden="true" />
-                  </button>
-                </div>
-              </div>
-            </aside>
-
-          </div>
-        </div>
-      </section>
-
-      {/* ── INFO TABS ── desktop tabs / ≤760px accordion (single-open). Hidden
-          when there are zero tabs; empty tab body → "Nema sadržaja." */}
-      {tabs.length > 0 && (
-        <section className="pi-tabs-sec">
-          <div className="ln-container">
-            <h2>{tx("product.details_heading", "Detalji proizvoda")}</h2>
-            {isMobileInfo ? (
-              <div className="pi-tabs">
-                {tabs.map((tab) => {
-                  const isOpen = openInfoItem === tab.id;
-                  return (
-                    <div className={`pi-acc${isOpen ? " is-open" : ""}`} key={tab.id}>
-                      <button
-                        type="button"
-                        className="pi-acc__h"
-                        aria-expanded={isOpen}
-                        onClick={() => setOpenInfoItem(isOpen ? null : tab.id)}
-                      >
-                        {tab.title || t("product.option_unnamed")}
-                        <ChevronDown aria-hidden="true" />
-                      </button>
-                      <div className="pi-acc__p">
-                        {tab.content ? (
-                          <div
-                            className="pi-rich"
-                            dangerouslySetInnerHTML={{ __html: tiptapToHtml(tab.content) }}
-                          />
-                        ) : (
-                          <p className="pi-empty">{t("product.tab_empty")}</p>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="pi-tabs">
-                <div className="pi-tabs__head" role="tablist">
-                  {tabs.map((tab) => (
-                    <button
-                      key={tab.id}
-                      type="button"
-                      role="tab"
-                      aria-selected={tab.id === activeTabId}
-                      className={`pi-tab${tab.id === activeTabId ? " is-active" : ""}`}
-                      onClick={() => setActiveTabId(tab.id)}
-                    >
-                      {tab.title || t("product.option_unnamed")}
-                    </button>
-                  ))}
-                </div>
-                <div className="pi-tabs__body">
-                  {activeTab && activeTab.content ? (
-                    <div
-                      className="pi-rich"
-                      dangerouslySetInnerHTML={{ __html: tiptapToHtml(activeTab.content) }}
-                    />
-                  ) : (
-                    <p className="pi-empty">{t("product.tab_empty")}</p>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-        </section>
-      )}
-
-      {/* ── RELATED ── same-category siblings (auto-derived). Hidden when none. */}
-      {related.length > 0 && (
-        <section className="pi-rel">
-          <div className="ln-container">
-            <div className="pi-rel__head">
-              <div>
-                <span className="pi-eyebrow">{tx("product.related_eyebrow", "Iz iste kategorije")}</span>
-                <h2>{tx("product.related_heading", "Srodni proizvodi")}</h2>
-              </div>
-              <Link to={allProductsUrl} className="ln-btn ln-btn--ghost">
-                {tx("product.related_all_products", "Svi proizvodi")}
-              </Link>
-            </div>
-            <div className="a-products">
-              {related.map((p) => (
-                <Link key={p.id} to={p.url} className="a-prod">
-                  <div className="a-thumb">
-                    {p.image && <img className="ln-img" src={p.image + "?width=300"} alt={p.title} loading="lazy" />}
-                  </div>
-                  <div className="a-prod__b">
-                    {p.categoryTitle && <div className="a-prod__cat">{p.categoryTitle}</div>}
-                    <h3>{p.title}</h3>
-                    {p.price ? (
-                      <div className="a-prod__price">
-                        {p.price.from ? `${t("allproducts.price_from")} ` : ""}
-                        {eur(p.price.amount)} <small>{t("product.price_vat_suffix")}</small>
-                      </div>
-                    ) : (
-                      <div className="a-prod__price a-prod__price--upit">{t("allproducts.price_inquiry")}</div>
-                    )}
-                  </div>
-                </Link>
-              ))}
-            </div>
-          </div>
-        </section>
-      )}
-
-      {/* ── MOBILE STICKY BAR ── (CSS shows it ≤760px) */}
-      <div className="pi-bar">
-        <div className="pi-bar__price">
-          <span className="pi-bar__lbl">
-            {effectiveInquiry ? t("product.mobile_price_label") : t("product.mobile_total_label")}
-          </span>
-          <span className={`pi-bar__val${effectiveInquiry ? " is-inquiry" : ""}`}>
-            {effectiveInquiry ? t("product.mobile_on_inquiry") : eur(displayPrice)}
-          </span>
-        </div>
-        <button type="button" className="ln-btn ln-btn--primary" onClick={handleAddToCart} disabled={needsSelection || alreadyInCart}>
-          {alreadyInCart ? inCartLabel : justAdded ? addedLabel : addLabel}
-        </button>
-      </div>
-      {/* Spacer so the footer clears the fixed mobile bar (≤760px). */}
-      <div className="pi-bar-spacer" />
-    </div>
-  );
-}
-
 // ─── Default view ─────────────────────────────────────────────────────────────
 
 function DefaultView({ page }: { page: Page }) {
@@ -1260,6 +489,23 @@ function EuProjectItemView({ page, locale }: { page: Page; locale: string }) {
   );
 }
 
+// A commerce category URL (e.g. /hr/tisak-velikih-formata/tekstil) redirects to
+// the catalogue listing pre-filtered to that category — the flat URL scheme
+// keeps one listing page. The listing's slug is editor-defined, so resolve it
+// before navigating.
+function CategoryRedirect({ locale, categorySlug }: { locale: string; categorySlug: string }) {
+  const [slug, setSlug] = useState<string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    getSystemPageSlug("all-products", locale)
+      .then((s) => { if (alive) setSlug(s); })
+      .catch(() => { if (alive) setSlug("svi-proizvodi"); });
+    return () => { alive = false; };
+  }, [locale]);
+  if (!slug) return <Loader />;
+  return <Navigate to={`/${locale}/${slug}?kategorija=${encodeURIComponent(categorySlug)}`} replace />;
+}
+
 // ─── Main export ──────────────────────────────────────────────────────────────
 
 export function PageView() {
@@ -1270,6 +516,12 @@ export function PageView() {
   const [searchParams] = useSearchParams();
   const previewToken = searchParams.get("previewToken") ?? undefined;
   const [page, setPage] = useState<Page | null>(null);
+  // Commerce fallthrough (by-slug resolves page tree → category → product):
+  // a `kind:"product"` payload renders the commerce product page; a
+  // `kind:"category"` payload redirects to the catalogue listing pre-filtered
+  // to that category (the flat URL scheme keeps /svi-proizvodi the only listing).
+  const [product, setProduct] = useState<CatalogProduct | null>(null);
+  const [categorySlug, setCategorySlug] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   // Any path that doesn't resolve to a published page renders the 404 view
   // (rather than redirecting home), so a bad/stale URL stays on the URL the
@@ -1300,19 +552,32 @@ export function PageView() {
   // drop RootLayout's centered container. Reset on unmount / type change.
   useEffect(() => {
     const FULL_BLEED = new Set([
-      "product-item", "cart", "all-products", "catalogues", "about-us", "news", "article",
+      "cart", "all-products", "catalogues", "about-us", "news", "article",
       "eu-projects", "eu-project-item", "search", "default",
     ]);
-    setFullBleed(FULL_BLEED.has(page?.type ?? ""));
+    setFullBleed(!!product || FULL_BLEED.has(page?.type ?? ""));
     return () => setFullBleed(false);
-  }, [page?.type, setFullBleed]);
+  }, [page?.type, product, setFullBleed]);
 
   useEffect(() => {
     if (!path || !locale) return;
     setLoading(true);
     setNotFound(false);
+    setProduct(null);
+    setCategorySlug(null);
     getPageBySlug(locale, path, previewToken)
       .then((data) => {
+        const kind = (data as { kind?: string } | null)?.kind;
+        if (kind === "product") {
+          setPage(null);
+          setProduct(data as unknown as CatalogProduct);
+          return;
+        }
+        if (kind === "category") {
+          setPage(null);
+          setCategorySlug(path.split("/").filter(Boolean).pop() ?? null);
+          return;
+        }
         if (!data || (!previewToken && data.status !== "published")) {
           setPage(null);
           setNotFound(true);
@@ -1331,6 +596,8 @@ export function PageView() {
 
   if (loading) return <Loader />;
   if (notFound) return <NotFound />;
+  if (product) return <CommerceProductView product={product} />;
+  if (categorySlug) return <CategoryRedirect locale={locale ?? "hr"} categorySlug={categorySlug} />;
   if (!page) return null;
 
   const activeLocale = locale ?? page.locale ?? "hr";
@@ -1357,9 +624,7 @@ export function PageView() {
   return (
     <RenderContext.Provider value={{ locale: activeLocale, linkPages }}>
       {previewBanner}
-      {page.type === "product-item" ? (
-        <ProductItemView page={page} />
-      ) : page.type === "all-products" ? (
+      {page.type === "all-products" ? (
         <AllProductsView page={page} />
       ) : page.type === "about-us" ? (
         <AboutUsView page={page} locale={activeLocale} />
