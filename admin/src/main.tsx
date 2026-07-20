@@ -201,6 +201,18 @@ createAdmin({
   // Commerce module ON (must match the API's COMMERCE_ENABLED — start.sh sets it).
   // Products/categories live in the commerce catalog (shop nav).
   commerce: true,
+  // TEMPORARY: hide most commerce nav for Linea — only Sales › Quotes and
+  // Catalog › Products/Categories stay visible. UI-only hide (screens/routes
+  // untouched); remove this array to restore the full commerce nav.
+  hiddenCommerceNav: [
+    "commerce:reports",
+    "commerce:settings",
+    "commerce:orders",
+    "commerce:customers",
+    "commerce:reviews",
+    "commerce:price-lists",
+    "commerce:discounts",
+  ],
   pageTypes: [aboutUsPageType, cataloguesPageType, allProductsPageType, newsPageType, articlePageType, euProjectsPageType, euProjectItemPageType, searchPageType, cartPageType, notFoundPageType],
   blockTypes: [aboutUsBlock, cataloguesBlock],
   settingsSections: [featuredBannersSection, contactSection, articleSection],
