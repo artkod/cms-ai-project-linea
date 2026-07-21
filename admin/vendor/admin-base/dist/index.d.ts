@@ -44,6 +44,15 @@ export declare interface AdminConfig {
      * `commerce:price-lists`, `commerce:discounts`. Empty/omitted = show all.
      */
     hiddenCommerceNav?: string[];
+    /**
+     * ProductEditor field keys to HIDE from this project's product editor (and
+     * force to their canonical value on save, so the attribute can never drift).
+     * Per-project product-model lockdown — UI-only otherwise. Keys: `type`
+     * (physical/digital/service → forced physical), `sale` (buy/inquiry → forced
+     * inquiry-only), `taxClass` (→ forced shop default), `kpdCode` (→ forced
+     * empty). Empty/omitted = show all fields.
+     */
+    hiddenProductFields?: string[];
 }
 
 export declare function AppDrawer({ title, description, children, footer, onConfirm, confirmLabel, confirmDisabled, destructive, loading, cancelLabel, dirty, onClose, size, ...rest }: AppDrawerProps): JSX.Element;

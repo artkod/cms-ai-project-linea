@@ -213,6 +213,10 @@ createAdmin({
     "commerce:price-lists",
     "commerce:discounts",
   ],
+  // Linea product-model lockdown: every product is physical + inquiry-only +
+  // shop-default tax, and must stay that way — hide the type/sale/tax-class/KPD
+  // editors (and force those values on save).
+  hiddenProductFields: ["type", "sale", "taxClass", "kpdCode"],
   pageTypes: [aboutUsPageType, cataloguesPageType, allProductsPageType, newsPageType, articlePageType, euProjectsPageType, euProjectItemPageType, searchPageType, cartPageType, notFoundPageType],
   blockTypes: [aboutUsBlock, cataloguesBlock],
   settingsSections: [featuredBannersSection, contactSection, articleSection],
