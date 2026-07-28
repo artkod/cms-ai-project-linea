@@ -213,6 +213,11 @@ createAdmin({
     "commerce:price-lists",
     "commerce:discounts",
   ],
+  // TEMPORARY: Linea's catalog is inquiry-only — the Sale switcher is hidden in
+  // the product editor and every save is forced to `purchasable: false`, so a
+  // product can never become directly buyable by accident. Remove this array to
+  // restore the control (core mechanism: DECISIONS #154 hiddenProductFields).
+  hiddenProductFields: ["sale"],
   pageTypes: [aboutUsPageType, cataloguesPageType, allProductsPageType, newsPageType, articlePageType, euProjectsPageType, euProjectItemPageType, searchPageType, cartPageType, notFoundPageType],
   blockTypes: [aboutUsBlock, cataloguesBlock],
   settingsSections: [featuredBannersSection, contactSection, articleSection],

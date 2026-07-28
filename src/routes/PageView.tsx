@@ -594,15 +594,8 @@ export function PageView() {
     return () => setAlternates(null);
   }, [setAlternates]);
 
-  if (loading) return <Loader />;
-  if (notFound) return <NotFound />;
-  if (product) return <CommerceProductView product={product} />;
-  if (categorySlug) return <CategoryRedirect locale={locale ?? "hr"} categorySlug={categorySlug} />;
-  if (!page) return null;
-
-  const activeLocale = locale ?? page.locale ?? "hr";
-  const linkPages = page.linkPages ?? {};
-
+  // Hoisted above the commerce early-returns: a PRODUCT preview must show the
+  // banner too, and it used to be computed after `if (product) return …`.
   const previewBanner = previewToken ? (
     <Box
       p="xs"
@@ -620,6 +613,20 @@ export function PageView() {
       Preview mode — this page is not published
     </Box>
   ) : null;
+
+  if (loading) return <Loader />;
+  if (notFound) return <NotFound />;
+  if (product) return (
+    <>
+      {previewBanner}
+      <CommerceProductView product={product} />
+    </>
+  );
+  if (categorySlug) return <CategoryRedirect locale={locale ?? "hr"} categorySlug={categorySlug} />;
+  if (!page) return null;
+
+  const activeLocale = locale ?? page.locale ?? "hr";
+  const linkPages = page.linkPages ?? {};
 
   return (
     <RenderContext.Provider value={{ locale: activeLocale, linkPages }}>

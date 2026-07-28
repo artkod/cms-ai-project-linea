@@ -204,6 +204,10 @@ export declare interface CatalogProduct {
     metaTitle: string | null;
     metaDescription: string | null;
     ogImage: CatalogImage | null;
+    /** Explicit canonical URL, or null to derive it from the path (L11 parity). */
+    canonicalUrl: string | null;
+    /** Per-locale noindex — the storefront head must honour it (L11 parity). */
+    noindex: boolean;
     blocks: CatalogBlock[];
     gallery: CatalogImage[];
     options: CatalogOption[];
@@ -497,8 +501,9 @@ export declare interface Order {
     status: OrderStatus;
     isQuote: boolean;
     /**
-     * Quote sub-state (L7.3/L7.5) — `draft | sent | accepted | declined | expired`,
-     * null on a normal order. A `sent` quote is the one a customer can accept/decline.
+     * Quote sub-state (L7.3/L7.5) — `draft | sent | accepted | declined | expired | cancelled`,
+     * null on a normal order. A `sent` quote is the one a customer can accept/decline;
+     * `cancelled` = the admin cancelled the quote order.
      */
     quoteStatus: string | null;
     /** ISO offer-validity deadline for a quote (L7.3) — null on a normal order. */
