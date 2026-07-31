@@ -250,8 +250,13 @@ export function CommerceProductView({ product }: { product: CatalogProduct }) {
       metaTitle: product.metaTitle ?? null,
       metaDescription: product.metaDescription ?? product.shortDescription ?? null,
       ogImageUrl: allImages[0]?.cdnUrl ?? null,
-      canonicalUrl: typeof window !== "undefined" ? `${window.location.origin}/${locale}/${canonicalPath}` : null,
-      noindex: false,
+      // Honour the product's own SEO fields (L11 page-editor parity): an
+      // explicit canonical overrides the derived URL, and noindex was hardcoded
+      // false so the admin toggle had no effect.
+      canonicalUrl:
+        product.canonicalUrl?.trim()
+        || (typeof window !== "undefined" ? `${window.location.origin}/${locale}/${canonicalPath}` : null),
+      noindex: !!product.noindex,
     },
     settings,
   );

@@ -215,7 +215,9 @@ createAdmin({
   ],
   // Linea product-model lockdown: every product is physical + inquiry-only +
   // shop-default tax, and must stay that way — hide the type/sale/tax-class/KPD
-  // editors (and force those values on save).
+  // editors AND force those values on save, so none can drift by accident.
+  // Core mechanism: DECISIONS #154 hiddenProductFields. Drop a key to restore
+  // its control.
   hiddenProductFields: ["type", "sale", "taxClass", "kpdCode"],
   pageTypes: [aboutUsPageType, cataloguesPageType, allProductsPageType, newsPageType, articlePageType, euProjectsPageType, euProjectItemPageType, searchPageType, cartPageType, notFoundPageType],
   blockTypes: [aboutUsBlock, cataloguesBlock],

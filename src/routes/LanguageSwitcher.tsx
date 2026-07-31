@@ -32,8 +32,13 @@ export function LanguageSwitcher() {
   const change = (to: string) => {
     if (to === current) return;
     const target = alternates?.[to];
-    if (target?.active && target.slug) {
-      navigate(`/${to}/${target.slug}`);
+    // Use the full ancestor chain when the API provides it. Navigating to the
+    // bare slug 404s for every nested page (e.g. /en/gift-programme instead of
+    // /en/news/gift-programme); `path` falls back to `slug` for older APIs and
+    // root-level pages, where they are the same thing.
+    const segs = target?.path?.length ? target.path : target?.slug ? [target.slug] : [];
+    if (target?.active && segs.length) {
+      navigate(`/${to}/${segs.join("/")}`);
     } else {
       navigate(`/${to}/`);
     }

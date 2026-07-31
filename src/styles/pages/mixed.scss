@@ -437,6 +437,23 @@
     width: 15px;
     height: 15px;
   }
+
+  // Link whose target page no longer resolves in this locale. Rendered as a
+  // <span>, so it reads as plain text instead of pretending to be a working link
+  // (it used to silently point at the locale homepage).
+  &.is-dead {
+    color: inherit;
+    font-weight: inherit;
+    text-decoration: none;
+    cursor: default;
+  }
+}
+
+// Same for a dead link authored as a button.
+.mxbtn.is-dead {
+  opacity: 0.55;
+  cursor: default;
+  pointer-events: none;
 }
 
 // ====== ACCORDION ======

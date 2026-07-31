@@ -241,6 +241,10 @@
     { "locale": "hr", "key": "footer.maps_link",                 "value": "Otvori u Google kartama" },
     { "locale": "en", "key": "footer.maps_link",                 "value": "Open in Google Maps" },
 
+    { "locale": "hr", "key": "notfound.seo_title",               "value": "Stranica nije pronađena" },
+    { "locale": "en", "key": "notfound.seo_title",               "value": "Page not found" },
+    { "locale": "hr", "key": "preview.banner",                   "value": "Pregled — ova stranica nije objavljena" },
+    { "locale": "en", "key": "preview.banner",                   "value": "Preview mode — this page is not published" },
     { "locale": "hr", "key": "notfound.title",                   "value": "Stranica nije pronađena" },
     { "locale": "en", "key": "notfound.title",                   "value": "Page not found" },
     { "locale": "hr", "key": "notfound.text",                    "value": "Stranica koju tražite ne postoji ili je premještena." },

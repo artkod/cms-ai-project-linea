@@ -1,5 +1,7 @@
-const API_URL = import.meta.env.VITE_CMS_API_URL || "http://localhost:3001";
-const PROJECT_SLUG = "project-linea";
+// Exported: the sitemap/feed <link> tags in RootLayout must point at the API
+// origin — those documents are served by the API, not by this SPA.
+export const API_URL = import.meta.env.VITE_CMS_API_URL || "http://localhost:3001";
+export const PROJECT_SLUG = "project-linea";
 
 const cmsHeaders: Record<string, string> = { "X-Project-Slug": PROJECT_SLUG };
 
@@ -24,7 +26,10 @@ export interface Translation {
 }
 
 export interface Alternates {
-  [locale: string]: { active: boolean; slug: string };
+  // `active` means reachable: the page's own translation is active AND every
+  // ancestor is active in that locale. `path` is the full slug chain root → self
+  // — a nested page needs it, since `slug` alone is only a valid URL at root.
+  [locale: string]: { active: boolean; slug: string; path?: string[] };
 }
 
 export interface LinkPagesMap {
@@ -151,7 +156,10 @@ export async function getPageBySlug(locale: string, path: string, previewToken?:
   const encodedPath = path.split("/").filter(Boolean).map(encodeURIComponent).join("/");
   const res = await fetch(
     `${API_URL}/api/pages/by-slug/${encodeURIComponent(locale)}/${encodedPath}`,
-    { headers }
+    // A preview request has the SAME url as the public one (the token travels in
+    // a header), so without this the browser can serve the cached public copy and
+    // the preview silently shows live content instead of the draft.
+    { headers, ...(previewToken ? { cache: "no-store" as RequestCache } : {}) }
   );
   if (!res.ok) return null;
   const data = await res.json();
