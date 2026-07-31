@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Container } from "@mantine/core";
 import { Outlet, Link, NavLink, useParams, useNavigate, useLocation } from "react-router";
 import { Search, ShoppingCart, Menu as MenuIcon, X, MapPin, Mail } from "lucide-react";
-import { getMenu, getSystemPageSlug, getContactInfo, type MenuItem, type ContactInfo } from "../lib/api";
+import { getMenu, getSystemPageSlug, getContactInfo, API_URL, PROJECT_SLUG, type MenuItem, type ContactInfo } from "../lib/api";
 import { useLocaleConfig, useStrings, PageAlternatesProvider, StringsProvider, PageLayoutProvider, usePageLayout } from "../lib/locale";
 import { useCart } from "../lib/cart";
 import { LanguageSwitcher } from "./LanguageSwitcher";
@@ -373,7 +373,9 @@ export function RootLayout() {
     document.documentElement.lang = activeLocale;
   }, [activeLocale]);
 
-  // Atom feed <link> tags — one per available locale for discovery tools.
+  // Atom feed + sitemap <link> tags for discovery tools. Both documents are
+  // served by the API, so they must carry the API origin — pointing them at this
+  // SPA's origin returned index.html (a 200 of HTML) to every crawler.
   useEffect(() => {
     document.head.querySelectorAll("link[data-cms-feed='1']").forEach((el) => el.remove());
     for (const loc of availableLocales) {
@@ -381,10 +383,16 @@ export function RootLayout() {
       link.rel = "alternate";
       link.type = "application/atom+xml";
       link.hreflang = loc;
-      link.href = `/feed/${loc}.xml`;
+      link.href = `${API_URL}/feed/${loc}.xml?projectSlug=${PROJECT_SLUG}`;
       link.dataset.cmsFeed = "1";
       document.head.appendChild(link);
     }
+    const sitemap = document.createElement("link");
+    sitemap.rel = "sitemap";
+    sitemap.type = "application/xml";
+    sitemap.href = `${API_URL}/sitemap.xml`;
+    sitemap.dataset.cmsFeed = "1";
+    document.head.appendChild(sitemap);
   }, [availableLocales]);
 
   const siteTitle = settings?.siteTitle || "Linea";

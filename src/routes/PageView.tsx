@@ -103,6 +103,11 @@ function LinkRenderer({ data }: { data: Record<string, unknown> }) {
 
   let href = "#";
   let isInternal = false;
+  // A page link whose target is gone, unpublished-in-this-locale, or behind an
+  // inactive ancestor. It used to silently become a link to the locale homepage,
+  // which looks like a working link and takes the reader somewhere unrelated —
+  // render the label as plain text instead.
+  let dead = false;
   const rel = openInNewTab ? "noopener noreferrer" : undefined;
   const target = openInNewTab ? "_blank" : undefined;
 
@@ -110,7 +115,11 @@ function LinkRenderer({ data }: { data: Record<string, unknown> }) {
     const pageId = (data.pageId as string) || "";
     const resolved = pageId ? linkPages[pageId]?.[locale] : null;
     const linkPath = resolved?.path && resolved.path.length ? resolved.path.join("/") : resolved?.slug;
-    href = resolved?.active && linkPath ? `/${locale}/${linkPath}` : `/${locale}/`;
+    if (resolved?.active && linkPath) {
+      href = `/${locale}/${linkPath}`;
+    } else {
+      dead = true;
+    }
     isInternal = true;
   } else if (linkType === "remote") {
     href = (data.url as string) || "#";
@@ -122,7 +131,9 @@ function LinkRenderer({ data }: { data: Record<string, unknown> }) {
     href = (data.fileUrl as string) || "#";
   }
 
-  const label = displayText || href;
+  // For a dead page link `href` is just "#", so fall back to the title captured
+  // when the link was authored rather than rendering a bare "#".
+  const label = displayText || (dead ? ((data.pageTitle as string) || "") : href);
 
   if (asButton) {
     // Semantic model: type (primary/secondary/tertiary) × size (sm/md/lg) ×
@@ -136,7 +147,9 @@ function LinkRenderer({ data }: { data: Record<string, unknown> }) {
     const cls = `mxbtn mxbtn--${type} mxbtn--${size}`;
     return (
       <div className={`mx-btnwrap pos-${pos}`}>
-        {isInternal ? (
+        {dead ? (
+          <span className={`${cls} is-dead`} title={tooltip} aria-disabled="true">{label}</span>
+        ) : isInternal ? (
           <Link to={href} className={cls} title={tooltip}>{label}</Link>
         ) : (
           <a href={href} className={cls} target={target} rel={rel} title={tooltip}>{label}</a>
@@ -147,7 +160,9 @@ function LinkRenderer({ data }: { data: Record<string, unknown> }) {
 
   return (
     <div>
-      {isInternal ? (
+      {dead ? (
+        <span className="mx-textlink is-dead" title={tooltip}>{label}</span>
+      ) : isInternal ? (
         <Link to={href} className="mx-textlink" title={tooltip}>{label}</Link>
       ) : (
         <a href={href} className="mx-textlink" target={target} rel={rel} title={tooltip}>{label}</a>
@@ -511,6 +526,10 @@ function CategoryRedirect({ locale, categorySlug }: { locale: string; categorySl
 export function PageView() {
   const params = useParams();
   const locale = params.locale;
+  // Editor-managed copy with a code fallback (the shared `tx` pattern): the
+  // preview banner and the 404 title were hardcoded English.
+  const { t } = useStrings();
+  const tx = (key: string, fb: string) => { const v = t(key); return v === key ? fb : v; };
   // Splat = the full hierarchical path after the locale (e.g. "proizvodi/busilice/x").
   const path = params["*"] ?? "";
   const [searchParams] = useSearchParams();
@@ -533,8 +552,13 @@ export function PageView() {
 
   // Per-page SEO head tags with site-default fallbacks (D3). Preview renders
   // unpublished content, so force noindex regardless of the page's own flag.
+  // The 404 branch must set its own tags HERE, not inside <NotFound/>: this
+  // parent effect runs after the child's and would overwrite them. Without it the
+  // tab kept the previous page's title and the not-found view was indexable.
   useDocumentSeo(
-    page
+    notFound
+      ? { title: tx("notfound.seo_title", "Stranica nije pronađena"), noindex: true }
+      : page
       ? {
           title: page.title,
           metaTitle: page.metaTitle,
@@ -586,7 +610,10 @@ export function PageView() {
           setAlternates(data.alternates ?? null);
         }
       })
-      .catch(() => setNotFound(true))
+      .catch(() => {
+        setPage(null);
+        setNotFound(true);
+      })
       .finally(() => setLoading(false));
   }, [locale, path, previewToken, setAlternates]);
 
@@ -610,7 +637,7 @@ export function PageView() {
         zIndex: 1000,
       }}
     >
-      Preview mode — this page is not published
+      {tx("preview.banner", "Preview mode — this page is not published")}
     </Box>
   ) : null;
 

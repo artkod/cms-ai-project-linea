@@ -4481,7 +4481,7 @@
       "metaDescription": null,
       "ogImageUrl": null,
       "canonicalUrl": null,
-      "noindex": false,
+      "noindex": true,
       "deletedAt": null,
       "createdAt": "2026-06-09T08:29:18.427Z",
       "updatedAt": "2026-06-09T08:29:18.427Z"
@@ -6194,7 +6194,7 @@
       "metaDescription": null,
       "ogImageUrl": null,
       "canonicalUrl": null,
-      "noindex": false,
+      "noindex": true,
       "deletedAt": null,
       "createdAt": "2026-06-02T08:14:09.469Z",
       "updatedAt": "2026-06-09T08:29:18.423Z"
