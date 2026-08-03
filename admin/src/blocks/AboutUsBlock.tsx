@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react";
-import { Box, Group, Image, Stack, Text, TextInput, Textarea } from "@mantine/core";
-import { Upload } from "lucide-react";
+import type { CSSProperties, ReactNode } from "react";
+import { Image as ImageIcon, Link2, Upload } from "lucide-react";
 import {
-  Button,
+  ui,
   ImagePickerModal,
   LinkPickerModal,
   computeLinkHref,
@@ -19,8 +19,11 @@ import {
 // authored here — subtitle + description, and two buttons. Each button is a
 // single LinkData object: the link picker now captures the button label
 // ("Link text") + tooltip alongside the target, so there's no separate text
-// field. Mirrors the ProductItemBlock pattern so the editor card looks and
-// behaves consistently across page types.
+// field.
+//
+// Editor UI rebuilt on the admin-base kit (`ui.*`) 2026-08-03 — the raw
+// Mantine version rendered unstyled after the core admin redesign deleted the
+// old theme layer. Visual vocabulary mirrors core's TypedFieldsForm.
 
 interface AboutUsData {
   altTitle: string;
@@ -85,21 +88,45 @@ function normalize(raw: Record<string, unknown>): AboutUsData {
   };
 }
 
-// ─── Section header (visual divider inside the block body) ───────────────────
+// ─── Shared kit-style vocabulary (mirrors core TypedFieldsForm) ───────────────
+
+const sectionStyle: CSSProperties = { display: "flex", flexDirection: "column", gap: 12 };
+
+const rowBox: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 12,
+  border: "1px solid var(--border)",
+  borderRadius: "var(--r-lg)",
+  padding: "10px 12px",
+  background: "var(--surface)",
+};
+
+const emptyBox: CSSProperties = {
+  border: "1.5px dashed var(--border-strong)",
+  borderRadius: "var(--r-lg)",
+  padding: 14,
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  gap: 9,
+  textAlign: "center",
+  background: "var(--surface)",
+};
 
 function SectionHeader({ title }: { title: string }) {
   return (
-    <Text
-      size="sm"
-      fw={700}
-      style={{
-        letterSpacing: "0.04em",
-        textTransform: "uppercase",
-        color: "var(--cms-ink-3, #6c7686)",
-      }}
-    >
+    <div style={{ font: "700 10.5px/1 var(--font-ui)", letterSpacing: ".12em", textTransform: "uppercase", color: "var(--ink-4)" }}>
       {title}
-    </Text>
+    </div>
+  );
+}
+
+function FieldLabel({ children }: { children: ReactNode }) {
+  return (
+    <label style={{ font: "600 11px/1.35 var(--font-ui)", letterSpacing: ".01em", color: "var(--ink-2)" }}>
+      {children}
+    </label>
   );
 }
 
@@ -118,27 +145,25 @@ function ImageField({
 }) {
   const [open, setOpen] = useState(false);
   return (
-    <>
-      <Stack gap={6}>
-        <Text size="sm" fw={500}>{label}</Text>
-        {value ? (
-          <Group align="flex-start" gap={12}>
-            <Image src={value.cdnUrl} w={160} h={120} fit="cover" radius="sm" alt={label} />
-            <Stack gap={6}>
-              <Button variant="secondary" size="sm" onClick={() => setOpen(true)}>
-                Promijeni
-              </Button>
-              <Button variant="secondary" size="sm" onClick={() => onChange(null)}>
-                Ukloni
-              </Button>
-            </Stack>
-          </Group>
-        ) : (
-          <Button variant="secondary" size="sm" leftSection={<Upload size={14} />} onClick={() => setOpen(true)}>
-            Odaberi sliku
-          </Button>
-        )}
-      </Stack>
+    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      <FieldLabel>{label}</FieldLabel>
+      {value ? (
+        <div style={rowBox}>
+          <div style={{ width: 64, height: 40, borderRadius: 7, overflow: "hidden", flexShrink: 0 }}>
+            <img src={value.cdnUrl} alt={label} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+          </div>
+          <div style={{ flex: 1, minWidth: 0, fontSize: 11, color: "var(--ink-4)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {value.name || value.cdnUrl.split("/").pop()}
+          </div>
+          <ui.Button variant="secondary" size="sm" icon={ImageIcon} onClick={() => setOpen(true)}>Promijeni</ui.Button>
+          <ui.Button variant="ghost" size="sm" onClick={() => onChange(null)}>Ukloni</ui.Button>
+        </div>
+      ) : (
+        <div style={emptyBox}>
+          <span style={{ color: "var(--ink-4)" }}><ImageIcon size={22} /></span>
+          <ui.Button variant="secondary" size="sm" icon={Upload} onClick={() => setOpen(true)}>Odaberi sliku</ui.Button>
+        </div>
+      )}
       <ImagePickerModal
         opened={open}
         onClose={() => setOpen(false)}
@@ -149,7 +174,7 @@ function ImageField({
           setOpen(false);
         }}
       />
-    </>
+    </div>
   );
 }
 
@@ -169,38 +194,39 @@ function linkSummary(d: LinkData): string {
 }
 
 function LinkField({
+  label,
   value,
   onChange,
 }: {
+  label: string;
   value: LinkData | null;
   onChange: (v: LinkData | null) => void;
 }) {
   const [open, setOpen] = useState(false);
   const href = value ? computeLinkHref(value) : null;
   return (
-    <Stack gap={6}>
-      <Text size="sm" fw={500}>Poveznica</Text>
+    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      <FieldLabel>{label}</FieldLabel>
       {value ? (
-        <Group gap={8} align="center" wrap="nowrap">
-          <Stack gap={0} style={{ flex: 1, minWidth: 0 }}>
-            <Text size="sm">{value.linkText?.trim() || linkSummary(value)}</Text>
+        <div style={rowBox}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ font: "600 12.5px/1.35 var(--font-ui)", color: "var(--ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {value.linkText?.trim() || linkSummary(value)}
+            </div>
             {href && (
-              <Text size="xs" c="dimmed" truncate style={{ maxWidth: 360 }}>
+              <div style={{ fontSize: 11, color: "var(--ink-4)", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {href}
-              </Text>
+              </div>
             )}
-          </Stack>
-          <Button variant="secondary" size="xs" onClick={() => setOpen(true)}>
-            Promijeni
-          </Button>
-          <Button variant="danger-ghost" size="xs" onClick={() => onChange(null)}>
-            Ukloni
-          </Button>
-        </Group>
+          </div>
+          <ui.Button variant="secondary" size="sm" onClick={() => setOpen(true)}>Promijeni</ui.Button>
+          <ui.Button variant="ghost" size="sm" onClick={() => onChange(null)}>Ukloni</ui.Button>
+        </div>
       ) : (
-        <Button variant="secondary" size="sm" onClick={() => setOpen(true)}>
-          Postavi poveznicu
-        </Button>
+        <div style={emptyBox}>
+          <span style={{ color: "var(--ink-4)" }}><Link2 size={22} /></span>
+          <ui.Button variant="secondary" size="sm" onClick={() => setOpen(true)}>Postavi poveznicu</ui.Button>
+        </div>
       )}
       <LinkPickerModal
         mode="rte"
@@ -213,34 +239,7 @@ function LinkField({
           setOpen(false);
         }}
       />
-    </Stack>
-  );
-}
-
-// ─── Button group (text + link) ──────────────────────────────────────────────
-
-function ButtonGroup({
-  title,
-  link,
-  onLinkChange,
-}: {
-  title: string;
-  link: LinkData | null;
-  onLinkChange: (v: LinkData | null) => void;
-}) {
-  return (
-    <Box
-      style={{
-        border: "1px solid var(--mantine-color-gray-3, #dee2e6)",
-        borderRadius: 8,
-        padding: 12,
-      }}
-    >
-      <Stack gap={10}>
-        <Text size="sm" fw={600}>{title}</Text>
-        <LinkField value={link} onChange={onLinkChange} />
-      </Stack>
-    </Box>
+    </div>
   );
 }
 
@@ -254,14 +253,14 @@ function AboutUsEditor({ data, onChange }: BlockEditorProps) {
   }
 
   return (
-    <Stack gap={20}>
-      <Stack gap={10}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
+      <div style={sectionStyle}>
         <SectionHeader title="Osnovni podaci" />
-        <TextInput
+        <ui.Input
           label="Alternativni naslov"
           placeholder="Alternativni naslov"
           value={d.altTitle}
-          onChange={(e) => patch({ altTitle: e.currentTarget.value })}
+          onChange={(e) => patch({ altTitle: (e.target as HTMLInputElement).value })}
         />
         <ImageField
           label="Hero slika"
@@ -269,69 +268,55 @@ function AboutUsEditor({ data, onChange }: BlockEditorProps) {
           value={d.heroImage}
           onChange={(v) => patch({ heroImage: v })}
         />
-        <Textarea
+        <ui.Input
           label="Podnaslov"
           placeholder="Podnaslov"
+          rows={3}
           value={d.subtitle}
-          onChange={(e) => patch({ subtitle: e.currentTarget.value })}
-          autosize
-          minRows={2}
-          maxRows={6}
+          onChange={(e) => patch({ subtitle: (e.target as HTMLTextAreaElement).value })}
         />
-      </Stack>
+      </div>
 
-      <Stack gap={10}>
+      <div style={sectionStyle}>
         <SectionHeader title="Gumbi" />
-        <ButtonGroup
-          title="Gumb 1"
-          link={d.btn1Link}
-          onLinkChange={(v) => patch({ btn1Link: v })}
-        />
-        <ButtonGroup
-          title="Gumb 2"
-          link={d.btn2Link}
-          onLinkChange={(v) => patch({ btn2Link: v })}
-        />
-      </Stack>
+        <LinkField label="Gumb 1" value={d.btn1Link} onChange={(v) => patch({ btn1Link: v })} />
+        <LinkField label="Gumb 2" value={d.btn2Link} onChange={(v) => patch({ btn2Link: v })} />
+      </div>
 
-      <Stack gap={10}>
+      <div style={sectionStyle}>
         <SectionHeader title="Sekcija 2" />
-        <TextInput
+        <ui.Input
           label="Naslov sekcije 2"
           placeholder="Naslov sekcije 2"
           value={d.section2Title}
-          onChange={(e) => patch({ section2Title: e.currentTarget.value })}
+          onChange={(e) => patch({ section2Title: (e.target as HTMLInputElement).value })}
         />
-        <Textarea
+        <ui.Input
           label="Opis"
           placeholder="Opis"
+          rows={5}
           value={d.description}
-          onChange={(e) => patch({ description: e.currentTarget.value })}
-          autosize
-          minRows={3}
-          maxRows={10}
+          onChange={(e) => patch({ description: (e.target as HTMLTextAreaElement).value })}
         />
-      </Stack>
+      </div>
 
-      <Stack gap={10}>
+      <div style={sectionStyle}>
         <SectionHeader title="Sekcija 3" />
-        <TextInput
+        <ui.Input
           label="Naslov sekcije 3"
           placeholder="Naslov sekcije 3"
           value={d.section3Title}
-          onChange={(e) => patch({ section3Title: e.currentTarget.value })}
+          onChange={(e) => patch({ section3Title: (e.target as HTMLInputElement).value })}
         />
-        <Textarea
+        <ui.Input
           label="Podnaslov sekcije 3"
           placeholder="Podnaslov sekcije 3"
+          rows={3}
           value={d.section3Subtitle}
-          onChange={(e) => patch({ section3Subtitle: e.currentTarget.value })}
-          autosize
-          minRows={2}
-          maxRows={6}
+          onChange={(e) => patch({ section3Subtitle: (e.target as HTMLTextAreaElement).value })}
         />
-      </Stack>
-    </Stack>
+      </div>
+    </div>
   );
 }
 
