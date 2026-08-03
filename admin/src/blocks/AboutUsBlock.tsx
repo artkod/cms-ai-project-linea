@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
-import type { CSSProperties, ReactNode } from "react";
+import type { ChangeEvent, CSSProperties, ReactNode } from "react";
 import { Image as ImageIcon, Link2, Upload } from "lucide-react";
+import { blockStrings } from "./blockStrings";
 import {
   ui,
   ImagePickerModal,
@@ -144,6 +145,7 @@ function ImageField({
   onChange: (v: GalleryImage | null) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const L = blockStrings();
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
       <FieldLabel>{label}</FieldLabel>
@@ -155,13 +157,13 @@ function ImageField({
           <div style={{ flex: 1, minWidth: 0, fontSize: 11, color: "var(--ink-4)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {value.name || value.cdnUrl.split("/").pop()}
           </div>
-          <ui.Button variant="secondary" size="sm" icon={ImageIcon} onClick={() => setOpen(true)}>Promijeni</ui.Button>
-          <ui.Button variant="ghost" size="sm" onClick={() => onChange(null)}>Ukloni</ui.Button>
+          <ui.Button variant="secondary" size="sm" icon={ImageIcon} onClick={() => setOpen(true)}>{L.change}</ui.Button>
+          <ui.Button variant="ghost" size="sm" onClick={() => onChange(null)}>{L.remove}</ui.Button>
         </div>
       ) : (
         <div style={emptyBox}>
           <span style={{ color: "var(--ink-4)" }}><ImageIcon size={22} /></span>
-          <ui.Button variant="secondary" size="sm" icon={Upload} onClick={() => setOpen(true)}>Odaberi sliku</ui.Button>
+          <ui.Button variant="secondary" size="sm" icon={Upload} onClick={() => setOpen(true)}>{L.pickImage}</ui.Button>
         </div>
       )}
       <ImagePickerModal
@@ -169,7 +171,7 @@ function ImageField({
         onClose={() => setOpen(false)}
         title={modalTitle}
         mode="single"
-        onConfirm={(imgs) => {
+        onConfirm={(imgs: GalleryImage[]) => {
           if (imgs[0]) onChange(imgs[0]);
           setOpen(false);
         }}
@@ -180,16 +182,16 @@ function ImageField({
 
 // ─── Link field (label + picker) ─────────────────────────────────────────────
 
-function linkSummary(d: LinkData): string {
+function linkSummary(d: LinkData, L: ReturnType<typeof blockStrings>): string {
   switch (d.linkType) {
     case "page":
-      return d.pageTitle ? `Stranica: ${d.pageTitle}` : "Stranica";
+      return d.pageTitle ? `${L.linkPage}: ${d.pageTitle}` : L.linkPage;
     case "remote":
       return d.url || "URL";
     case "email":
-      return d.email ? `E-mail: ${d.email}` : "E-mail";
+      return d.email ? `${L.linkEmail}: ${d.email}` : L.linkEmail;
     default:
-      return "Poveznica";
+      return L.linkFallback;
   }
 }
 
@@ -203,6 +205,7 @@ function LinkField({
   onChange: (v: LinkData | null) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const L = blockStrings();
   const href = value ? computeLinkHref(value) : null;
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -211,7 +214,7 @@ function LinkField({
         <div style={rowBox}>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ font: "600 12.5px/1.35 var(--font-ui)", color: "var(--ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              {value.linkText?.trim() || linkSummary(value)}
+              {value.linkText?.trim() || linkSummary(value, L)}
             </div>
             {href && (
               <div style={{ fontSize: 11, color: "var(--ink-4)", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -219,13 +222,13 @@ function LinkField({
               </div>
             )}
           </div>
-          <ui.Button variant="secondary" size="sm" onClick={() => setOpen(true)}>Promijeni</ui.Button>
-          <ui.Button variant="ghost" size="sm" onClick={() => onChange(null)}>Ukloni</ui.Button>
+          <ui.Button variant="secondary" size="sm" onClick={() => setOpen(true)}>{L.change}</ui.Button>
+          <ui.Button variant="ghost" size="sm" onClick={() => onChange(null)}>{L.remove}</ui.Button>
         </div>
       ) : (
         <div style={emptyBox}>
           <span style={{ color: "var(--ink-4)" }}><Link2 size={22} /></span>
-          <ui.Button variant="secondary" size="sm" onClick={() => setOpen(true)}>Postavi poveznicu</ui.Button>
+          <ui.Button variant="secondary" size="sm" onClick={() => setOpen(true)}>{L.setLink}</ui.Button>
         </div>
       )}
       <LinkPickerModal
@@ -234,7 +237,7 @@ function LinkField({
         opened={open}
         onClose={() => setOpen(false)}
         initialData={value ?? undefined}
-        onConfirm={(d) => {
+        onConfirm={(d: LinkData) => {
           onChange(d);
           setOpen(false);
         }}
@@ -247,6 +250,7 @@ function LinkField({
 
 function AboutUsEditor({ data, onChange }: BlockEditorProps) {
   const d = useMemo(() => normalize(data), [data]);
+  const L = blockStrings();
 
   function patch(p: Partial<AboutUsData>) {
     onChange({ ...d, ...p } as unknown as Record<string, unknown>);
@@ -255,65 +259,65 @@ function AboutUsEditor({ data, onChange }: BlockEditorProps) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
       <div style={sectionStyle}>
-        <SectionHeader title="Osnovni podaci" />
+        <SectionHeader title={L.basicInfo} />
         <ui.Input
-          label="Alternativni naslov"
-          placeholder="Alternativni naslov"
+          label={L.altTitle}
+          placeholder={L.altTitle}
           value={d.altTitle}
-          onChange={(e) => patch({ altTitle: (e.target as HTMLInputElement).value })}
+          onChange={(e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => patch({ altTitle: (e.target as HTMLInputElement).value })}
         />
         <ImageField
-          label="Hero slika"
-          modalTitle="Odaberi hero sliku"
+          label={L.heroImage}
+          modalTitle={L.pickHeroTitle}
           value={d.heroImage}
           onChange={(v) => patch({ heroImage: v })}
         />
         <ui.Input
-          label="Podnaslov"
-          placeholder="Podnaslov"
+          label={L.subtitle}
+          placeholder={L.subtitle}
           rows={3}
           value={d.subtitle}
-          onChange={(e) => patch({ subtitle: (e.target as HTMLTextAreaElement).value })}
+          onChange={(e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => patch({ subtitle: (e.target as HTMLTextAreaElement).value })}
         />
       </div>
 
       <div style={sectionStyle}>
-        <SectionHeader title="Gumbi" />
-        <LinkField label="Gumb 1" value={d.btn1Link} onChange={(v) => patch({ btn1Link: v })} />
-        <LinkField label="Gumb 2" value={d.btn2Link} onChange={(v) => patch({ btn2Link: v })} />
+        <SectionHeader title={L.buttons} />
+        <LinkField label={L.button1} value={d.btn1Link} onChange={(v) => patch({ btn1Link: v })} />
+        <LinkField label={L.button2} value={d.btn2Link} onChange={(v) => patch({ btn2Link: v })} />
       </div>
 
       <div style={sectionStyle}>
-        <SectionHeader title="Sekcija 2" />
+        <SectionHeader title={L.section2} />
         <ui.Input
-          label="Naslov sekcije 2"
-          placeholder="Naslov sekcije 2"
+          label={L.section2Title}
+          placeholder={L.section2Title}
           value={d.section2Title}
-          onChange={(e) => patch({ section2Title: (e.target as HTMLInputElement).value })}
+          onChange={(e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => patch({ section2Title: (e.target as HTMLInputElement).value })}
         />
         <ui.Input
-          label="Opis"
-          placeholder="Opis"
+          label={L.description}
+          placeholder={L.description}
           rows={5}
           value={d.description}
-          onChange={(e) => patch({ description: (e.target as HTMLTextAreaElement).value })}
+          onChange={(e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => patch({ description: (e.target as HTMLTextAreaElement).value })}
         />
       </div>
 
       <div style={sectionStyle}>
-        <SectionHeader title="Sekcija 3" />
+        <SectionHeader title={L.section3} />
         <ui.Input
-          label="Naslov sekcije 3"
-          placeholder="Naslov sekcije 3"
+          label={L.section3Title}
+          placeholder={L.section3Title}
           value={d.section3Title}
-          onChange={(e) => patch({ section3Title: (e.target as HTMLInputElement).value })}
+          onChange={(e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => patch({ section3Title: (e.target as HTMLInputElement).value })}
         />
         <ui.Input
-          label="Podnaslov sekcije 3"
-          placeholder="Podnaslov sekcije 3"
+          label={L.section3Subtitle}
+          placeholder={L.section3Subtitle}
           rows={3}
           value={d.section3Subtitle}
-          onChange={(e) => patch({ section3Subtitle: (e.target as HTMLTextAreaElement).value })}
+          onChange={(e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => patch({ section3Subtitle: (e.target as HTMLTextAreaElement).value })}
         />
       </div>
     </div>
@@ -325,7 +329,7 @@ export const aboutUsBlock: BlockTypeDefinition = {
   label: "About us",
   defaultData: DEFAULT_DATA as unknown as Record<string, unknown>,
   EditorComponent: AboutUsEditor,
-  getLabel: (data) => {
+  getLabel: (data: Record<string, unknown>) => {
     const d = normalize(data);
     return d.subtitle?.trim() || "O nama";
   },

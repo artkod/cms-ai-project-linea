@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
-import type { CSSProperties, ReactNode } from "react";
+import type { ChangeEvent, CSSProperties, ReactNode } from "react";
 import { FileText, Link2, Plus, Trash2, ArrowUp, ArrowDown } from "lucide-react";
+import { blockStrings } from "./blockStrings";
 import {
   ui,
   ImagePickerModal,
@@ -143,16 +144,16 @@ function FieldLabel({ children }: { children: ReactNode }) {
 
 // ─── Contact CTA link field ──────────────────────────────────────────────────
 
-function linkSummary(d: LinkData): string {
+function linkSummary(d: LinkData, L: ReturnType<typeof blockStrings>): string {
   switch (d.linkType) {
     case "page":
-      return d.pageTitle ? `Stranica: ${d.pageTitle}` : "Stranica";
+      return d.pageTitle ? `${L.linkPage}: ${d.pageTitle}` : L.linkPage;
     case "remote":
       return d.url || "URL";
     case "email":
-      return d.email ? `E-mail: ${d.email}` : "E-mail";
+      return d.email ? `${L.linkEmail}: ${d.email}` : L.linkEmail;
     default:
-      return "Poveznica";
+      return L.linkFallback;
   }
 }
 
@@ -164,15 +165,16 @@ function ContactLinkField({
   onChange: (v: LinkData | null) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const L = blockStrings();
   const href = value ? computeLinkHref(value) : null;
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      <FieldLabel>Gumb za kontakt</FieldLabel>
+      <FieldLabel>{L.contactBtn}</FieldLabel>
       {value ? (
         <div style={rowBox}>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ font: "600 12.5px/1.35 var(--font-ui)", color: "var(--ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              {value.linkText?.trim() || linkSummary(value)}
+              {value.linkText?.trim() || linkSummary(value, L)}
             </div>
             {href && (
               <div style={{ fontSize: 11, color: "var(--ink-4)", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -180,13 +182,13 @@ function ContactLinkField({
               </div>
             )}
           </div>
-          <ui.Button variant="secondary" size="sm" onClick={() => setOpen(true)}>Promijeni</ui.Button>
-          <ui.Button variant="ghost" size="sm" onClick={() => onChange(null)}>Ukloni</ui.Button>
+          <ui.Button variant="secondary" size="sm" onClick={() => setOpen(true)}>{L.change}</ui.Button>
+          <ui.Button variant="ghost" size="sm" onClick={() => onChange(null)}>{L.remove}</ui.Button>
         </div>
       ) : (
         <div style={emptyBox}>
           <span style={{ color: "var(--ink-4)" }}><Link2 size={22} /></span>
-          <ui.Button variant="secondary" size="sm" onClick={() => setOpen(true)}>Postavi poveznicu</ui.Button>
+          <ui.Button variant="secondary" size="sm" onClick={() => setOpen(true)}>{L.setLink}</ui.Button>
         </div>
       )}
       <LinkPickerModal
@@ -195,7 +197,7 @@ function ContactLinkField({
         opened={open}
         onClose={() => setOpen(false)}
         initialData={value ?? undefined}
-        onConfirm={(d) => {
+        onConfirm={(d: LinkData) => {
           onChange(d);
           setOpen(false);
         }}
@@ -222,6 +224,7 @@ function DocumentRow({
   onMove: (dir: -1 | 1) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const L = blockStrings();
   return (
     <div
       style={{
@@ -242,41 +245,50 @@ function DocumentRow({
           {doc.file ? (
             <>
               <div style={{ font: "600 12.5px/1.35 var(--font-ui)", color: "var(--ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {doc.file.name || "Dokument"}
+                {doc.file.name || L.linkFallback}
               </div>
               {formatSize(doc.file.size) && (
                 <div style={{ fontSize: 11, color: "var(--ink-4)", marginTop: 2 }}>{formatSize(doc.file.size)}</div>
               )}
             </>
           ) : (
-            <div style={{ fontSize: 12.5, color: "var(--ink-4)" }}>Nije odabran dokument</div>
+            <div style={{ fontSize: 12.5, color: "var(--ink-4)" }}>{L.noFile}</div>
           )}
         </div>
         <span style={{ display: "flex", gap: 4, flexShrink: 0 }}>
-          <ui.IconButton icon={ArrowUp} label="Pomakni gore" variant="bordered" size={28} iconSize={14} disabled={index === 0} onClick={() => onMove(-1)} />
-          <ui.IconButton icon={ArrowDown} label="Pomakni dolje" variant="bordered" size={28} iconSize={14} disabled={index === total - 1} onClick={() => onMove(1)} />
-          <ui.IconButton icon={Trash2} label="Ukloni dokument" variant="danger-soft" size={28} iconSize={14} onClick={onRemove} />
+          <ui.IconButton icon={ArrowUp} label={L.moveUp} variant="bordered" size={28} iconSize={14} disabled={index === 0} onClick={() => onMove(-1)} />
+          <ui.IconButton icon={ArrowDown} label={L.moveDown} variant="bordered" size={28} iconSize={14} disabled={index === total - 1} onClick={() => onMove(1)} />
+          <ui.IconButton icon={Trash2} label={L.removeDoc} variant="danger-soft" size={28} iconSize={14} onClick={onRemove} />
         </span>
       </div>
 
-      <ui.Input
-        label="Naslov za prikaz"
-        placeholder="npr. Katalog proizvoda 2024"
-        value={doc.title}
-        onChange={(e) => onChange({ ...doc, title: (e.target as HTMLInputElement).value })}
-      />
-
-      <ui.Button variant="secondary" size="sm" icon={FileText} fullWidth onClick={() => setOpen(true)}>
-        {doc.file ? "Promijeni dokument" : "Odaberi dokument"}
-      </ui.Button>
+      {/* Title + document picker share one row — full-width controls read
+          overly stretched on wide screens (Sandro, 2026-08-03). */}
+      <div style={{ display: "flex", alignItems: "flex-end", gap: 10, flexWrap: "wrap" }}>
+        <ui.Input
+          label={L.displayTitle}
+          placeholder={L.displayTitlePh}
+          value={doc.title}
+          onChange={(e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => onChange({ ...doc, title: (e.target as HTMLInputElement).value })}
+          style={{ flex: 1, minWidth: 220 }}
+        />
+        <ui.Button
+          variant="secondary"
+          icon={FileText}
+          style={{ height: "var(--control-h-lg)", flexShrink: 0 }}
+          onClick={() => setOpen(true)}
+        >
+          {doc.file ? L.changeDoc : L.pickDoc}
+        </ui.Button>
+      </div>
 
       <ImagePickerModal
         opened={open}
         onClose={() => setOpen(false)}
-        title="Odaberi dokument"
+        title={L.pickerTitle}
         mode="single"
         fileType="document"
-        onConfirm={(files) => {
+        onConfirm={(files: GalleryImage[]) => {
           const f = files[0];
           if (f) onChange({ ...doc, file: f, title: doc.title || titleFromFilename(f.name) });
           setOpen(false);
@@ -290,6 +302,7 @@ function DocumentRow({
 
 function CataloguesEditor({ data, onChange }: BlockEditorProps) {
   const d = useMemo(() => normalize(data), [data]);
+  const L = blockStrings();
 
   function patch(p: Partial<CataloguesData>) {
     onChange({ ...d, ...p } as unknown as Record<string, unknown>);
@@ -318,22 +331,22 @@ function CataloguesEditor({ data, onChange }: BlockEditorProps) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
       <div style={sectionStyle}>
-        <SectionHeader title="Uvod" />
+        <SectionHeader title={L.intro} />
         <ui.Input
-          label="Podnaslov"
-          placeholder="Kratki uvodni tekst (prikazuje se ispod naslova stranice)"
+          label={L.subtitle}
+          placeholder={L.subtitlePh}
           rows={3}
           value={d.subtitle}
-          onChange={(e) => patch({ subtitle: (e.target as HTMLTextAreaElement).value })}
+          onChange={(e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => patch({ subtitle: (e.target as HTMLTextAreaElement).value })}
         />
       </div>
 
       <div style={sectionStyle}>
-        <SectionHeader title="Dokumenti" />
+        <SectionHeader title={L.documents} />
         {d.documents.length === 0 && (
           <div style={emptyBox}>
             <span style={{ color: "var(--ink-4)" }}><FileText size={22} /></span>
-            <div style={{ fontSize: 11.5, color: "var(--ink-4)" }}>Još nema dokumenata. Dodajte prvi dokument.</div>
+            <div style={{ fontSize: 11.5, color: "var(--ink-4)" }}>{L.noDocs}</div>
           </div>
         )}
         {d.documents.map((doc, i) => (
@@ -349,13 +362,13 @@ function CataloguesEditor({ data, onChange }: BlockEditorProps) {
         ))}
         <div>
           <ui.Button variant="secondary" size="sm" icon={Plus} onClick={addDoc}>
-            Dodaj dokument
+            {L.addDoc}
           </ui.Button>
         </div>
       </div>
 
       <div style={sectionStyle}>
-        <SectionHeader title="Kontakt" />
+        <SectionHeader title={L.contact} />
         <ContactLinkField value={d.contactLink} onChange={(v) => patch({ contactLink: v })} />
       </div>
     </div>
@@ -367,7 +380,7 @@ export const cataloguesBlock: BlockTypeDefinition = {
   label: "Catalogues",
   defaultData: DEFAULT_DATA as unknown as Record<string, unknown>,
   EditorComponent: CataloguesEditor,
-  getLabel: (data) => {
+  getLabel: (data: Record<string, unknown>) => {
     const d = normalize(data);
     const n = d.documents.length;
     return d.subtitle?.trim() || (n ? `Katalozi (${n})` : "Katalozi");
