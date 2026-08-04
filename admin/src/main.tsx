@@ -197,6 +197,8 @@ const euProjectItemPageType: PageTypeDefinition = {
 createAdmin({
   apiUrl: import.meta.env.VITE_API_URL,
   frontendUrl: import.meta.env.VITE_FRONTEND_URL,
+  // Admin URL routing tracks the build's base path (dev "/", prod "/admin/").
+  basePath: import.meta.env.BASE_URL,
   projectSlug: "project-linea",
   // Commerce module ON (must match the API's COMMERCE_ENABLED — start.sh sets it).
   // Products/categories live in the commerce catalog (shop nav).
