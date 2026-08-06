@@ -95,7 +95,7 @@ echo ""
 echo "  Ports:"
 echo "    Database   → localhost:$PORT_DB"
 echo "    CMS API    → localhost:$PORT_API"
-echo "    CMS Admin  → localhost:$PORT_ADMIN"
+echo "    CMS Admin  → localhost:$PORT_ADMIN/admin"
 echo "    Website    → localhost:$PORT_WEB"
 echo ""
 
@@ -203,6 +203,7 @@ DATABASE_URL="postgresql://$DB_USER:$DB_PASSWORD@localhost:$PORT_DB/$DB_NAME" \
   PORT="$PORT_API" \
   COMMERCE_ENABLED="true" \
   STOREFRONT_BASE_URL="http://localhost:$PORT_WEB" \
+  ADMIN_BASE_URL="http://localhost:$PORT_ADMIN/admin" \
   AUTH_COOKIE_NAME="cms_token_project_linea" \
   pnpm --filter @cms/api dev &
 API_PID=$!
