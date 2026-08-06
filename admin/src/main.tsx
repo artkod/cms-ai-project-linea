@@ -14,6 +14,13 @@ import { articleSection } from "./settings/ArticleSection";
 // + cleanup-legacy-products.mjs). Products/categories are managed under the
 // shop nav; the storefront reads the commerce catalog API.)
 
+// PAGE-TYPE LABELS ARE ENGLISH-ONLY (Sandro, 2026-08-06): a `label` is a plain
+// string, never a `{ en, hr }` map. A page type names a developer-defined
+// content model, so it must NOT follow the topbar content-locale switch — with
+// a map, the Pages tree and the dashboard Content-mix chart flipped to Croatian
+// while the rest of the chrome stayed in the UI language. Same rule now holds
+// for core's built-in "Default page" type.
+
 // all-products is the public catalogue landing page — the commerce catalog
 // listing anchors on it (URL `/{locale}/{this.slug}` + flat product URLs
 // `/{locale}/{this.slug}/{product-slug}` resolved by the commerce URL resolver).
@@ -22,7 +29,7 @@ import { articleSection } from "./settings/ArticleSection";
 // tree (orange accent for developers).
 const allProductsPageType: PageTypeDefinition = {
   type: "all-products",
-  label: { en: "All products", hr: "Svi proizvodi" },
+  label: "All products",
   deletable: false,
   canBeRoot: true,
   limit: 1,
@@ -42,7 +49,7 @@ const allProductsPageType: PageTypeDefinition = {
 // subtitle + description, and two buttons (label text + link target).
 const aboutUsPageType: PageTypeDefinition = {
   type: "about-us",
-  label: { en: "About us", hr: "O nama" },
+  label: "About us",
   deletable: false,
   canBeRoot: true,
   limit: 1,
@@ -61,7 +68,7 @@ const aboutUsPageType: PageTypeDefinition = {
 // and a contact CTA link.
 const cataloguesPageType: PageTypeDefinition = {
   type: "catalogues",
-  label: { en: "Catalogues", hr: "Katalozi" },
+  label: "Catalogues",
   deletable: false,
   canBeRoot: true,
   limit: 1,
@@ -80,7 +87,7 @@ const cataloguesPageType: PageTypeDefinition = {
 // (developers see them with an orange accent).
 const searchPageType: PageTypeDefinition = {
   type: "search",
-  label: { en: "Search", hr: "Pretraga" },
+  label: "Search",
   deletable: false,
   canBeRoot: true,
   limit: 1,
@@ -92,7 +99,7 @@ const searchPageType: PageTypeDefinition = {
 
 const cartPageType: PageTypeDefinition = {
   type: "cart",
-  label: { en: "Cart", hr: "Košarica" },
+  label: "Cart",
   deletable: false,
   canBeRoot: true,
   limit: 1,
@@ -104,7 +111,7 @@ const cartPageType: PageTypeDefinition = {
 
 const notFoundPageType: PageTypeDefinition = {
   type: "404",
-  label: { en: "404", hr: "404" },
+  label: "404",
   deletable: false,
   canBeRoot: true,
   limit: 1,
@@ -121,7 +128,7 @@ const notFoundPageType: PageTypeDefinition = {
 // renders the article index from its children.
 const newsPageType: PageTypeDefinition = {
   type: "news",
-  label: { en: "News", hr: "Novosti" },
+  label: "News",
   deletable: false,
   canBeRoot: true,
   limit: 1,
@@ -138,7 +145,7 @@ const newsPageType: PageTypeDefinition = {
 // would make the page a singleton-block page — see PageTypeDefinition.multiBlock).
 const articlePageType: PageTypeDefinition = {
   type: "article",
-  label: { en: "Article", hr: "Članak" },
+  label: "Article",
   deletable: true,
   canBeRoot: false,
   allowedParentTypes: ["news"],
@@ -161,7 +168,7 @@ const articlePageType: PageTypeDefinition = {
 // project index from its children.
 const euProjectsPageType: PageTypeDefinition = {
   type: "eu-projects",
-  label: { en: "EU Projects", hr: "EU Projekti" },
+  label: "EU Projects",
   deletable: false,
   canBeRoot: true,
   limit: 1,
@@ -181,7 +188,7 @@ const euProjectsPageType: PageTypeDefinition = {
 // it, a single allowed block type would make the page a singleton-block page).
 const euProjectItemPageType: PageTypeDefinition = {
   type: "eu-project-item",
-  label: { en: "EU Project", hr: "EU Projekt" },
+  label: "EU Project",
   deletable: true,
   canBeRoot: false,
   allowedParentTypes: ["eu-projects"],
