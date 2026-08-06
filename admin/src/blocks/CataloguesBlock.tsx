@@ -1,8 +1,9 @@
 import { useMemo, useState } from "react";
-import { Box, Group, Stack, Text, TextInput, Textarea } from "@mantine/core";
-import { FileText, Plus, Trash2, ArrowUp, ArrowDown } from "lucide-react";
+import type { ChangeEvent, CSSProperties, ReactNode } from "react";
+import { FileText, Link2, Plus, Trash2, ArrowUp, ArrowDown } from "lucide-react";
+import { blockStrings } from "./blockStrings";
 import {
-  Button,
+  ui,
   ImagePickerModal,
   LinkPickerModal,
   computeLinkHref,
@@ -23,6 +24,10 @@ import {
 // `coverImages` is a pool of placeholder photos the frontend rotates through to
 // give each document card a cover image — it is seeded once and round-tripped
 // here (no editor UI, per design) so author saves never drop it.
+//
+// Editor UI rebuilt on the admin-base kit (`ui.*`) 2026-08-03 — the raw
+// Mantine version rendered unstyled after the core admin redesign deleted the
+// old theme layer. Visual vocabulary mirrors core's TypedFieldsForm.
 
 interface CatalogueDoc {
   id: string;
@@ -95,36 +100,60 @@ function formatSize(bytes: number | undefined): string {
   return `${Math.max(1, Math.round(bytes / 1024))} KB`;
 }
 
-// ─── Section header (visual divider inside the block body) ───────────────────
+// ─── Shared kit-style vocabulary (mirrors core TypedFieldsForm) ───────────────
+
+const sectionStyle: CSSProperties = { display: "flex", flexDirection: "column", gap: 12 };
+
+const rowBox: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 12,
+  border: "1px solid var(--border)",
+  borderRadius: "var(--r-lg)",
+  padding: "10px 12px",
+  background: "var(--surface)",
+};
+
+const emptyBox: CSSProperties = {
+  border: "1.5px dashed var(--border-strong)",
+  borderRadius: "var(--r-lg)",
+  padding: 14,
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  gap: 9,
+  textAlign: "center",
+  background: "var(--surface)",
+};
 
 function SectionHeader({ title }: { title: string }) {
   return (
-    <Text
-      size="sm"
-      fw={700}
-      style={{
-        letterSpacing: "0.04em",
-        textTransform: "uppercase",
-        color: "var(--cms-ink-3, #6c7686)",
-      }}
-    >
+    <div style={{ font: "700 10.5px/1 var(--font-ui)", letterSpacing: ".12em", textTransform: "uppercase", color: "var(--ink-4)" }}>
       {title}
-    </Text>
+    </div>
+  );
+}
+
+function FieldLabel({ children }: { children: ReactNode }) {
+  return (
+    <label style={{ font: "600 11px/1.35 var(--font-ui)", letterSpacing: ".01em", color: "var(--ink-2)" }}>
+      {children}
+    </label>
   );
 }
 
 // ─── Contact CTA link field ──────────────────────────────────────────────────
 
-function linkSummary(d: LinkData): string {
+function linkSummary(d: LinkData, L: ReturnType<typeof blockStrings>): string {
   switch (d.linkType) {
     case "page":
-      return d.pageTitle ? `Stranica: ${d.pageTitle}` : "Stranica";
+      return d.pageTitle ? `${L.linkPage}: ${d.pageTitle}` : L.linkPage;
     case "remote":
       return d.url || "URL";
     case "email":
-      return d.email ? `E-mail: ${d.email}` : "E-mail";
+      return d.email ? `${L.linkEmail}: ${d.email}` : L.linkEmail;
     default:
-      return "Poveznica";
+      return L.linkFallback;
   }
 }
 
@@ -136,31 +165,31 @@ function ContactLinkField({
   onChange: (v: LinkData | null) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const L = blockStrings();
   const href = value ? computeLinkHref(value) : null;
   return (
-    <Stack gap={6}>
-      <Text size="sm" fw={500}>Gumb za kontakt</Text>
+    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      <FieldLabel>{L.contactBtn}</FieldLabel>
       {value ? (
-        <Group gap={8} align="center" wrap="nowrap">
-          <Stack gap={0} style={{ flex: 1, minWidth: 0 }}>
-            <Text size="sm">{value.linkText?.trim() || linkSummary(value)}</Text>
+        <div style={rowBox}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ font: "600 12.5px/1.35 var(--font-ui)", color: "var(--ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {value.linkText?.trim() || linkSummary(value, L)}
+            </div>
             {href && (
-              <Text size="xs" c="dimmed" truncate style={{ maxWidth: 360 }}>
+              <div style={{ fontSize: 11, color: "var(--ink-4)", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {href}
-              </Text>
+              </div>
             )}
-          </Stack>
-          <Button variant="secondary" size="xs" onClick={() => setOpen(true)}>
-            Promijeni
-          </Button>
-          <Button variant="danger-ghost" size="xs" onClick={() => onChange(null)}>
-            Ukloni
-          </Button>
-        </Group>
+          </div>
+          <ui.Button variant="secondary" size="sm" onClick={() => setOpen(true)}>{L.change}</ui.Button>
+          <ui.Button variant="ghost" size="sm" onClick={() => onChange(null)}>{L.remove}</ui.Button>
+        </div>
       ) : (
-        <Button variant="secondary" size="sm" onClick={() => setOpen(true)}>
-          Postavi poveznicu
-        </Button>
+        <div style={emptyBox}>
+          <span style={{ color: "var(--ink-4)" }}><Link2 size={22} /></span>
+          <ui.Button variant="secondary" size="sm" onClick={() => setOpen(true)}>{L.setLink}</ui.Button>
+        </div>
       )}
       <LinkPickerModal
         mode="rte"
@@ -168,12 +197,12 @@ function ContactLinkField({
         opened={open}
         onClose={() => setOpen(false)}
         initialData={value ?? undefined}
-        onConfirm={(d) => {
+        onConfirm={(d: LinkData) => {
           onChange(d);
           setOpen(false);
         }}
       />
-    </Stack>
+    </div>
   );
 }
 
@@ -195,67 +224,77 @@ function DocumentRow({
   onMove: (dir: -1 | 1) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const L = blockStrings();
   return (
-    <Box
+    <div
       style={{
-        border: "1px solid var(--mantine-color-gray-3, #dee2e6)",
-        borderRadius: 8,
+        border: "1px solid var(--border)",
+        borderRadius: "var(--r-lg)",
         padding: 12,
+        background: "var(--surface)",
+        display: "flex",
+        flexDirection: "column",
+        gap: 10,
       }}
     >
-      <Stack gap={10}>
-        <Group justify="space-between" wrap="nowrap">
-          <Group gap={8} align="center" wrap="nowrap" style={{ minWidth: 0 }}>
-            <FileText size={18} style={{ flexShrink: 0, color: "var(--cms-ink-3, #6c7686)" }} />
-            {doc.file ? (
-              <Stack gap={0} style={{ minWidth: 0 }}>
-                <Text size="sm" truncate style={{ maxWidth: 320 }}>{doc.file.name || "Dokument"}</Text>
-                {formatSize(doc.file.size) && (
-                  <Text size="xs" c="dimmed">{formatSize(doc.file.size)}</Text>
-                )}
-              </Stack>
-            ) : (
-              <Text size="sm" c="dimmed">Nije odabran dokument</Text>
-            )}
-          </Group>
-          <Group gap={4} wrap="nowrap">
-            <Button variant="secondary" size="xs" onClick={() => onMove(-1)} disabled={index === 0}>
-              <ArrowUp size={14} />
-            </Button>
-            <Button variant="secondary" size="xs" onClick={() => onMove(1)} disabled={index === total - 1}>
-              <ArrowDown size={14} />
-            </Button>
-            <Button variant="danger-ghost" size="xs" onClick={onRemove}>
-              <Trash2 size={14} />
-            </Button>
-          </Group>
-        </Group>
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <span style={{ width: 32, height: 32, borderRadius: "var(--r-md)", background: "var(--sunken)", color: "var(--ink-3)", display: "grid", placeItems: "center", flexShrink: 0 }}>
+          <FileText size={16} />
+        </span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          {doc.file ? (
+            <>
+              <div style={{ font: "600 12.5px/1.35 var(--font-ui)", color: "var(--ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {doc.file.name || L.linkFallback}
+              </div>
+              {formatSize(doc.file.size) && (
+                <div style={{ fontSize: 11, color: "var(--ink-4)", marginTop: 2 }}>{formatSize(doc.file.size)}</div>
+              )}
+            </>
+          ) : (
+            <div style={{ fontSize: 12.5, color: "var(--ink-4)" }}>{L.noFile}</div>
+          )}
+        </div>
+        <span style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+          <ui.IconButton icon={ArrowUp} label={L.moveUp} variant="bordered" size={28} iconSize={14} disabled={index === 0} onClick={() => onMove(-1)} />
+          <ui.IconButton icon={ArrowDown} label={L.moveDown} variant="bordered" size={28} iconSize={14} disabled={index === total - 1} onClick={() => onMove(1)} />
+          <ui.IconButton icon={Trash2} label={L.removeDoc} variant="danger-soft" size={28} iconSize={14} onClick={onRemove} />
+        </span>
+      </div>
 
-        <TextInput
-          label="Naslov za prikaz"
-          placeholder="npr. Katalog proizvoda 2024"
+      {/* Title + document picker share one row — full-width controls read
+          overly stretched on wide screens (Sandro, 2026-08-03). */}
+      <div style={{ display: "flex", alignItems: "flex-end", gap: 10, flexWrap: "wrap" }}>
+        <ui.Input
+          label={L.displayTitle}
+          placeholder={L.displayTitlePh}
           value={doc.title}
-          onChange={(e) => onChange({ ...doc, title: e.currentTarget.value })}
+          onChange={(e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => onChange({ ...doc, title: (e.target as HTMLInputElement).value })}
+          style={{ flex: 1, minWidth: 220 }}
         />
-
-        <Button variant="secondary" size="sm" leftSection={<FileText size={14} />} onClick={() => setOpen(true)}>
-          {doc.file ? "Promijeni dokument" : "Odaberi dokument"}
-        </Button>
-      </Stack>
+        <ui.Button
+          variant="secondary"
+          icon={FileText}
+          style={{ height: "var(--control-h-lg)", flexShrink: 0 }}
+          onClick={() => setOpen(true)}
+        >
+          {doc.file ? L.changeDoc : L.pickDoc}
+        </ui.Button>
+      </div>
 
       <ImagePickerModal
         opened={open}
         onClose={() => setOpen(false)}
-        title="Odaberi dokument"
+        title={L.pickerTitle}
         mode="single"
         fileType="document"
-        onConfirm={(files) => {
+        onConfirm={(files: GalleryImage[]) => {
           const f = files[0];
           if (f) onChange({ ...doc, file: f, title: doc.title || titleFromFilename(f.name) });
           setOpen(false);
         }}
       />
-    </Box>
+    </div>
   );
 }
 
@@ -263,6 +302,7 @@ function DocumentRow({
 
 function CataloguesEditor({ data, onChange }: BlockEditorProps) {
   const d = useMemo(() => normalize(data), [data]);
+  const L = blockStrings();
 
   function patch(p: Partial<CataloguesData>) {
     onChange({ ...d, ...p } as unknown as Record<string, unknown>);
@@ -289,24 +329,25 @@ function CataloguesEditor({ data, onChange }: BlockEditorProps) {
   }
 
   return (
-    <Stack gap={20}>
-      <Stack gap={10}>
-        <SectionHeader title="Uvod" />
-        <Textarea
-          label="Podnaslov"
-          placeholder="Kratki uvodni tekst (prikazuje se ispod naslova stranice)"
+    <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
+      <div style={sectionStyle}>
+        <SectionHeader title={L.intro} />
+        <ui.Input
+          label={L.subtitle}
+          placeholder={L.subtitlePh}
+          rows={3}
           value={d.subtitle}
-          onChange={(e) => patch({ subtitle: e.currentTarget.value })}
-          autosize
-          minRows={2}
-          maxRows={6}
+          onChange={(e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => patch({ subtitle: (e.target as HTMLTextAreaElement).value })}
         />
-      </Stack>
+      </div>
 
-      <Stack gap={10}>
-        <SectionHeader title="Dokumenti" />
+      <div style={sectionStyle}>
+        <SectionHeader title={L.documents} />
         {d.documents.length === 0 && (
-          <Text size="sm" c="dimmed">Još nema dokumenata. Dodajte prvi dokument.</Text>
+          <div style={emptyBox}>
+            <span style={{ color: "var(--ink-4)" }}><FileText size={22} /></span>
+            <div style={{ fontSize: 11.5, color: "var(--ink-4)" }}>{L.noDocs}</div>
+          </div>
         )}
         {d.documents.map((doc, i) => (
           <DocumentRow
@@ -319,18 +360,18 @@ function CataloguesEditor({ data, onChange }: BlockEditorProps) {
             onMove={(dir) => moveDoc(i, dir)}
           />
         ))}
-        <Box>
-          <Button variant="secondary" size="sm" leftSection={<Plus size={14} />} onClick={addDoc}>
-            Dodaj dokument
-          </Button>
-        </Box>
-      </Stack>
+        <div>
+          <ui.Button variant="secondary" size="sm" icon={Plus} onClick={addDoc}>
+            {L.addDoc}
+          </ui.Button>
+        </div>
+      </div>
 
-      <Stack gap={10}>
-        <SectionHeader title="Kontakt" />
+      <div style={sectionStyle}>
+        <SectionHeader title={L.contact} />
         <ContactLinkField value={d.contactLink} onChange={(v) => patch({ contactLink: v })} />
-      </Stack>
-    </Stack>
+      </div>
+    </div>
   );
 }
 
@@ -339,7 +380,7 @@ export const cataloguesBlock: BlockTypeDefinition = {
   label: "Catalogues",
   defaultData: DEFAULT_DATA as unknown as Record<string, unknown>,
   EditorComponent: CataloguesEditor,
-  getLabel: (data) => {
+  getLabel: (data: Record<string, unknown>) => {
     const d = normalize(data);
     const n = d.documents.length;
     return d.subtitle?.trim() || (n ? `Katalozi (${n})` : "Katalozi");

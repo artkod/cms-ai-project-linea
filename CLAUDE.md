@@ -721,7 +721,7 @@ reproduces `serve -s` 200-fallback semantics. `deploy.yml` rsyncs the same `publ
 | `ADMIN_PORT` | `517X` |
 | `CMS_CORE_DIR` | `../cms-ai-core` |
 | `SITE_URL` | `` (empty) — set to production domain for sitemap `<loc>` and Atom feed link URLs |
-| `ADMIN_BASE_URL` | `http://localhost:5173` — where `/activate/:token` and `/reset/:token` invite/reset links land |
+| `ADMIN_BASE_URL` | `http://localhost:$PORT_ADMIN/admin` (set by `start.sh`) — where `/activate/:token` and `/reset/:token` invite/reset links land. **Must include the `/admin` base path** — the admin runs under `/admin` in dev and prod alike (`admin/vite.config.ts` `base`) |
 | `EMAIL_FROM` / `RESEND_API_KEY` / `SMTP_*` | unset — **fallback only**. Canonical per-project email config lives in admin **Settings → Advanced → Email** (developer-only). |
 | `EMAIL_TO_OVERRIDE` | unset — dev safety net: re-routes every email to one address with the original recipient in the subject |
 
