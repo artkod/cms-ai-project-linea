@@ -23,8 +23,10 @@ On a fresh clone the committed `db-snapshot.json` is replayed automatically, so
 the admin opens with the real pages/menus/media/settings (not sample pages). See
 CLAUDE.md → "Full content snapshot" for the `db:export` command to refresh it.
 
-By default the website runs on `:3000`, the admin on `:5174`, and the API on
-`:3001` (start.sh picks the next free port when these are taken).
+By default the website runs on `:3000`, the admin on `:5174/admin`, and the API on
+`:3001` (start.sh picks the next free port when these are taken). The admin is
+always served under the `/admin` base path — in dev too, so it matches prod
+(`https://…/admin`) and the admin's URL router builds the same links everywhere.
 
 Default developer user (seeded on first run):
 
