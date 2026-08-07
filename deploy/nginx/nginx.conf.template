@@ -9,10 +9,21 @@
 # reproduces `serve -s` behavior (200-status index.html fallback) with
 # try_files, so UX + SEO are unchanged.
 #
-# Placeholders (__HOME__, __FRONTEND_PORT__, __ADMIN_PORT__) are rendered on
-# the server by .github/workflows/static-nginx.yml. Opalstack's front nginx
-# proxies site routes WITHOUT stripping the path prefix, so the admin server
-# block sees /admin/... URIs verbatim.
+# Placeholders (__HOME__, __FRONTEND_PORT__, __ADMIN_PORT__, __API_PORT__) are
+# rendered on the server by .github/workflows/static-nginx.yml (first install)
+# and .github/workflows/nginx-config.yml (config-only updates). Opalstack's
+# front nginx proxies site routes WITHOUT stripping the path prefix, so the
+# admin server block sees /admin/... URIs verbatim.
+#
+# SOCIAL-CRAWLER PRERENDER: the public frontend is a client-rendered SPA, so all
+# its SEO tags are written by React at runtime. Social scrapers do not execute
+# JavaScript — Facebook et al. only ever saw the static index.html shell (bare
+# <title>Linea</title>, no description, no og:image), so every shared link
+# unfurled as an empty card. Requests from those user agents are internally
+# proxied to the CMS API's GET /og/* renderer, which emits the same metadata
+# server-side. Search engines are deliberately NOT in the list: they execute JS
+# and get the real page; serving them a body-less document would be worse and
+# would look like cloaking.
 
 worker_processes 1;
 pid __HOME__/apps/cms5-frontend/nginx/run/nginx.pid;
@@ -31,6 +42,46 @@ http {
 
     gzip on;
     gzip_types text/css application/javascript application/json image/svg+xml text/plain;
+
+    # Social unfurlers only (see the header note). Keep Googlebot/Bingbot OUT.
+    map $http_user_agent $og_bot {
+        default                    0;
+        "~*facebookexternalhit"    1;
+        "~*Facebot"                1;
+        "~*Twitterbot"             1;
+        "~*LinkedInBot"            1;
+        "~*Slackbot"               1;
+        "~*Slack-ImgProxy"         1;
+        "~*WhatsApp"               1;
+        "~*TelegramBot"            1;
+        "~*Discordbot"             1;
+        "~*Pinterest"              1;
+        "~*redditbot"              1;
+        "~*Applebot"               1;
+        "~*SkypeUriPreview"        1;
+        "~*vkShare"                1;
+        "~*Embedly"                1;
+        "~*Iframely"               1;
+        "~*Mastodon"               1;
+        "~*Viber"                  1;
+        "~*Google-InspectionTool"  1;
+    }
+
+    # Only document URLs get prerendered. Anything with a file extension
+    # (/favicon.ico, /robots.txt, an image a scraper follows) is served from
+    # disk as usual — the OG renderer has nothing to say about those.
+    map $uri $og_page {
+        default            1;
+        "~*\.[a-zA-Z0-9]+$" 0;
+    }
+
+    # A shared link often carries a trailing slash (/hr/ rather than /hr). The
+    # API's routes are declared without one, so normalise here — otherwise the
+    # proxied /og/hr/ 404s and the card comes back empty.
+    map $uri $og_uri {
+        default               $uri;
+        "~^(?<og_trimmed>.+)/$" $og_trimmed;
+    }
 
     client_body_temp_path __HOME__/apps/cms5-frontend/nginx/tmp/client_body;
     proxy_temp_path       __HOME__/apps/cms5-frontend/nginx/tmp/proxy;
@@ -56,9 +107,64 @@ http {
             add_header Cache-Control "no-cache";
         }
 
+        # The bare domain, shared before the SPA's locale redirect has run. The
+        # API answers /og (no locale) with the site-wide defaults.
+        location = / {
+            if ($og_bot) {
+                rewrite ^ /__og last;
+            }
+            try_files /index.html =404;
+        }
+
         # SPA fallback — same 200-status rewrite `serve -s` did.
         location / {
+            # `rewrite … last` inside `if` is one of the two documented-safe
+            # uses of `if` in a location context.
+            set $og_render "$og_bot$og_page";
+            if ($og_render = "11") {
+                rewrite ^ /__og$og_uri last;
+            }
             try_files $uri $uri/ /index.html;
+        }
+
+        # ---- internal: crawler metadata renderer ----
+        # `internal` = reachable only via the rewrites above, never from outside.
+        # Both proxy_pass values carry a URI part, so nginx substitutes the
+        # matched location prefix: /__og/hr/foo -> /og/hr/foo.
+
+        location = /__og {
+            internal;
+            proxy_http_version     1.1;
+            proxy_set_header       Host $host;
+            # The API is multi-project; this names which one's settings to read.
+            proxy_set_header       X-Project-Slug project-linea;
+            proxy_set_header       X-Forwarded-For $remote_addr;
+            proxy_set_header       X-Forwarded-Proto https;
+            proxy_connect_timeout  3s;
+            proxy_read_timeout     5s;
+            proxy_intercept_errors on;
+            error_page 500 502 503 504 = @og_fallback;
+            proxy_pass http://127.0.0.1:__API_PORT__/og;
+        }
+
+        location ^~ /__og/ {
+            internal;
+            proxy_http_version     1.1;
+            proxy_set_header       Host $host;
+            proxy_set_header       X-Project-Slug project-linea;
+            proxy_set_header       X-Forwarded-For $remote_addr;
+            proxy_set_header       X-Forwarded-Proto https;
+            proxy_connect_timeout  3s;
+            proxy_read_timeout     5s;
+            proxy_intercept_errors on;
+            error_page 500 502 503 504 = @og_fallback;
+            proxy_pass http://127.0.0.1:__API_PORT__/og/;
+        }
+
+        # If the API is down or slow, fall back to the old behaviour (the SPA
+        # shell) rather than handing the scraper a 502 — a thin card beats none.
+        location @og_fallback {
+            try_files /index.html =404;
         }
     }
 

@@ -1,0 +1,122 @@
+name: Update static nginx config
+
+# Re-renders deploy/nginx/nginx.conf.template on the server and reloads nginx
+# in place. Unlike static-nginx.yml (the one-time serve -> nginx MIGRATION,
+# which swaps start scripts and kills processes), this workflow touches nothing
+# but the config file and sends SIGHUP — the safe path for ordinary config
+# changes such as the social-crawler prerender locations.
+#
+# Ports are read back from the CURRENTLY RUNNING config, so there is nothing to
+# remember or pass in: whatever nginx is serving today it keeps serving.
+#
+# Safety: `nginx -t` runs against the NEW config before the live one is replaced,
+# and the previous config is kept as nginx.conf.bak for a one-line rollback:
+#   cp ~/apps/cms5-frontend/nginx/nginx.conf.bak ~/apps/cms5-frontend/nginx/nginx.conf
+#   /usr/sbin/nginx -s reload -c ~/apps/cms5-frontend/nginx/nginx.conf -p ~/apps/cms5-frontend/nginx
+
+on:
+  workflow_dispatch:
+    inputs:
+      api_port:
+        description: "cms5-api port — the crawler prerender proxies /og/* here"
+        required: false
+        default: "26273"
+
+concurrency:
+  group: deploy-linea
+  cancel-in-progress: false
+
+env:
+  FRONTEND_URL: https://cms5.artkod.opalstacked.com
+
+jobs:
+  reload:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Load deploy SSH key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
+
+      - name: Trust server host key
+        run: ssh-keyscan -H "${{ secrets.DEPLOY_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Upload nginx config sources
+        run: |
+          rsync -az --delete deploy/nginx/ \
+            "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:apps/cms5-frontend/nginx-src/"
+
+      - name: Render + validate + reload
+        env:
+          API_PORT_IN: ${{ inputs.api_port }}
+        run: |
+          ssh "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" \
+            "API_PORT_IN='${API_PORT_IN}' bash -s" <<'REMOTE'
+          set -eo pipefail
+          PREFIX="$HOME/apps/cms5-frontend/nginx"
+
+          if [ ! -f "$PREFIX/nginx.conf" ]; then
+            echo "ERROR: no rendered nginx.conf — run the static-nginx migration workflow first."
+            exit 1
+          fi
+
+          # Read the ports back out of the live config (the two `listen` lines,
+          # in template order: frontend server block first, then admin).
+          FRONTEND_PORT=$(grep -oE 'listen 127\.0\.0\.1:[0-9]+' "$PREFIX/nginx.conf" | sed -n '1s/.*://p')
+          ADMIN_PORT=$(grep -oE 'listen 127\.0\.0\.1:[0-9]+' "$PREFIX/nginx.conf" | sed -n '2s/.*://p')
+          API_PORT="${API_PORT_IN:-26273}"
+          echo "frontend port: '${FRONTEND_PORT}'  admin port: '${ADMIN_PORT}'  api port: '${API_PORT}'"
+
+          case "$FRONTEND_PORT" in (*[!0-9]*|"") echo "ERROR: could not read the frontend port from the live config. Nothing changed."; exit 1;; esac
+          case "$ADMIN_PORT"    in (*[!0-9]*|"") echo "ERROR: could not read the admin port from the live config. Nothing changed.";    exit 1;; esac
+
+          # Render to a temp file and validate BEFORE replacing the live one.
+          sed -e "s|__HOME__|$HOME|g" \
+              -e "s|__FRONTEND_PORT__|$FRONTEND_PORT|g" \
+              -e "s|__ADMIN_PORT__|$ADMIN_PORT|g" \
+              -e "s|__API_PORT__|$API_PORT|g" \
+              "$PREFIX/../nginx-src/nginx.conf.template" > "$PREFIX/nginx.conf.new"
+          /usr/sbin/nginx -t -c "$PREFIX/nginx.conf.new" -p "$PREFIX" -e "$PREFIX/log/error.log"
+
+          cp "$PREFIX/nginx.conf" "$PREFIX/nginx.conf.bak"
+          mv "$PREFIX/nginx.conf.new" "$PREFIX/nginx.conf"
+
+          if [ -s "$PREFIX/run/nginx.pid" ] && kill -0 "$(cat "$PREFIX/run/nginx.pid")" 2>/dev/null; then
+            /usr/sbin/nginx -s reload -c "$PREFIX/nginx.conf" -p "$PREFIX" -e "$PREFIX/log/error.log"
+            echo "nginx reloaded"
+          else
+            "$HOME/apps/cms5-frontend/start"
+            echo "nginx was down — started"
+          fi
+          sleep 1
+
+          # ---- verify from inside ----
+          curl -fsS "http://127.0.0.1:${FRONTEND_PORT}/" | grep -qi '<html' && echo "frontend / OK"
+          curl -fsS "http://127.0.0.1:${FRONTEND_PORT}/hr/spa-fallback-check" | grep -qi '<html' && echo "frontend SPA fallback OK"
+          curl -fsS "http://127.0.0.1:${ADMIN_PORT}/admin/" | grep -qi '<html' && echo "admin /admin/ OK"
+
+          # A normal browser must still get the SPA shell (no root div = the
+          # prerender leaked to humans).
+          curl -fsS -A "Mozilla/5.0 (Macintosh) Safari" "http://127.0.0.1:${FRONTEND_PORT}/hr/" \
+            | grep -q 'id="root"' && echo "browser still gets the SPA shell OK"
+
+          # A social crawler must get server-rendered Open Graph tags.
+          FB_UA="facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)"
+          if curl -fsS -A "$FB_UA" "http://127.0.0.1:${FRONTEND_PORT}/hr/" | grep -q 'property="og:title"'; then
+            echo "crawler prerender OK"
+          else
+            echo "WARNING: crawler prerender did NOT return og:title — check that the cms5-api app is up on ${API_PORT} and serving /og"
+          fi
+          REMOTE
+
+      - name: External smoke check
+        run: |
+          curl -fsS -o /dev/null "${FRONTEND_URL}/" && echo "frontend OK"
+          curl -fsS -o /dev/null "${FRONTEND_URL}/admin/" && echo "admin OK"
+          echo "--- Open Graph tags a social crawler now sees ---"
+          curl -fsS -A "facebookexternalhit/1.1" "${FRONTEND_URL}/hr/" \
+            | grep -E '<title>|og:title|og:description|og:image|og:url' || \
+            { echo "ERROR: no Open Graph tags served to the crawler"; exit 1; }
