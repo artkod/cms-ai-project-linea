@@ -37,6 +37,10 @@ on:
         description: "cms5-admin app port (blank = autodetect)"
         required: false
         default: ""
+      api_port:
+        description: "cms5-api port — the social-crawler prerender proxies /og/* here"
+        required: false
+        default: "26273"
 
 concurrency:
   group: deploy-linea
@@ -70,9 +74,10 @@ jobs:
           MODE: ${{ inputs.mode }}
           FRONTEND_PORT_IN: ${{ inputs.frontend_port }}
           ADMIN_PORT_IN: ${{ inputs.admin_port }}
+          API_PORT_IN: ${{ inputs.api_port }}
         run: |
           ssh "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" \
-            "MODE='${MODE}' FRONTEND_PORT_IN='${FRONTEND_PORT_IN}' ADMIN_PORT_IN='${ADMIN_PORT_IN}' bash -s" <<'REMOTE'
+            "MODE='${MODE}' FRONTEND_PORT_IN='${FRONTEND_PORT_IN}' ADMIN_PORT_IN='${ADMIN_PORT_IN}' API_PORT_IN='${API_PORT_IN}' bash -s" <<'REMOTE'
           set -eo pipefail
 
           # ---- inspect current state (always printed for the CI log) ----
@@ -100,7 +105,10 @@ jobs:
           }
           FRONTEND_PORT="${FRONTEND_PORT_IN:-$(detect_port apps/cms5-frontend || true)}"
           ADMIN_PORT="${ADMIN_PORT_IN:-$(detect_port apps/cms5-admin || true)}"
-          echo "frontend port: '${FRONTEND_PORT}'  admin port: '${ADMIN_PORT}'"
+          # The API is a fixed-port Opalstack app (see cms-ai-core's deploy.yml);
+          # the crawler-prerender locations proxy /og/* to it.
+          API_PORT="${API_PORT_IN:-26273}"
+          echo "frontend port: '${FRONTEND_PORT}'  admin port: '${ADMIN_PORT}'  api port: '${API_PORT}'"
 
           if [ "$MODE" = "inspect" ]; then
             echo "inspect mode — no changes made"; exit 0
@@ -116,6 +124,7 @@ jobs:
           sed -e "s|__HOME__|$HOME|g" \
               -e "s|__FRONTEND_PORT__|$FRONTEND_PORT|g" \
               -e "s|__ADMIN_PORT__|$ADMIN_PORT|g" \
+              -e "s|__API_PORT__|$API_PORT|g" \
               "$HOME/apps/cms5-frontend/nginx-src/nginx.conf.template" > "$PREFIX/nginx.conf"
           /usr/sbin/nginx -t -c "$PREFIX/nginx.conf" -p "$PREFIX" -e "$PREFIX/log/error.log"
 

@@ -579,6 +579,16 @@ emphasised phrase stays editable without storing HTML.
   `null` page → pure site defaults). Managed tags carry `data-cms-seo="1"` and are
   upserted/removed in place, so `RootLayout` no longer sets `document.title` — the hook does.
   Canonical strips query/hash unless the editor pinned `page.canonicalUrl`.
+- **Social scrapers never see any of that** — they run no JavaScript, so `facebookexternalhit`,
+  LinkedInBot, Slackbot, WhatsApp, Discord, Telegram et al. only fetch the static `index.html`
+  shell (`<title>Linea</title>`, no description, no image) and every shared link unfurled as an
+  empty card. Fixed server-side, not in the SPA: the private nginx maps those user agents to the
+  CMS API's `GET /og/:locale/*` renderer, which emits the same fallback chain as HTML (core
+  DECISIONS #192). **Search engines are deliberately NOT in that UA list** — they execute JS and
+  get the real page. Consequence for editors: the **Canonical URL** field also becomes `og:url`,
+  so a placeholder value there breaks every share card for the page; leave it blank unless the
+  page genuinely canonicalises elsewhere. After any SEO change, re-scrape the URL in Facebook's
+  Sharing Debugger — FB caches a card indefinitely otherwise.
 - **Custom head/body HTML** — `RootLayout` injects `settings.customHeadHtml` /
   `settings.customBodyHtml` (Settings → Advanced) via `injectHtml`, re-creating
   `<script>` tags so they execute; injected nodes carry `data-cms-injection`.
@@ -685,6 +695,19 @@ links (`/admin/activate/:token`, every frontend route) would hard-404. nginx `tr
 reproduces `serve -s` 200-fallback semantics. `deploy.yml` rsyncs the same `public/` dirs
 (nginx picks up new files with no reload) and self-heals nginx if down. Do NOT reintroduce
 `serve`/Node static hosts; port changes only via re-running the migration workflow.
+
+**Config-only changes go through `nginx-config.yml`, not the migration workflow.** It re-renders
+the template, `nginx -t`s it, keeps `nginx.conf.bak`, and reloads (SIGHUP) — it never touches
+processes or start scripts. Frontend/admin ports are read back out of the running config; only
+the API port is an input (default `26273`, matching core's `deploy.yml`). Rollback is one line,
+documented at the top of the workflow.
+
+**Social-crawler prerender** (see the SEO bullet above): the frontend server block maps social
+user agents (`$og_bot`) on document URLs (`$og_page` excludes anything with a file extension) to
+`internal` locations that proxy to the API's `/og/*`, passing `X-Project-Slug: project-linea`.
+`$og_uri` strips a trailing slash first — the API's routes are declared without one, so `/hr/`
+would otherwise 404 into an empty card. If the API is down or slow (3 s connect / 5 s read), the
+locations fall back to the SPA shell rather than serving a 502.
 
 ---
 
