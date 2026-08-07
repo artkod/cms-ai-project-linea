@@ -22,6 +22,15 @@ import { TextareaHTMLAttributes } from 'react';
 
 export declare interface AdminConfig {
     apiUrl?: string;
+    /**
+     * Public base path the admin is served under — pass `import.meta.env.BASE_URL`
+     * so it tracks the project's Vite build (`/` in dev, `/admin/` in prod).
+     * Drives the URL router (src/router.ts): every screen/editor/tab lives at a
+     * real path under this base, so refresh restores the exact location.
+     * Admin-base is a prebuilt library and cannot read the consumer's
+     * import.meta.env itself. Defaults to `/`.
+     */
+    basePath?: string;
     /** Identifies this project for the media library. Must match the slug used to configure Bunny CDN in Settings → Media. */
     projectSlug?: string;
     /** Frontend URL for preview mode (e.g. "https://example.com"). Used to build preview links. */
@@ -321,7 +330,7 @@ declare interface DraftSnapshot {
     publishAt: string | null;
 }
 
-declare function Drawer({ open, onClose, side, width, maxHeight, height, resizable, expandLabel, collapseLabel, children, style, }: DrawerProps_2): ReactPortal | null;
+declare function Drawer({ open, onClose, side, width, maxHeight, height, resizable, zIndex, expandLabel, collapseLabel, children, style, }: DrawerProps_2): ReactPortal | null;
 
 declare function DrawerBody({ children, style }: {
     children: ReactNode;
@@ -356,6 +365,9 @@ declare interface DrawerProps_2 {
     height?: string;
     /** Bottom sheets: full-screen toggle in the header. */
     resizable?: boolean;
+    /** Stacking override (scrim z; panel z+1) — a sheet opened ABOVE a kit
+     *  Modal needs this, since --z-drawer (41) sits under --z-modal (100). */
+    zIndex?: number;
     /** Accessible labels for the resize toggle (pass translated strings). */
     expandLabel?: string;
     collapseLabel?: string;
@@ -544,7 +556,7 @@ export declare interface ImagePickerModalProps {
     zIndex?: number;
 }
 
-declare function Input({ label, hint, error, icon: Icon, mono, rows, fullWidth, action, style, inputStyle, ...rest }: InputProps): JSX.Element;
+declare function Input({ label, hint, error, icon: Icon, mono, rows, fullWidth, action, stepper, onStep, style, inputStyle, ...rest }: InputProps): JSX.Element;
 
 declare interface InputProps extends Omit<NativeProps, "style"> {
     label?: ReactNode;
@@ -562,6 +574,20 @@ declare interface InputProps extends Omit<NativeProps, "style"> {
      * field stays exactly as wide as every other field in the form.
      */
     action?: ReactNode;
+    /**
+     * Kit round 18 — numeric stepper: a `−` and a `+` control INSIDE the box with
+     * the value centred between them, for small quantity fields where clicking
+     * beats typing. Pair with `onStep`; `min`/`max`/`step` are the native props
+     * and bound the arrows (a control at its bound renders disabled).
+     */
+    stepper?: boolean;
+    /**
+     * Called when an arrow is pressed with the clamped next value AND the signed
+     * step. `next` is computed from the CURRENT `value` prop, so a consumer whose
+     * state could be a render behind (a burst of clicks inside one React batch)
+     * should apply `delta` through a state updater instead.
+     */
+    onStep?: (next: number, delta: number) => void;
     style?: CSSProperties;
     inputStyle?: CSSProperties;
 }

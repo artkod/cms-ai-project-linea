@@ -313,11 +313,13 @@ if it ever has to happen again.
 If a new custom page type is needed:
 
 1. **Code-defined** — add a `PageTypeDefinition` and pass it via
-   `createAdmin({ pageTypes: [...] })` in `admin/src/main.tsx`. **Always
-   ask the user for both EN and HR label** before writing it; also confirm
-   `deletable`, `limit`, `perParentLimit`, `canBeRoot`, and
-   `allowed{Parent,Child}Types` if relevant. Then add a matching `case` in
-   `src/routes/PageView.tsx`'s switch.
+   `createAdmin({ pageTypes: [...] })` in `admin/src/main.tsx`. **The `label` is
+   a plain ENGLISH string, never an `{ en, hr }` map** (core DECISIONS #188 — a
+   map made page-type labels follow the *content*-locale switch, so the Pages
+   tree and the dashboard content-mix chart went Croatian while the rest of the
+   chrome stayed in the UI language). Confirm `deletable`, `limit`,
+   `perParentLimit`, `canBeRoot`, and `allowed{Parent,Child}Types` with the user
+   if relevant. Then add a matching `case` in `src/routes/PageView.tsx`'s switch.
 2. **Runtime-defined** — either create from the developer-only **Pages →
    Options drawer** (one-off) **or** add a `pageTypes` entry in
    `project-data.seed.json` (preferred for typed-up-front from-scratch
@@ -344,7 +346,7 @@ Two arrays:
 ```json
 {
   "strings":   [ { "locale": "hr|en|…", "key": "…", "value": "…" }, … ],
-  "pageTypes": [ { "type": "…", "label": { "hr": "…", "en": "…" }, … }, … ]
+  "pageTypes": [ { "type": "…", "label": "English label", … }, … ]
 }
 ```
 
