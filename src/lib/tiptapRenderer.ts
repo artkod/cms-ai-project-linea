@@ -57,6 +57,12 @@ function renderChildren(node: TiptapNode): string {
   return (node.content ?? []).map(renderNode).join("");
 }
 
+/** True when the subtree contains an image node (used to detect image grids). */
+function hasImage(node: TiptapNode): boolean {
+  if (node.type === "image") return true;
+  return (node.content ?? []).some(hasImage);
+}
+
 // Inline style for block nodes (paragraph/heading) — carries text alignment
 // (TextAlign extension) and indentation (custom Indent extension) the editor stores.
 function blockStyle(node: TiptapNode): string {
@@ -116,7 +122,16 @@ function renderNode(node: TiptapNode): string {
       return `<pre><code${cls}>${inner}</code></pre>`;
     }
     // Tables — wrapped so wide tables scroll horizontally instead of overflowing.
-    case "table":       return `<div class="mx-tablewrap"><table><tbody>${inner}</tbody></table></div>`;
+    // A table whose cells carry images is an IMAGE GRID (the editor's only way to
+    // lay pictures side by side), not tabular data: it gets `mx-imggrid` so the
+    // stylesheet can give it equal fixed-width columns — otherwise auto layout
+    // sizes each column differently, the square images render at different sizes
+    // and their captions land at different heights.
+    case "table": {
+      const cls = hasImage(node) ? "mx-tablewrap mx-tablewrap--grid" : "mx-tablewrap";
+      const tcls = hasImage(node) ? ' class="mx-imggrid"' : "";
+      return `<div class="${cls}"><table${tcls}><tbody>${inner}</tbody></table></div>`;
+    }
     case "tableRow":    return `<tr>${inner}</tr>`;
     case "tableHeader": return `<th${cellAttrs(node)}>${inner}</th>`;
     case "tableCell":   return `<td${cellAttrs(node)}>${inner}</td>`;

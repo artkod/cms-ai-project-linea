@@ -64,8 +64,22 @@ The legacy page-based product system (a `product-item` page type + block, the
   description** textarea (`description`, blank-line paragraphs) + **Product
   details** tabs (`detailTabs` — per-tab name + RTE body). The legacy Mixed
   Content body is no longer editable but is preserved in `blocks` and still
-  renders for products not yet migrated (as of 2026-08-10 only "Zastave" is
-  migrated; the other 96 await migration from linea.hr).
+  renders for products not yet migrated.
+- **Product content migration from the OLD site** (`scripts/migrate-product-content.mjs`,
+  helper `scripts/lib/legacy-html.mjs`): re-reads linea.hr and rewrites every
+  product's `description` + `detailTabs`. Phases `scrape` → `images` → `apply`
+  (work dir `.migration/`, gitignored); `--dry-run`, `--only=slug`, `--force`.
+  Enumerates by sitemap ∪ link crawl (the old sitemap is stale + incomplete),
+  matches OLD→NEW by slug + CATEGORY (three products exist twice under different
+  categories), uploads every legacy image/PDF into the media library
+  (Proizvodi/<product> or Proizvodi/Zajedničko) and rewrites the urls, then PUTs
+  and publishes. Refuses to run against an API without core #194. All 98
+  products applied + fidelity-verified against the LOCAL db (2026-08-10); the
+  PROD run happens after the core/linea branches merge + deploy — run the
+  `images` phase there (local dev has no media config, so local content still
+  hotlinks linea.hr). **Refresh `db-snapshot.json` (`pnpm --filter @cms/api
+  db:export`) only AFTER the prod run**, so the committed seed carries CDN urls
+  rather than hotlinks.
 - **Prod cutover runbook: `docs/COMMERCE-CUTOVER.md`** (ordered steps: core
   merge → enable env on the API → migrate prod DB → linea merge → verify →
   cleanup → admin config; incl. rollback + the legacy-pages transition window).
