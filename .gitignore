@@ -10,3 +10,4 @@ dist
 !/admin/vendor/admin-base/dist/**
 !/vendor/storefront/dist/
 !/vendor/storefront/dist/**
+.migration/

@@ -210,8 +210,17 @@ export function CommerceProductView({ product }: { product: CatalogProduct }) {
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const activeImage = allImages[activeImageIndex] ?? null;
 
-  // ── Body: description text + info tabs (from the Mixed Content sections) ────
-  const { about, tabs } = useMemo(() => extractBody(product.blocks), [product.blocks]);
+  // ── Body: first-class `description` + `detailTabs` fields, falling back to
+  // the legacy mixed-content extraction for products not yet migrated. ─────────
+  const legacyBody = useMemo(() => extractBody(product.blocks), [product.blocks]);
+  const descriptionParas = useMemo(
+    () => (product.description ?? "").split(/\n{2,}/).map((s) => s.trim()).filter(Boolean),
+    [product.description],
+  );
+  const about = descriptionParas.length > 0 ? [] : legacyBody.about;
+  const tabs: TabItem[] = product.detailTabs?.length
+    ? product.detailTabs.map((tab) => ({ id: tab.id, title: tab.title, content: (tab.content ?? null) as TabItem["content"] }))
+    : legacyBody.tabs;
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
   const isMobileInfo = useMediaQuery("(max-width: 760px)", false, { getInitialValueInEffect: false });
   const [openInfoItem, setOpenInfoItem] = useState<string | null>(null);
@@ -366,12 +375,27 @@ export function CommerceProductView({ product }: { product: CatalogProduct }) {
                 )}
               </div>
 
-              {about.length > 0 && (
+              {(descriptionParas.length > 0 || about.length > 0) && (
                 <section className="pi-about">
                   <h2>{t("product.about_heading")}</h2>
-                  {about.map((doc, i) => (
-                    <div key={i} className="pi-rich" dangerouslySetInnerHTML={{ __html: tiptapToHtml(doc) }} />
-                  ))}
+                  {descriptionParas.length > 0 ? (
+                    <div className="pi-rich">
+                      {descriptionParas.map((para, i) => (
+                        <p key={i}>
+                          {para.split("\n").map((line, j, arr) => (
+                            <Fragment key={j}>
+                              {line}
+                              {j < arr.length - 1 && <br />}
+                            </Fragment>
+                          ))}
+                        </p>
+                      ))}
+                    </div>
+                  ) : (
+                    about.map((doc, i) => (
+                      <div key={i} className="pi-rich" dangerouslySetInnerHTML={{ __html: tiptapToHtml(doc) }} />
+                    ))
+                  )}
                 </section>
               )}
             </div>

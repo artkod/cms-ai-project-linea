@@ -510,6 +510,80 @@
     max-width: 100%;
     border-radius: 10px;
   }
+
+  // ── rich-text tables inside the product-details tabs ───────────────────────
+  .mx-tablewrap {
+    margin: 1.3em 0 0;
+    overflow-x: auto;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+  }
+
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: 0.96rem;
+  }
+
+  th,
+  td {
+    padding: 12px 16px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+    vertical-align: top;
+    color: var(--ink);
+
+    &:last-child {
+      border-right: 0;
+    }
+
+    > p:first-child {
+      margin-top: 0;
+    }
+  }
+
+  tr:last-child td {
+    border-bottom: 0;
+  }
+
+  // Image GRID (a table carrying pictures, not data): equal fixed-width columns
+  // so every image renders at the same size and the captions under them line up.
+  // Chrome, borders and zebra striping are all dropped — it is a layout device.
+  .mx-tablewrap--grid {
+    border: 0;
+    border-radius: 0;
+    overflow-x: visible;
+  }
+
+  table.mx-imggrid {
+    table-layout: fixed;
+
+    td {
+      border: 0;
+      padding: 8px;
+      text-align: center;
+      vertical-align: top;
+      background: none;
+    }
+
+    img {
+      display: block;
+      width: 100%;
+      height: auto;
+      margin: 0 auto;
+    }
+
+    // caption paragraph under each image
+    p {
+      margin: 0;
+
+      + p {
+        margin-top: 8px;
+        font-size: 0.95rem;
+      }
+    }
+  }
 }
 
 .pi-empty {
