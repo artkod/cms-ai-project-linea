@@ -148,7 +148,7 @@ declare interface BannerProps {
 
 declare type BannerTone = "info" | "success" | "warn" | "danger";
 
-declare function BarChart({ buckets, seriesLabels, height, orientation, format, emptyLabel, fill, onBucketClick, style, }: BarChartProps): JSX.Element;
+declare function BarChart({ buckets, seriesLabels, height, orientation, format, emptyLabel, labelCase, fill, onBucketClick, style, }: BarChartProps): JSX.Element;
 
 declare interface BarChartBucket {
     /** Axis label under the bar (vertical) or beside it (horizontal). */
@@ -170,6 +170,14 @@ declare interface BarChartProps {
     format?: (n: number) => string;
     /** Rendered centered in the track when every bucket is zero/absent. */
     emptyLabel?: string;
+    /**
+     * `vertical` only. Axis labels default to the small tracked-uppercase idiom,
+     * which suits the DATE labels every spark chart carries ("JUN 26"). A chart
+     * whose buckets are WORDS reads as shouting in that style, so those pass
+     * `"normal"` to get the same treatment the horizontal rows already use
+     * (kit round 19).
+     */
+    labelCase?: "upper" | "normal";
     /**
      * `horizontal` only: spread the rows over the available height (thicker bars,
      * roomier type) instead of stacking them at their natural size. For a chart

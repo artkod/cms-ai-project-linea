@@ -167,6 +167,13 @@ export declare interface CatalogCategoryMembership {
     position: number;
 }
 
+/** One "Product details" tab: editable name + rich-text (TipTap) body. */
+export declare interface CatalogDetailTab {
+    id: string;
+    title: string;
+    content: unknown;
+}
+
 export declare interface CatalogImage {
     mediaId: string;
     cdnUrl: string;
@@ -201,6 +208,12 @@ export declare interface CatalogProduct {
     name: string;
     slug: string;
     shortDescription: string | null;
+    /** First-class plain-text description (paragraphs split on blank lines) —
+     *  the "About this product" section. Null when unset. */
+    description: string | null;
+    /** First-class tabbed details ("Product details") — ordered; `content` is a
+     *  TipTap doc (or null while empty). */
+    detailTabs: CatalogDetailTab[];
     metaTitle: string | null;
     metaDescription: string | null;
     ogImage: CatalogImage | null;
