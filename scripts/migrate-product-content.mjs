@@ -251,7 +251,8 @@ async function phaseScrape() {
   // every legacy asset the content still points at — images (collected above)
   // plus the files the document lists link to
   const assets = new Set(missing);
-  for (const u of JSON.stringify(products).match(/https?:\/\/linea\.hr\/[^"\\]+/g) ?? []) assets.add(u);
+  // NB: scan the CONTENT only — a product's own `url` field is not an asset.
+  for (const p of products) for (const u of JSON.stringify(p.detailTabs).match(/https?:\/\/linea\.hr\/[^"\\]+/g) ?? []) assets.add(u);
 
   writeJson(P.content, { scrapedAt: new Date().toISOString(), products, assets: [...assets], emptyTabs });
   log(`✔ scrape: ${products.length} products, ${assets.size} distinct assets (${missing.size} images) → ${P.content}`);
@@ -375,9 +376,9 @@ async function phaseImages() {
       byHash.set(hash, map[url]);
     }
     done += 1;
-    if (done % 10 === 0) { log(`  … ${done}/${todo.length}`); writeJson(P.images, map); }
+    if (done % 10 === 0) { log(`  … ${done}/${todo.length}`); if (!DRY) writeJson(P.images, map); }
   }
-  writeJson(P.images, map);
+  if (!DRY) writeJson(P.images, map);
   const failed = Object.entries(map).filter(([, v]) => v.error);
   log(`✔ assets: ${done} handled, ${failed.length} failed → ${P.images}`);
 }
