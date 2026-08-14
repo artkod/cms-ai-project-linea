@@ -150,6 +150,17 @@ export function OrderView() {
                 </div>
               </div>
 
+              {/* Merchant's note to the customer (`orders.note`, set in the
+                  admin quote editor's "Customer note" field). It's the only
+                  free-text the shop can put on an offer, so it renders above
+                  the lines — the terms usually qualify what's below. */}
+              {order.note && (
+                <div className="op-note">
+                  <h2>{tx("orderpage.note_title", "Napomena")}</h2>
+                  <p>{order.note}</p>
+                </div>
+              )}
+
               {/* Lines */}
               <div className="op-lines">
                 {order.items.map((it) => (
