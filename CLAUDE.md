@@ -30,7 +30,17 @@ The legacy page-based product system (a `product-item` page type + block, the
   of **0 cents renders as "Na upit"** (price on request); > 0 shows the price.
   The merchant is notified of new inquiries via `shop_settings.inquiry_email`
   (admin Settings → Commerce → Notifications) + the "Open quotes" dashboard
-  card. **Flipping to real payments later**: set products to "For sale"
+  card. **Admin nav is pared down** (`admin/src/main.tsx`): the only
+  commerce entries are Sales › Quotes, Catalog › Products/Categories and Shop
+  settings › **Notifications** — everything else is hidden via core's
+  `hiddenCommerceNav` (which since core #209 also accepts
+  `commerce:settings:<tab>` keys), and `hiddenCommerceFeatures: ["shipping",
+  "returns", "digital"]` hides the order detail's shipping half + the
+  returns/digital notification groups. Shop settings is developer/owner-only in
+  core. Both lists are UI-only — the screens stay mounted and deep-linkable.
+  The **"Customer note"** an operator writes on a quote (`orders.note`) now
+  renders on the shopper's quote page (`OrderView`'s `.op-note` card, string
+  `orderpage.note_title`). **Flipping to real payments later**: set products to "For sale"
   (`purchasable = true`) + configure Stripe under Settings → Payments — no data
   migration needed (quotes already become payable orders on acceptance).
 - **The old 3-group price configurator became option axes + variants**: groups

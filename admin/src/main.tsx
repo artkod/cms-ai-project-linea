@@ -210,18 +210,36 @@ createAdmin({
   // Commerce module ON (must match the API's COMMERCE_ENABLED — start.sh sets it).
   // Products/categories live in the commerce catalog (shop nav).
   commerce: true,
-  // TEMPORARY: hide most commerce nav for Linea — only Sales › Quotes and
-  // Catalog › Products/Categories stay visible. UI-only hide (screens/routes
-  // untouched); remove this array to restore the full commerce nav.
+  // TEMPORARY: hide most commerce nav for Linea — only Sales › Quotes,
+  // Catalog › Products/Categories and Shop settings › Notifications stay
+  // visible. UI-only hide (screens/routes untouched); remove this array to
+  // restore the full commerce nav.
+  //
+  // Shop settings IS shown (2026-08-14) but pared down to its Notifications tab
+  // — that's where the merchant sets the address inquiry/quote notices go to and
+  // which of them fire. Every other tab is a capability Linea doesn't use
+  // (delivery, payments, fiscalization, search) or config it must not drift
+  // (tax, business letterhead). The section is developer/owner-only in core.
   hiddenCommerceNav: [
     "commerce:reports",
-    "commerce:settings",
     "commerce:orders",
     "commerce:customers",
     "commerce:reviews",
     "commerce:price-lists",
     "commerce:discounts",
+    "commerce:settings:business",
+    "commerce:settings:tax",
+    "commerce:settings:delivery",
+    "commerce:settings:payments",
+    "commerce:settings:policies",
+    "commerce:settings:fiscalization",
+    "commerce:settings:social",
+    "commerce:settings:search",
   ],
+  // Linea is an inquiry-only catalogue: nothing ships from the CMS, no returns
+  // flow, no digital downloads. Hides the order detail's shipping half and the
+  // returns/digital notification groups.
+  hiddenCommerceFeatures: ["shipping", "returns", "digital"],
   // Linea product-model lockdown: every product is physical + inquiry-only +
   // shop-default tax, and must stay that way — hide the type/sale/tax-class/KPD
   // editors AND force those values on save, so none can drift by accident.
