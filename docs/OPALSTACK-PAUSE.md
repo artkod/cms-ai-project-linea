@@ -21,16 +21,43 @@ A crontab backup from just before the pause is on the server: `~/crontab.backup-
 
 ## Things that would switch it back on by accident
 
-- **A push to `main` of `cms-ai-core`** — core's `deploy.yml` is hardcoded to
-  `~/apps/cms5-api` and restarts that API on every deploy. Until that workflow is
-  parameterised per project (needed for Gora anyway), don't push core `main` or the
-  Linea API comes back up.
 - **Manually running** `Update static nginx config` (`nginx-config.yml`) or
   `Migrate static hosting to private nginx` (`static-nginx.yml`) — both start the
   Linea nginx if it isn't running.
 - Re-enabling Linea's `deploy.yml` — its "self-heal" step starts nginx.
 
-## Resume
+## Since the pause: core no longer deploys Linea's API
+
+As of cms-ai-core#179 every project deploys **itself** through core's
+`deploy/opalstack/` kit (cms-ai-core `docs/DEPLOYMENT-OPALSTACK.md` → "The standard
+setup"). Core's `deploy.yml` only dispatches `core-updated` to the projects in its
+matrix, and Linea is **not** in it. So:
+
+- Pushes to core `main` no longer touch Linea's server.
+- The resume steps below bring Linea back **as it was**, on its legacy workflow. That
+  workflow ships only the frontend + admin. The API would stay frozen at the core commit
+  it had when paused (#164) and would drift from the admin it gets rebuilt against.
+
+**To resume properly, move Linea onto the standard setup instead** (a one-off migration):
+
+1. Opalstack: keep `cms5-api` as the API app. Use `cms5-frontend` as the web app: the
+   kit's nginx serves `/` AND `/admin` from one app, so point the `/admin` site route at
+   `cms5-frontend` too and retire `cms5-admin`.
+2. Move the secrets out of `~/apps/cms5-api/start` into `~/.cms/project-linea/`:
+   `db-password`, a **new** `jwt-secret` (the old one appeared in a session transcript —
+   rotating it logs everyone out once), and `touch bootstrapped` (the DB already exists).
+3. Commit `deploy/opalstack.env` (`PROJECT_SLUG=project-linea`, `API_APP=cms5-api`,
+   `API_PORT=26273`, `WEB_APP=cms5-frontend`, the frontend port, both URLs,
+   `DB_NAME`/`DB_USER=cms5-linea`, `COMMERCE_ENABLED=true`), replace
+   `.github/workflows/deploy.yml` with cms-ai-gora's, and delete the legacy
+   `static-nginx.yml` / `nginx-config.yml` / `deploy/nginx/`.
+4. Add `artkod/cms-ai-project-linea` to the matrix in core's `deploy.yml`.
+5. Then: restore the cron lines, enable the workflow, run it.
+
+The server's `~/apps/cms5-api/repo` is a git clone whose embedded GitHub token had
+expired (removed on 2026-09-23). The kit rsyncs the tree and never needs git there.
+
+## Resume as-is (legacy workflow)
 
 Check free memory first — Linea needs ~150 MB. With another cms-ai-core API running
 on the account, both together may not fit in 512 MB.
