@@ -246,6 +246,10 @@ echo "$ADMIN_PID" >> "$PID_FILE"
            "$PNPM_ADMIN_BASE_DIST/index.d.ts" 2>/dev/null || true
       fi
       rm -rf "$VITE_CACHE"
+      # Kill the vite CHILD too: `pnpm dev` is a wrapper — killing only it orphans
+      # the node process, which keeps the port (the restart lands on the next free
+      # one) and keeps serving its stale in-memory dep bundle (core DECISIONS 221).
+      pkill -P "$ADMIN_PID" 2>/dev/null || true
       kill "$ADMIN_PID" 2>/dev/null || true
       sleep 1
       cd "$PROJECT_DIR/admin"
