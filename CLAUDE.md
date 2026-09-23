@@ -716,6 +716,11 @@ isn't a sibling) the committed bundle is what gets built.
 
 ### Opalstack static hosting (prod) — private nginx, NOT `serve`
 
+> **PAUSED since 2026-09-23** — the Linea API + nginx are stopped, their cron lines are
+> commented out (`#LINEA-OFF `) and the `deploy.yml` workflow is disabled, to free memory
+> for another project. Resume/pause steps + the accidental-restart traps:
+> **`docs/OPALSTACK-PAUSE.md`**.
+
 Both static apps (`cms5-frontend` at `/`, `cms5-admin` at `/admin`) are served by **one
 private nginx** (`~/apps/cms5-frontend/nginx/`, config source `deploy/nginx/`, migrated via
 the `static-nginx.yml` workflow) — replaced the two `serve` Node processes (~42 MB → ~8 MB)
