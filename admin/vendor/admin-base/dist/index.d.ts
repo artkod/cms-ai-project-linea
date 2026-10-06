@@ -20,6 +20,14 @@ import { ReactPortal } from 'react';
 import { RefAttributes } from 'react';
 import { TextareaHTMLAttributes } from 'react';
 
+/** The dashed add CTA — the page editor's "Add new section" button, at the
+ *  size a field list wants. */
+export declare function AddItemButton({ label, onClick, disabled }: {
+    label: string;
+    onClick: () => void;
+    disabled?: boolean;
+}): JSX.Element;
+
 export declare interface AdminConfig {
     apiUrl?: string;
     /**
@@ -55,18 +63,51 @@ export declare interface AdminConfig {
      * `commerce:catalog`, `commerce:reports`, `commerce:settings`. Tab keys:
      * `commerce:orders`, `commerce:quotes`, `commerce:customers`,
      * `commerce:reviews`, `commerce:products`, `commerce:categories`,
-     * `commerce:price-lists`, `commerce:discounts`. Empty/omitted = show all.
+     * `commerce:price-lists`, `commerce:discounts`. Shop-settings TAB keys:
+     * `commerce:settings:<tab>` where tab is one of `business`, `tax`, `delivery`,
+     * `payments`, `policies`, `notifications`, `fiscalization`, `social`,
+     * `search` — hiding tabs lets a project expose the Settings screen with only
+     * the tabs it actually uses. Empty/omitted = show all.
      */
     hiddenCommerceNav?: string[];
+    /**
+     * Commerce FEATURE keys to hide from this project's shop UI — controls, not
+     * nav entries, for capabilities the shop doesn't have. Keys: `shipping` (the
+     * order detail's Create-shipment card + fulfilment forward-steps), `returns`
+     * (the returns policy block + its notification group), `digital` (the digital
+     * download block + its notification group). UI-only; server behaviour is
+     * unchanged. Empty/omitted = show everything.
+     */
+    hiddenCommerceFeatures?: string[];
     /**
      * ProductEditor field keys to HIDE from this project's product editor (and
      * force to their canonical value on save, so the attribute can never drift).
      * Per-project product-model lockdown — UI-only otherwise. Keys: `type`
      * (physical/digital/service → forced physical), `sale` (buy/inquiry → forced
      * inquiry-only), `taxClass` (→ forced shop default), `kpdCode` (→ forced
-     * empty). Empty/omitted = show all fields.
+     * empty), `shortDescription` (the per-locale "Alternative title" — hidden
+     * only, existing values are left untouched). Empty/omitted = show all fields.
      */
     hiddenProductFields?: string[];
+    /**
+     * OPT-IN fixed "Product details" schema (DECISIONS 243). Omitted — the
+     * default — the product editor keeps core's free-form details editor (add an
+     * item, name it, write rich text). Passed, the editor drops the Add-item
+     * button and the rich text and renders exactly these named sections of named
+     * inputs, so every product in the catalog carries the same fields. Values are
+     * stored in the existing per-locale `detailTabs` (one tab per section,
+     * `content = { kind: "fields", fields: [{ key, label, value }] }`), so the
+     * storefront reads them off `CatalogProduct.detailTabs` with no contract
+     * change. Section `id`s and field `key`s are stable identifiers — renaming one
+     * orphans the values already stored under it.
+     */
+    productDetailSections?: ProductDetailSectionDef[];
+    /**
+     * Per-locale overrides for admin UI copy, merged over the built-in bundles:
+     * `{ en: { "commerce.products.detailTabs": "Product items" } }`. For a project
+     * that renames a concept — never for translations that belong upstream.
+     */
+    i18nOverrides?: Record<string, Record<string, string>>;
 }
 
 export declare function AppDrawer({ title, description, children, footer, onConfirm, confirmLabel, confirmDisabled, destructive, loading, cancelLabel, dirty, onClose, size, ...rest }: AppDrawerProps): JSX.Element;
@@ -188,6 +229,16 @@ declare interface BarChartProps {
     style?: CSSProperties;
 }
 
+declare interface BaseFieldProps {
+    label?: string;
+    value: string;
+    onChange: (value: string) => void;
+    placeholder?: string;
+    hint?: string;
+    required?: boolean;
+    disabled?: boolean;
+}
+
 export declare interface BlockEditorProps {
     data: Record<string, unknown>;
     onChange: (data: Record<string, unknown>) => void;
@@ -202,6 +253,14 @@ export declare interface BlockTypeDefinition {
     EditorComponent: ComponentType<BlockEditorProps>;
     /** Optional: derive a display label from block data (e.g. user-set title). Falls back to `label`. */
     getLabel?: (data: Record<string, unknown>) => string;
+    /**
+     * Declare which parts of this block's data are prose, for AI translation
+     * (DECISIONS 249). Paths are relative to the data object passed in. Without
+     * it core guesses with `heuristicTranslatable`, which conservatively skips
+     * anything that looks like an id, a URL or a code — so declare the hook when
+     * a text field of yours is a short word the guesser would mistake for one.
+     */
+    translatable?: TranslatableHook;
 }
 
 declare function Breadcrumb({ items, onNavigate, style }: BreadcrumbProps): JSX.Element;
@@ -268,6 +327,17 @@ declare interface CardProps extends HTMLAttributes<HTMLDivElement> {
 
 declare type CardVariant = "surface" | "panel" | "list";
 
+export declare function CategoryPicker({ value, onChange, label, required, hint }: CategoryPickerProps): JSX.Element;
+
+export declare interface CategoryPickerProps {
+    /** The chosen category id, or null. */
+    value: string | null;
+    onChange: (id: string | null) => void;
+    label?: string;
+    required?: boolean;
+    hint?: string;
+}
+
 declare function Checkbox({ checked, onChange, label, size, disabled, style }: CheckboxProps): JSX.Element;
 
 declare interface CheckboxProps {
@@ -279,7 +349,18 @@ declare interface CheckboxProps {
     style?: CSSProperties;
 }
 
-export declare function ChipsInput({ values, onChange, options, addLabel, removeLabel, formatValue, requireOne, }: ChipsInputProps): JSX.Element;
+declare function Chip({ children, onRemove, removeLabel, size, style }: ChipProps): JSX.Element;
+
+declare interface ChipProps {
+    children: ReactNode;
+    onRemove: () => void;
+    /** Accessible name of the remove action, e.g. "Remove filter Payment: Paid". */
+    removeLabel: string;
+    size?: "sm" | "md";
+    style?: CSSProperties;
+}
+
+export declare function ChipsInput({ values, onChange, options, addLabel, removeLabel, formatValue, requireOne, disabled, }: ChipsInputProps): JSX.Element;
 
 export declare interface ChipsInputOption {
     value: string;
@@ -299,6 +380,19 @@ export declare interface ChipsInputProps {
     formatValue?: (value: string) => string;
     /** Refuse to remove the last remaining chip (Locales needs ≥1). */
     requireOne?: boolean;
+    /** Read-only: chips render without their remove button and no add affordance. */
+    disabled?: boolean;
+}
+
+export declare function CollectionPicker({ value, onChange, label, required, hint }: CollectionPickerProps): JSX.Element;
+
+export declare interface CollectionPickerProps {
+    /** The chosen collection `code`, or null. */
+    value: string | null;
+    onChange: (code: string | null) => void;
+    label?: string;
+    required?: boolean;
+    hint?: string;
 }
 
 export declare function computeLinkHref(data: Partial<LinkData>): string | null;
@@ -383,6 +477,12 @@ declare interface DrawerProps_2 {
     style?: CSSProperties;
 }
 
+/** The body of a card holding several `FieldSection`s. */
+export declare function EditorPanel({ children, style }: {
+    children: ReactNode;
+    style?: CSSProperties;
+}): JSX.Element;
+
 export declare function EmptyState({ icon: Icon, title, description, actions, compact, }: EmptyStateProps): JSX.Element;
 
 declare function EmptyState_2({ icon: Icon, title, description, action, variant, style }: EmptyStateProps_2): JSX.Element;
@@ -434,6 +534,16 @@ export declare class ErrorBoundary extends Component<Props, State> {
 
 export declare function fetchProjectSettings<T = Record<string, unknown>>(key: string): Promise<ProjectSettings<T>>;
 
+/** A labelled field wrapper — for composite controls (pickers) that are not a
+ *  kit Input. A plain input uses its own `label` prop and needs no wrapper. */
+export declare function Field({ label, required, hint, error, children, }: {
+    label?: ReactNode;
+    required?: boolean;
+    hint?: ReactNode;
+    error?: ReactNode;
+    children: ReactNode;
+}): JSX.Element;
+
 export declare interface FieldDef {
     name: string;
     label: string;
@@ -453,6 +563,51 @@ export declare interface FieldDef {
     placeholder?: string;
 }
 
+/** Standalone explainer paragraph. */
+export declare function FieldHint({ children, error }: {
+    children: ReactNode;
+    error?: boolean;
+}): JSX.Element;
+
+/**
+ * One bordered item shell: a sunken header (optional index + title + actions)
+ * over a body of fields. `Repeater` draws its rows with it, and a section with a
+ * FIXED number of sub-groups (three process steps, two makers) uses it directly
+ * — a nested `FieldSection` rule would carry the same weight as its parent and
+ * read as a sibling section.
+ */
+export declare function FieldItem({ title, index, actions, collapsed, children, }: {
+    title: ReactNode;
+    /** 1-based; rendered as the mono `01` marker. */
+    index?: number;
+    actions?: ReactNode;
+    /** Header-only (no body border) — set by `Repeater` when a row is closed. */
+    collapsed?: boolean;
+    children?: ReactNode;
+}): JSX.Element;
+
+/**
+ * A row of fields. `auto` (the default) reflows to as many columns as fit,
+ * `2` is a fixed pair, `line` keeps every field on ONE line however many there
+ * are (the fixed product-details spec row). All three collapse on mobile.
+ */
+export declare function FieldRow({ cols, children }: {
+    cols?: "auto" | 2 | "line";
+    children: ReactNode;
+}): JSX.Element;
+
+/**
+ * One group inside a panel: a tracked uppercase rule, an optional explainer,
+ * then the fields. A section is never its own card — the rule is what separates
+ * it from the next one, exactly as on the product-details screen.
+ */
+export declare function FieldSection({ title, hint, right, children, }: {
+    title: ReactNode;
+    hint?: ReactNode;
+    right?: ReactNode;
+    children: ReactNode;
+}): JSX.Element;
+
 export declare type FieldType = "text" | "textarea" | "number" | "select" | "date" | "image-url" | "icon" | "link";
 
 export declare interface GalleryImage {
@@ -468,6 +623,13 @@ export declare interface GalleryImage {
 
 /** Resolve a stored icon name to its lucide component, or null if unknown. */
 export declare function getLucideIcon(name: string | null | undefined): LucideIcon | null;
+
+/**
+ * Best-effort extraction from a shape core does not know. Recurses objects and
+ * arrays, honours the deny-list, and recognises the three value shapes core
+ * hands projects: a picked image, a link, and a rich-text document.
+ */
+export declare function heuristicTranslatable(data: unknown, base?: TranslatablePath): TranslatableRef[];
 
 export declare const IconButton: ForwardRefExoticComponent<IconButtonProps & RefAttributes<HTMLButtonElement>>;
 
@@ -539,6 +701,17 @@ export declare interface IconPickerProps {
     modalTitle?: string;
 }
 
+/** One image chosen from the media library. Stores the picker's reference, so
+ *  the media-usage scan can see the page using the file. */
+export declare function ImageField({ label, value, onChange, required, hint, disabled, }: {
+    label?: string;
+    value: GalleryImage | null;
+    onChange: (image: GalleryImage | null) => void;
+    required?: boolean;
+    hint?: string;
+    disabled?: boolean;
+}): JSX.Element;
+
 export declare function ImagePickerModal({ opened, onClose, title, mode, fileType, initialImages, onConfirm, }: ImagePickerModalProps): JSX.Element;
 
 export declare interface ImagePickerModalProps {
@@ -564,7 +737,7 @@ export declare interface ImagePickerModalProps {
     zIndex?: number;
 }
 
-declare function Input({ label, hint, error, icon: Icon, mono, rows, fullWidth, action, stepper, onStep, style, inputStyle, ...rest }: InputProps): JSX.Element;
+declare function Input({ label, hint, error, icon: Icon, mono, rows, fullWidth, action, stepper, onStep, style, inputStyle, autoComplete, ...rest }: InputProps): JSX.Element;
 
 declare interface InputProps extends Omit<NativeProps, "style"> {
     label?: ReactNode;
@@ -651,6 +824,20 @@ export declare interface LinkData {
     buttonPosition: string;
 }
 
+/**
+ * A link target (page / URL / e-mail / file) picked through the shared link
+ * picker, with the link TEXT captured alongside — the same data the Mixed
+ * Content link widget stores, so a storefront renderer stays interchangeable.
+ */
+export declare function LinkField({ label, value, onChange, required, hint, disabled, }: {
+    label?: string;
+    value: LinkData | null;
+    onChange: (link: LinkData | null) => void;
+    required?: boolean;
+    hint?: string;
+    disabled?: boolean;
+}): JSX.Element;
+
 export declare function LinkPickerModal({ opened, onClose, mode, initialData, onConfirm, currentLocale, showTextFields, }: LinkPickerModalProps): JSX.Element;
 
 declare interface LinkPickerModalProps {
@@ -683,6 +870,35 @@ export declare function LucideIconByName({ name, size, strokeWidth, color, }: {
     strokeWidth?: number;
     color?: string;
 }): JSX.Element | null;
+
+declare function MaskedSecret({ label, configured, hint, value, onChange, onClear, onUndoClear, disabled, width, rows, placeholder, labels, }: MaskedSecretProps): JSX.Element;
+
+declare interface MaskedSecretProps {
+    label: string;
+    /** A secret is stored server-side (renders the "✓ Configured" chip). */
+    configured: boolean;
+    hint?: ReactNode;
+    value: string;
+    onChange: (v: string) => void;
+    onClear?: () => void;
+    /** Set while the stored secret is MARKED for removal — the trash turns into
+     *  an undo, so Save is the only thing that actually clears it. */
+    onUndoClear?: () => void;
+    disabled?: boolean;
+    width?: number;
+    /** Textarea variant (a PEM bundle, a P8 key) — no reveal eye: a multi-line
+     *  secret is typed in the clear and never read back. */
+    rows?: number;
+    placeholder?: string;
+    /** Labels (the kit carries no translations). */
+    labels: {
+        configured: string;
+        show: string;
+        hide: string;
+        clear: string;
+        undo: string;
+    };
+}
 
 export declare interface MediaFile {
     id: string;
@@ -786,7 +1002,7 @@ declare interface ModalProps_2 {
 
 declare type NativeProps = InputHTMLAttributes<HTMLInputElement> & TextareaHTMLAttributes<HTMLTextAreaElement>;
 
-declare function NavItem({ icon: Icon, label, active, onClick, style }: NavItemProps): JSX.Element;
+declare function NavItem({ icon: Icon, label, active, onClick, style, count }: NavItemProps): JSX.Element;
 
 declare interface NavItemProps {
     icon: LucideIcon;
@@ -794,6 +1010,12 @@ declare interface NavItemProps {
     active?: boolean;
     onClick?: () => void;
     style?: CSSProperties;
+    /**
+     * Kit round 21 (DECISIONS 216): a trailing unseen-count pill ("Sales · 3") for
+     * the NEW-item badges. Hidden at 0 / null. Same teal-on-tint ink as the active
+     * row so it never competes with the label.
+     */
+    count?: number | null;
 }
 
 /**
@@ -831,6 +1053,13 @@ export declare interface NavSectionHostApi {
 /** Props every nav-section component receives when mounted. */
 export declare type NavSectionProps = NavSectionHostApi;
 
+export declare function NumberField({ label, value, onChange, placeholder, hint, required, disabled, suffix, }: Omit<BaseFieldProps, "value" | "onChange"> & {
+    value: number | null;
+    onChange: (value: number | null) => void;
+    /** Unit shown inside the box as a LABEL (cm, %, €) — never typed. */
+    suffix?: string;
+}): JSX.Element;
+
 declare interface OverlayChrome {
     mobile: boolean;
     resizable: boolean;
@@ -858,6 +1087,52 @@ export declare interface Page {
     updatedAt: string;
     translations?: Record<string, PageTranslation>;
     hasChildren?: boolean;
+}
+
+/**
+ * One project-defined card in the page editor, injected through a code-defined
+ * page type. This is the DEFAULT way to give a bespoke page type its inputs:
+ * fixed fields grouped into cards, outside the Mixed Content block editor.
+ *
+ * Use it instead of a custom block type whenever the page's shape is fixed —
+ * `fields` only covers a flat list of primitives, while a section component can
+ * render columns, repeaters, pickers, anything.
+ */
+export declare interface PageEditorSectionDef {
+    /** Stable key. Also the section's slice of the page's typeData. */
+    key: string;
+    /** Section title. Use a { en, hr } map for multilingual admins; follows the UI language. */
+    label: string | Record<string, string>;
+    /**
+     * One line under the section rule explaining what the editor is filling in
+     * (where the content shows up, what the shop sees). Same { en, hr } shape as
+     * `label`. Optional — omit it when the title says everything.
+     */
+    hint?: string | Record<string, string>;
+    /** The section UI. Compose it from the exported editor-field primitives
+     *  (`FieldSection` is already around it — start at `FieldRow` / `Field` /
+     *  `TextField` / `ImageField` / `Repeater`), so the page keeps the design
+     *  layer (DECISIONS 248). */
+    component: ComponentType<PageEditorSectionProps>;
+    /**
+     * Declare which parts of this section's slice are prose, for AI translation
+     * (DECISIONS 249). Paths are relative to the data object passed in. Without
+     * it core guesses with `heuristicTranslatable`, which conservatively skips
+     * anything that looks like an id, a URL or a code — so declare the hook when
+     * a text field of yours is a short word the guesser would mistake for one.
+     */
+    translatable?: TranslatableHook;
+}
+
+/**
+ * Props a project's page-editor section receives. `data` is that section's slice
+ * of the page's `typeData` (empty object on a fresh page); `onChange` replaces
+ * it. Everything else — the card chrome, dirty tracking, autosave, per-locale
+ * storage — is the editor's job.
+ */
+export declare interface PageEditorSectionProps {
+    data: Record<string, unknown>;
+    onChange: (data: Record<string, unknown>) => void;
 }
 
 export declare function PageHeader({ eyebrow, title, subtitle, actions }: PageHeaderProps): JSX.Element;
@@ -950,6 +1225,13 @@ export declare interface PageTypeDefinition {
     allowedChildTypes?: string[];
     /** Structured fields stored as typeData on the page. */
     fields?: FieldDef[];
+    /**
+     * Project-defined editor cards, rendered after the title (and after `fields`)
+     * and BEFORE the content-block editor. Each one owns a slice of `typeData`
+     * keyed by its `key`. The normal choice for a bespoke page type — see
+     * PageEditorSectionDef.
+     */
+    editorSections?: PageEditorSectionDef[];
     /** Whether to show the content block editor. Default: true. */
     allowBlocks?: boolean;
     /** Restrict which block types appear in the editor for this page type. Omit to allow all. */
@@ -977,6 +1259,25 @@ declare interface PaginationProps {
     nextLabel: string;
     style?: CSSProperties;
 }
+
+/**
+ * A flat list of rows that each pick ONE thing (a category, a collection, a
+ * page). Nothing hides behind a collapsed row: the control itself shows the
+ * choice, which is the whole point when a row has a single field.
+ *
+ * An EMPTY string is a real, kept row — a freshly added row has no choice yet,
+ * and dropping it would make "Add" look dead. Readers filter the empties out.
+ */
+export declare function PickerRows({ values, onChange, renderPicker, addLabel, emptyLabel, hint, max, disabled, }: {
+    values: string[];
+    onChange: (next: string[]) => void;
+    renderPicker: (value: string, set: (next: string | null) => void, index: number) => ReactNode;
+    addLabel?: string;
+    emptyLabel?: string;
+    hint?: string;
+    max?: number;
+    disabled?: boolean;
+}): JSX.Element;
 
 declare function Popover({ open, onClose, align, placement, width, autoFlip, scrim, trigger, children, style }: PopoverProps): JSX.Element;
 
@@ -1009,6 +1310,48 @@ declare interface PopoverProps {
     style?: CSSProperties;
 }
 
+/** One fixed input inside a section. `key` is stable and stored with the value. */
+export declare interface ProductDetailFieldDef {
+    /** Stable field identifier, stored alongside the value. */
+    key: string;
+    /** Input label. `{ en, hr }` for a multilingual admin; omit for an unlabelled
+     *  single-field section (the section title already names it). */
+    label?: string | Record<string, string>;
+    /** Render a textarea instead of a one-line input. */
+    multiline?: boolean;
+    /** Optional placeholder — same `{ en, hr }` shape as `label`. */
+    placeholder?: string | Record<string, string>;
+    /**
+     * Accept ONLY a number (digits and at most one `.` or `,` separator). The
+     * editor rejects anything else as it is typed, so the stored value is always
+     * bare — the unit belongs to `suffix`, not to what the shop types.
+     */
+    numeric?: boolean;
+    /**
+     * Display affixes STORED WITH THE VALUE and rendered around it by the
+     * storefront, which therefore needs to know nothing about this schema: a
+     * diameter's `⌀`, a length's `cm`. Plain strings, not `{ en, hr }` — a unit
+     * symbol is not content, and a piece is 24 cm in every language. The editor
+     * shows them beside the input so it is obvious they are not to be typed.
+     *
+     * The storefront joins the three parts with spaces (`⌀ 24 cm`), so write them
+     * without padding.
+     */
+    prefix?: string;
+    suffix?: string;
+}
+
+/** One fixed section — becomes one `detailTabs` entry. */
+export declare interface ProductDetailSectionDef {
+    /** Stable section id. Becomes the detail tab's `id`, so DON'T change it after
+     *  products have been saved (a rename orphans the stored values). */
+    id: string;
+    /** Section heading, and the tab `title` the storefront receives. */
+    title: string | Record<string, string>;
+    /** The section's inputs, in display order. */
+    fields: ProductDetailFieldDef[];
+}
+
 export declare interface ProjectSettings<T = Record<string, unknown>> {
     value: T;
     version: number;
@@ -1017,6 +1360,28 @@ export declare interface ProjectSettings<T = Record<string, unknown>> {
 declare interface Props {
     children: ReactNode;
 }
+
+/**
+ * An ORDERED list of repeating items, each collapsed to a titled row that opens
+ * into its own fields. The row idiom is the page editor's block card, so a
+ * repeater inside a page-editor section reads as part of the same page.
+ *
+ * The item type is the project's own — this component only reorders, adds and
+ * removes; `renderItem` owns everything inside.
+ */
+export declare function Repeater<T>({ items, onChange, renderItem, makeEmpty, titleOf, itemLabel, addLabel, emptyLabel, max, disabled, }: {
+    items: T[];
+    onChange: (next: T[]) => void;
+    renderItem: (item: T, update: (patch: Partial<T>) => void, index: number) => ReactNode;
+    makeEmpty: () => T;
+    /** Row title — falls back to "<itemLabel> N" while the item is unnamed. */
+    titleOf?: (item: T, index: number) => string;
+    itemLabel?: string;
+    addLabel?: string;
+    emptyLabel?: string;
+    max?: number;
+    disabled?: boolean;
+}): JSX.Element;
 
 declare function ResizeToggle({ chrome }: {
     chrome: OverlayChrome;
@@ -1097,7 +1462,9 @@ export declare interface SettingsSectionDef {
     /** lucide-react icon name (PascalCase), resolved via getLucideIcon. */
     icon?: string;
     /** Roles allowed to see this tab. Default: content managers
-     *  (owner / admin / content_admin / developer). */
+     *  (owner / admin / content_admin / developer). `"admin"` is the permanent
+     *  legacy alias for `"owner"` (DECISIONS 136) — listing either grants both,
+     *  so pre-split project configs keep working. */
     roles?: Role[];
     /** The section UI. Mounted when its tab is active. */
     component: ComponentType;
@@ -1148,7 +1515,7 @@ export declare type Status = "published" | "draft" | "scheduled" | "updated" | "
 
 export declare function StatusBadge({ status, children, ...rest }: StatusBadgeProps): JSX.Element;
 
-declare function StatusBadge_2({ kind, value, outline, dot, icon: Icon, children, style }: StatusBadgeProps_2): JSX.Element;
+declare function StatusBadge_2({ kind, value, outline, dot, icon: Icon, ring, sub, tile, focusable, children, style }: StatusBadgeProps_2): JSX.Element;
 
 export declare interface StatusBadgeProps extends Omit<BadgeProps, "color" | "variant"> {
     status: Status;
@@ -1164,11 +1531,39 @@ declare interface StatusBadgeProps_2 {
     dot?: boolean;
     /** tone only — 11px leading lucide icon. */
     icon?: LucideIcon;
+    /**
+     * tone + dot only (kit round 22) — the table status cell of the redesigned
+     * commerce lists: an 8px dot in the tone's DOT colour with a soft 3px ring,
+     * label at 12.5px that INHERITS weight + colour from the cell (a row can read
+     * bold while unseen without the badge knowing why).
+     */
+    ring?: boolean;
+    /** tone + dot only (kit round 22) — a quieter second line under the label ("bank transfer", "expires 25 Sep"). */
+    sub?: ReactNode;
+    /**
+     * tone only (kit round 22) — an icon-only 20px marker tile (requires `icon`);
+     * `children` become its accessible name. Focusable so a wrapping kit Tooltip
+     * opens from the keyboard too.
+     */
+    tile?: boolean;
+    /** tile only — false inside an already-interactive row (a phone list row is one button). Default true. */
+    focusable?: boolean;
     children: ReactNode;
     style?: CSSProperties;
 }
 
 declare type StatusValue = "published" | "active" | "draft" | "pending" | "disabled" | "error";
+
+/** One stored field: the schema `key`, its label at save time, and the value.
+ *  `prefix`/`suffix` are frozen with it the same way the label is, so a consumer
+ *  can render `⌀ 24 cm` from a bare `24` without reading the schema. */
+export declare interface StoredDetailField {
+    key: string;
+    label: string;
+    value: string;
+    prefix?: string;
+    suffix?: string;
+}
 
 declare interface TabItem {
     value: string;
@@ -1177,9 +1572,12 @@ declare interface TabItem {
     count?: number | string | null;
     title?: string;
     separator?: boolean;
+    /** Rail only (kit round 20): a non-interactive group label row, styled like
+     *  the sidebar's nav-group caps. `label` is the heading text. */
+    heading?: boolean;
 }
 
-declare function Table<Row extends Record<string, unknown>>({ columns, rows, sort, onSort, selectable, selectedKeys, onToggle, onToggleAll, rowKey, onRowClick, rowProps, style, }: TableProps<Row>): JSX.Element;
+declare function Table<Row extends Record<string, unknown>>({ columns, rows, sort, onSort, selectable, selectedKeys, onToggle, onToggleAll, rowKey, onRowClick, rowProps, dense, style, }: TableProps<Row>): JSX.Element;
 
 declare interface TableColumn<Row> {
     key: string;
@@ -1206,6 +1604,8 @@ declare interface TableProps<Row extends Record<string, unknown>> {
     onRowClick?: (row: Row) => void;
     /** Extra attributes merged onto each <tr> (drag handlers, data-* hooks). */
     rowProps?: (row: Row, index: number) => HTMLAttributes<HTMLTableRowElement> & Record<string, unknown>;
+    /** 10px cell sides (default 14px) — a wide list that must fit the well. */
+    dense?: boolean;
     style?: CSSProperties;
 }
 
@@ -1215,12 +1615,18 @@ declare interface TabsProps {
     items: TabItem[];
     value?: string;
     onChange?: (value: string) => void;
-    variant?: "segmented" | "pills" | "rail";
+    variant?: "segmented" | "pills" | "rail" | "underline";
     fullWidth?: boolean;
     style?: CSSProperties;
 }
 
 declare type TagValue = "draft" | "auto" | "manual" | "developer" | "configured" | "neutral";
+
+export declare function TextAreaField({ rows, ...props }: BaseFieldProps & {
+    rows?: number;
+}): JSX.Element;
+
+export declare function TextField({ label, value, onChange, placeholder, hint, required, disabled }: BaseFieldProps): JSX.Element;
 
 declare function Toast({ tone, title, children, onClose, closeLabel, action, style }: ToastProps): JSX.Element;
 
@@ -1276,6 +1682,60 @@ declare interface TooltipProps {
     style?: CSSProperties;
 }
 
+/** A breadcrumb the review step shows above a segment ("Section 2 · Accordion · item 3"). */
+export declare type TranslatableCrumb = {
+    kind: "title";
+} | {
+    kind: "seo";
+    field: "metaTitle" | "metaDescription";
+} | {
+    kind: "field";
+    name: string;
+    label?: string;
+} | {
+    kind: "section";
+    key: string;
+    label?: string;
+} | {
+    kind: "block";
+    index: number;
+    type: string;
+    label?: string;
+} | {
+    kind: "widget";
+    type: string;
+    label?: string;
+} | {
+    kind: "item";
+    index: number;
+};
+
+/**
+ * Declare exactly which parts of a block's or an editor section's data are
+ * prose. Paths are RELATIVE to the data object passed in. Without it, core
+ * falls back to `heuristicTranslatable`, which skips anything that looks like
+ * an identifier, a URL or a code — including a legitimate short text field.
+ *
+ *   translatable: (d) => [
+ *     ...heuristicTranslatable(d),
+ *     ...(d.items as PressItem[]).map((_, i) => ({ path: ["items", i, "type"], kind: "plain" as const })),
+ *   ]
+ */
+export declare type TranslatableHook = (data: Record<string, unknown>) => TranslatableRef[];
+
+/** "plain" = a string; "richtext" = a TipTap/ProseMirror document. */
+export declare type TranslatableKind = "plain" | "richtext";
+
+/** Where a value lives inside a locale slice, e.g. ["blocks", 0, "data", "title"]. */
+export declare type TranslatablePath = (string | number)[];
+
+/** One translatable value: where it is, what it is, and how to name it. */
+export declare interface TranslatableRef {
+    path: TranslatablePath;
+    kind: TranslatableKind;
+    crumbs?: TranslatableCrumb[];
+}
+
 export declare namespace ui {
     export {
         Button_2 as Button,
@@ -1290,11 +1750,15 @@ export declare namespace ui {
         CardVariant,
         Input,
         InputProps,
+        MaskedSecret,
+        MaskedSecretProps,
         Select,
         SelectProps,
         SelectOption,
         Checkbox,
         CheckboxProps,
+        Chip,
+        ChipProps,
         Toggle,
         ToggleProps,
         Tabs,
